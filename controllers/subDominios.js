@@ -4,6 +4,7 @@ import { senEmail } from '../utils/nodemailsConfing.js'
 import { accessToDataBase } from '../utils/dataBaseConfing.js'
 import { dataBasePrincipal } from '../constants.js'
 import { formatCollectionName } from '../utils/formatCollectionName.js'
+import moment from 'moment/moment.js'
 
 export const getSubDominios = async (req, res) => {
   try {
@@ -19,7 +20,7 @@ export const getSubDominios = async (req, res) => {
 
 export const createSubDominio = async (req, res) => {
   try {
-    const { subDominio, nombreEmpresa, rif, email, nombreUsuario } = req.body
+    const { subDominio, nombre, rif, email } = req.body
     const db = await accessToDataBase(dataBasePrincipal)
     const subDominiosCollection = await db.collection('sub-dominios')
     // buscamos si el sub-dominio ya existe
@@ -31,28 +32,29 @@ export const createSubDominio = async (req, res) => {
     // en caso de que exista, retornamos un error
     if (verifyEmail) return res.status(400).json({ error: 'El email ya existe' })
     // en caso de que no exista, insertamos el sub-dominio
-    const newSubDominio = await subDominiosCollection.insertOne({ subDominio, nombreEmpresa, rif, email })
+    const newSubDominio = await subDominiosCollection.insertOne({ subDominio, nombre, rif, email })
     const usuariosCollection = await db.collection('usuarios')
     // generamos un password aleatorio
     const randomPassword = crypto.randomBytes(10).toString('hex')
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
     // insertamos un usuario por defecto para el nuevo sub dominio
-    await usuariosCollection.insertOne({
+    const newUsuario = await usuariosCollection.insertOne({
       email,
       password,
       subDominioId: newSubDominio.insertedId,
       subDominio,
-      nombreEmpresa,
-      nombreUsuario
+      nombre,
+      fechaActPass: moment().toDate()
     })
+    // insertamos una persona por defecto para el nuevo sub dominio
     const personasCollection = await db.collection('personas')
     await personasCollection.insertOne({
       email,
       subDominioId: newSubDominio.insertedId,
       subDominio,
-      nombreEmpresa,
-      nombreUsuario
+      nombre,
+      usuarioId: newUsuario.insertedId
     })
     // enviamos el email con el password
     const emailConfing = {
@@ -67,20 +69,24 @@ export const createSubDominio = async (req, res) => {
     await senEmail(emailConfing)
     // enviromentEmpresa = nombre del sub dominio o del enviroment de sub dominio
     // nameCollection = nombre de la coleccion de la empresa
+
+    // creamos los campos del sub dominio en la  nueva base de datos
     const dbSubDominio = await accessToDataBase(subDominio)
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'usuarios' })
     const subDominioUsuariosCollections = await dbSubDominio.collection(subDominioUsuariosCollectionsName)
-    await subDominioUsuariosCollections.insertOne({
-      nombreUsuario,
+    const newUsuarioSubDominio = await subDominioUsuariosCollections.insertOne({
+      nombre,
       email,
-      password
+      password,
+      fechaActPass: moment().toDate()
     })
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'personas' })
     const subDominioPersonasCollections = await dbSubDominio.collection(subDominioPersonasCollectionsName)
     await subDominioPersonasCollections.insertOne({
-      nombreUsuario,
+      nombre,
       email,
-      isEmpresa: true
+      isEmpresa: true,
+      usuarioId: newUsuarioSubDominio.insertedId
     })
 
     return res.status(200).json({ status: 'sub dominio y usuario creado' })

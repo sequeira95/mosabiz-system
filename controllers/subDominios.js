@@ -1,9 +1,9 @@
 import crypto from 'node:crypto'
 import { encryptPassword } from '../utils/hashPassword.js'
 import { senEmail } from '../utils/nodemailsConfing.js'
-import { accessToDataBase } from '../utils/dataBaseConfing.js'
+import { accessToDataBase, formatCollectionName } from '../utils/dataBaseConfing.js'
 import { dataBasePrincipal } from '../constants.js'
-import { formatCollectionName } from '../utils/formatCollectionName.js'
+// import { formatCollectionName } from '../utils/formatCollectionName.js'
 import moment from 'moment/moment.js'
 
 export const getSubDominios = async (req, res) => {
@@ -20,7 +20,7 @@ export const getSubDominios = async (req, res) => {
 
 export const createSubDominio = async (req, res) => {
   try {
-    const { subDominio, nombre, rif, email } = req.body
+    const { subDominio, razonSocial, rif, email, modulesId, telefono } = req.body
     const db = await accessToDataBase(dataBasePrincipal)
     const subDominiosCollection = await db.collection('sub-dominios')
     // buscamos si el sub-dominio ya existe
@@ -32,7 +32,7 @@ export const createSubDominio = async (req, res) => {
     // en caso de que exista, retornamos un error
     if (verifyEmail) return res.status(400).json({ error: 'El email ya existe' })
     // en caso de que no exista, insertamos el sub-dominio
-    const newSubDominio = await subDominiosCollection.insertOne({ subDominio, nombre, rif, email })
+    const newSubDominio = await subDominiosCollection.insertOne({ subDominio, razonSocial, rif, email })
     const usuariosCollection = await db.collection('usuarios')
     // generamos un password aleatorio
     const randomPassword = crypto.randomBytes(10).toString('hex')
@@ -44,7 +44,9 @@ export const createSubDominio = async (req, res) => {
       password,
       subDominioId: newSubDominio.insertedId,
       subDominio,
-      nombre,
+      nombre: razonSocial,
+      telefono,
+      modulesId,
       fechaActPass: moment().toDate()
     })
     // insertamos una persona por defecto para el nuevo sub dominio
@@ -53,7 +55,8 @@ export const createSubDominio = async (req, res) => {
       email,
       subDominioId: newSubDominio.insertedId,
       subDominio,
-      nombre,
+      nombre: razonSocial,
+      telefono,
       usuarioId: newUsuario.insertedId
     })
     // enviamos el email con el password
@@ -75,16 +78,18 @@ export const createSubDominio = async (req, res) => {
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'usuarios' })
     const subDominioUsuariosCollections = await dbSubDominio.collection(subDominioUsuariosCollectionsName)
     const newUsuarioSubDominio = await subDominioUsuariosCollections.insertOne({
-      nombre,
+      nombre: razonSocial,
       email,
+      telefono,
       password,
       fechaActPass: moment().toDate()
     })
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'personas' })
     const subDominioPersonasCollections = await dbSubDominio.collection(subDominioPersonasCollectionsName)
     await subDominioPersonasCollections.insertOne({
-      nombre,
+      nombre: razonSocial,
       email,
+      telefono,
       isEmpresa: true,
       usuarioId: newUsuarioSubDominio.insertedId
     })

@@ -33,6 +33,10 @@ export const createUserAdmi = async (req, res) => {
   try {
     const db = await accessToDataBase(dataBasePrincipal)
     const usuariosCollection = await db.collection('usuarios')
+    // buscamos si el usuario ya existe
+    const verifyUser = await usuariosCollection.findOne({ email })
+    // en caso de que exista, retornamos un error
+    if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
     // encriptamos el password
     const newPassword = await encryptPassword(password)
     await usuariosCollection.insertOne({
@@ -47,6 +51,32 @@ export const createUserAdmi = async (req, res) => {
       nombre,
       email,
       isAdmin: true
+    })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor' })
+  }
+}
+export const createUserProgramador = async (req, res) => {
+  const { nombre, email, password, telefono } = req.body
+  try {
+    const db = await accessToDataBase(dataBasePrincipal)
+    const usuariosCollection = await db.collection('usuarios')
+    // encriptamos el password
+    const newPassword = await encryptPassword(password)
+    await usuariosCollection.insertOne({
+      nombre,
+      email,
+      password: newPassword,
+      isProgramador: true,
+      fechaActPass: moment().toDate()
+    })
+    const personasCollection = await db.collection('personas')
+    await personasCollection.insertOne({
+      nombre,
+      email,
+      telefono,
+      isProgramador: true
     })
   } catch (e) {
     console.log(e)

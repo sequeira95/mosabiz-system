@@ -1,1 +1,1 @@
-export const dataBasePrincipal = 'mosabiz'
+export const dataBasePrincipal = 'aibiz'

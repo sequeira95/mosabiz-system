@@ -1,6 +1,6 @@
 import { dataBasePrincipal } from '../constants.js'
 import { accessToDataBase } from '../utils/dataBaseConfing.js'
-import { generateRefreshToken, generateToken } from '../utils/generateToken.js'
+import { generateToken } from '../utils/generateToken.js'
 import { comparePassword } from '../utils/hashPassword.js'
 
 export const login = async (req, res) => {
@@ -17,8 +17,7 @@ export const login = async (req, res) => {
     // generando token jwt
     const personasCollection = await db.collection('personas')
     const persona = await personasCollection.findOne({ usuarioId: usuario._id })
-    const { token, expiresIn } = generateToken({ uid: usuario._id, fechaActPass: usuario.fechaActPass, email: usuario.email })
-    generateRefreshToken(usuario._id, res)
+    const { token, expiresIn } = generateToken({ uid: usuario._id, fechaActPass: usuario.fechaActPass, email: usuario.email }, res)
     return res.json({ token, expiresIn, persona })
   } catch (e) {
     console.log(e)
@@ -39,6 +38,6 @@ export const refreshToken = async (req, res) => {
   }
 }
 export const logout = (req, res) => {
-  res.clearCookie('refreshToken')
+  res.clearCookie('aibizToken')
   res.json({ ok: 'cerró sesión' })
 }

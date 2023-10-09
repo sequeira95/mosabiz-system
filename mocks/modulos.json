@@ -1,0 +1,26 @@
+[
+  {
+    "nombre":"Facturación"
+  },
+  {
+    "nombre":"Contabilidad"
+  },
+  {
+    "nombre":"Administración"
+  },
+  {
+    "nombre":"Compras"
+  },
+  {
+    "nombre":"RRHH"
+  },
+  {
+    "nombre":"Inventarios"
+  },
+  {
+    "nombre":"Triburos"
+  },
+  {
+    "nombre":"Usuarios"
+  }
+]

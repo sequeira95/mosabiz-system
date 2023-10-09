@@ -64,7 +64,7 @@ export const createUserProgramador = async (req, res) => {
     const usuariosCollection = await db.collection('usuarios')
     // encriptamos el password
     const newPassword = await encryptPassword(password)
-    await usuariosCollection.insertOne({
+    const userCol = await usuariosCollection.insertOne({
       nombre,
       email,
       password: newPassword,
@@ -76,7 +76,8 @@ export const createUserProgramador = async (req, res) => {
       nombre,
       email,
       telefono,
-      isProgramador: true
+      isProgramador: true,
+      usuarioId: userCol.insertedId
     })
   } catch (e) {
     console.log(e)

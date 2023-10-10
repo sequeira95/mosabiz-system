@@ -20,7 +20,7 @@ export const getSubDominios = async (req, res) => {
 
 export const createSubDominio = async (req, res) => {
   try {
-    const { subDominio, razonSocial, rif, email, modulesId, telefono } = req.body
+    const { subDominio, razonSocial, documentoIdentidad, email, modulesId, telefono } = req.body
     const db = await accessToDataBase(dataBasePrincipal)
     const subDominiosCollection = await db.collection('sub-dominios')
     // buscamos si el sub-dominio ya existe
@@ -32,7 +32,7 @@ export const createSubDominio = async (req, res) => {
     // en caso de que exista, retornamos un error
     if (verifyEmail) return res.status(400).json({ error: 'El email ya existe' })
     // en caso de que no exista, insertamos el sub-dominio
-    const newSubDominio = await subDominiosCollection.insertOne({ subDominio, razonSocial, rif, email })
+    const newSubDominio = await subDominiosCollection.insertOne({ subDominio, razonSocial, documentoIdentidad, email, telefono, fechaCreacion: moment().toDate() })
     const usuariosCollection = await db.collection('usuarios')
     // generamos un password aleatorio
     const randomPassword = crypto.randomBytes(10).toString('hex')
@@ -47,7 +47,8 @@ export const createSubDominio = async (req, res) => {
       nombre: razonSocial,
       telefono,
       modulesId,
-      fechaActPass: moment().toDate()
+      fechaActPass: moment().toDate(),
+      fechaCreacion: moment().toDate()
     })
     // insertamos una persona por defecto para el nuevo sub dominio
     const personasCollection = await db.collection('personas')
@@ -57,7 +58,9 @@ export const createSubDominio = async (req, res) => {
       subDominio,
       nombre: razonSocial,
       telefono,
-      usuarioId: newUsuario.insertedId
+      documentoIdentidad,
+      usuarioId: newUsuario.insertedId,
+      fechaCreacion: moment().toDate()
     })
     // enviamos el email con el password
     const emailConfing = {
@@ -82,7 +85,9 @@ export const createSubDominio = async (req, res) => {
       email,
       telefono,
       password,
-      fechaActPass: moment().toDate()
+      fechaActPass: moment().toDate(),
+      usuarioAibiz: newUsuario.insertedId,
+      fechaCreacion: moment().toDate()
     })
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'personas' })
     const subDominioPersonasCollections = await dbSubDominio.collection(subDominioPersonasCollectionsName)
@@ -91,12 +96,37 @@ export const createSubDominio = async (req, res) => {
       email,
       telefono,
       isEmpresa: true,
-      usuarioId: newUsuarioSubDominio.insertedId
+      usuarioId: newUsuarioSubDominio.insertedId,
+      documentoIdentidad,
+      fechaCreacion: moment().toDate()
+    })
+    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'empresas' })
+    const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
+    await subDominioEmpresasCollections.insertOne({
+      razonSocial,
+      documentoIdentidad,
+      email,
+      telefono
     })
 
     return res.status(200).json({ status: 'sub dominio y usuario creado' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
+  }
+}
+
+export const disabledSubDominio = async (req, res) => {
+  const { _id } = req.params
+  const isSuperAdmin = req?.isSuperAdmin
+  if (!isSuperAdmin) return res.status(400).json({ error: 'Este usuario no tiene permiso para desactivar un sub-dominio' })
+  try {
+    const db = await accessToDataBase(dataBasePrincipal)
+    const subDominiosCollection = await db.collection('sub-dominios')
+    await subDominiosCollection.updateOne({ _id }, { $set: { activo: false } })
+    return res.status(200).json({ status: 'Sub-dominio desactivado' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error al desactivar Sub-dominio' })
   }
 }

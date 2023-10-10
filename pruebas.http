@@ -22,8 +22,8 @@ POST  http://localhost:5000/v1/users/create/programador
 content-type: application/json
 
 {
-  "nombre": "Angel Mora",
-  "email":"angelmorab13@gmail.com", 
-  "password":"angel123",
-  "telefono":"04246409435"
+  "nombre": "Ricardo Sequeira",
+  "email":"ricardosequeira4@gmail.com", 
+  "password":"ricardo1",
+  "telefono":"04246870359"
 }

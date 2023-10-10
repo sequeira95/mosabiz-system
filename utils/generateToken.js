@@ -1,8 +1,8 @@
 import jwt from 'jsonwebtoken'
-export const generateToken = ({ uid, fechaActPass, email }, res) => {
+export const generateToken = ({ uid, fechaActPass, email, isSuperAdmin, isAdmin }, res) => {
   const expiresIn = 1000 * 60 * 60 * 24 * 30
   try {
-    const token = jwt.sign({ uid, fechaActPass, email }, process.env.JWT_SECRET, { expiresIn })
+    const token = jwt.sign({ uid, fechaActPass, email, isSuperAdmin, isAdmin }, process.env.JWT_SECRET, { expiresIn })
     res.cookie('aibizToken', token, {
       httpOnly: true,
       secure: !(process.env.MODO === 'developer'),

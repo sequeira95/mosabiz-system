@@ -11,12 +11,14 @@ export const requireToken = async (req, res, next) => {
     if (!token) throw new Error('No bearer')
     // quitamos el Bearer del token
     token = token.split(' ')[1]
-    const { uid, fechaActPass } = jwt.verify(token, process.env.JWT_SECRET)
+    const { uid, fechaActPass, isSuperAdmin, isAdmin } = jwt.verify(token, process.env.JWT_SECRET)
     const db = await accessToDataBase(dataBasePrincipal)
     const usuariosCollection = await db.collection('usuarios')
     const usuario = await usuariosCollection.findOne({ _id: uid })
     if (moment(fechaActPass) !== moment(usuario.fechaActPass)) throw new Error('Contraseña no coinciden')
     req.uid = uid
+    req.isSuperAdmin = isSuperAdmin
+    req.isAdmin = isAdmin
     next()
   } catch (e) {
     console.log(e)

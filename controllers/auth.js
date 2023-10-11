@@ -4,6 +4,7 @@ import { accessToDataBase } from '../utils/dataBaseConfing.js'
 import { generateToken } from '../utils/generateToken.js'
 import { comparePassword } from '../utils/hashPassword.js'
 import jwt from 'jsonwebtoken'
+import { ObjectId } from 'mongodb'
 
 export const login = async (req, res) => {
   const db = await accessToDataBase(dataBasePrincipal)
@@ -15,11 +16,11 @@ export const login = async (req, res) => {
       token = token.split(' ')[1]
       const { uid, fechaActPass } = jwt.verify(token, process.env.JWT_SECRET)
       const usuariosCollection = await db.collection('usuarios')
-      const usuario = await usuariosCollection.findOne({ _id: uid })
+      const usuario = await usuariosCollection.findOne({ _id: new ObjectId(uid) })
       if (!usuario) throw new Error('Usuario no encontrado')
-      if (moment(fechaActPass) !== moment(usuario.fechaActPass)) throw new Error('Contraseña no coinciden')
+      if (moment(fechaActPass).valueOf() !== moment(usuario.fechaActPass).valueOf()) throw new Error('Contraseña no coinciden')
       const personasCollection = await db.collection('personas')
-      const persona = await personasCollection.findOne({ usuarioId: usuario._id })
+      const persona = await personasCollection.findOne({ usuarioId: new ObjectId(usuario._id) })
       return res.status(200).json(persona)
     } catch (e) {
       console.log(e)
@@ -46,7 +47,7 @@ export const login = async (req, res) => {
       isAdmin: usuario.isAdmin
     }, res)
     console.log({ token, expiresIn })
-    return res.status(200).json(persona) // ({ token, expiresIn, persona })
+    return res.status(200).json(({ token, expiresIn, persona })) // ({ token, expiresIn, persona })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })

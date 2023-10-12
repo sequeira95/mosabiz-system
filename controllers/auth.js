@@ -44,10 +44,10 @@ export const login = async (req, res) => {
       fechaActPass: usuario.fechaActPass,
       email: usuario.email,
       isSuperAdmin: usuario.isSuperAdmin,
-      isAdmin: usuario.isAdmin
+      isAdmin: usuario.isAdmin,
+      isProgramador: usuario.isProgramador
     }, res)
-    console.log({ token, expiresIn })
-    return res.status(200).json(({ token, expiresIn, persona })) // ({ token, expiresIn, persona })
+    return res.status(200).json(({ token, expiresIn, persona }))
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })

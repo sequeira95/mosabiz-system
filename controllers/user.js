@@ -111,7 +111,8 @@ export const updateUser = async (req, res) => {
 
 export const deleteUser = async (req, res) => {
   const isSuperAdmin = req?.isSuperAdmin
-  if (!isSuperAdmin) return res.status(400).json({ error: 'Este usuario no tiene permiso para eliminar otro usuario' })
+  const isProgramador = req?.isProgramador
+  if (!(isSuperAdmin || isProgramador)) return res.status(400).json({ error: 'Este usuario no tiene permiso para eliminar otro usuario' })
   const { _id } = req.params
   try {
     const db = await accessToDataBase(dataBasePrincipal)

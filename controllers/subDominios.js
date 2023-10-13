@@ -5,6 +5,7 @@ import { accessToDataBase, formatCollectionName } from '../utils/dataBaseConfing
 import { dataBasePrincipal } from '../constants.js'
 // import { formatCollectionName } from '../utils/formatCollectionName.js'
 import moment from 'moment/moment.js'
+import { ObjectId } from 'mongodb'
 
 export const getSubDominios = async (req, res) => {
   try {
@@ -20,7 +21,7 @@ export const getSubDominios = async (req, res) => {
 
 export const createSubDominio = async (req, res) => {
   try {
-    const { subDominio, razonSocial, documentoIdentidad, email, telefono, modulos } = req.body
+    const { subDominio, razonSocial, documentoIdentidad, email, telefono, modulos } = req.body.empresaData
     const db = await accessToDataBase(dataBasePrincipal)
     const subDominiosCollection = await db.collection('sub-dominios')
     // buscamos si el sub-dominio ya existe
@@ -32,7 +33,7 @@ export const createSubDominio = async (req, res) => {
     // en caso de que exista, retornamos un error
     if (verifyEmail) return res.status(400).json({ error: 'El email ya existe' })
     // en caso de que no exista, insertamos el sub-dominio
-    const modulosId = modulos.map(modulo => modulo._id)
+    const modulosId = modulos?.map(modulo => modulo._id)
     const newSubDominio = await subDominiosCollection.insertOne({ subDominio, razonSocial, documentoIdentidad, email, telefono, modulosId, fechaCreacion: moment().toDate() })
     const usuariosCollection = await db.collection('usuarios')
     // generamos un password aleatorio
@@ -130,5 +131,55 @@ export const disabledSubDominio = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error al desactivar Sub-dominio' })
+  }
+}
+export const disabledSubDominios = async (req, res) => {
+  const isSuperAdmin = req?.isSuperAdmin
+  const isProgramador = req?.isProgramador
+  if (!(isSuperAdmin || isProgramador)) return res.status(400).json({ error: 'Este usuario no tiene permiso para desactivar un sub-dominio' })
+  const empresaData = req.body.empresaData
+  if (!empresaData[0]) return res.status(400).json({ error: 'No se enviaron datos' })
+  try {
+    const listSubDominiosId = empresaData.map(subDominio => new ObjectId(subDominio._id))
+    const db = await accessToDataBase(dataBasePrincipal)
+    const subDominiosCollection = await db.collection('sub-dominios')
+    await subDominiosCollection.updateMany({ _id: { $in: listSubDominiosId } }, { $set: { activo: false } })
+    const usuariosCollection = await db.collection('usuarios')
+    await usuariosCollection.updateMany({ subDominioId: { $in: listSubDominiosId } }, { $set: { activo: false } })
+    const listUser = await usuariosCollection.find({ subDominioId: { $in: listSubDominiosId } }).map((p) => p._id).toArray()
+    const personasCollection = await db.collection('personas')
+    await personasCollection.updateMany({ usuarioId: { $in: listUser } }, { $set: { activo: false } })
+    return res.status(200).json({ status: 'Sub-dominios desactivados' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error al desactivar Sub-dominio' })
+  }
+}
+export const deleteManySubDominios = async (req, res) => {
+  const isSuperAdmin = req?.isSuperAdmin
+  const isProgramador = req?.isProgramador
+  if (!(isSuperAdmin || isProgramador)) return res.status(400).json({ error: 'Este usuario no tiene permiso para desactivar un sub-dominio' })
+  const empresaData = req.body.empresaData
+  if (!empresaData[0]) return res.status(400).json({ error: 'No se enviaron datos' })
+  try {
+    const listSubDominiosId = empresaData.map(subDominio => new ObjectId(subDominio._id))
+    // const listDataBaseName = empresaData.map(subDominio => subDominio.subDominio)
+    const db = await accessToDataBase(dataBasePrincipal)
+    const subDominiosCollection = await db.collection('sub-dominios')
+    await subDominiosCollection.deleteMany({ _id: { $in: listSubDominiosId } })
+    const usuariosCollection = await db.collection('usuarios')
+    const listUser = await usuariosCollection.find({ subDominioId: { $in: listSubDominiosId } }).map((p) => p._id).toArray()
+    await usuariosCollection.deleteMany({ _id: { $in: listUser } }, { $set: { activo: false } })
+    const personasCollection = await db.collection('personas')
+    await personasCollection.deleteMany({ usuarioId: { $in: listUser } }, { $set: { activo: false } })
+    /* for (const dataBaseName of listDataBaseName) {
+      console.log(dataBaseName)
+      const dbSubDominio = await accessToDataBase(dataBaseName)
+      await dbSubDominio.dropDatabase()
+    } */
+    return res.status(200).json({ status: 'Sub-dominios eliminados' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error al eliminar Sub-dominios' })
   }
 }

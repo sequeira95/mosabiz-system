@@ -117,9 +117,14 @@ export const updateUser = async (req, res) => {
     const usuariosCollection = await db.collection('usuarios')
     const updateUser = await usuariosCollection.findOneAndUpdate({ _id: persona.usuarioId }, { $set: { nombre, email } }, { returnNewDocument: true })
     if (updateUser.value.subDominio) {
-    // enviromentEmpresa = nombre del sub dominio o del enviroment de sub dominio
-    // nameCollection = nombre de la coleccion de la empresa
+      const subDominiosCollection = await db.collection('subDominios')
+      await subDominiosCollection.updateOne({ _id: updateUser.value.subDominioId }, { $set: { nombre, email, telefono } })
+      // enviromentEmpresa = nombre del sub dominio o del enviroment de sub dominio
+      // nameCollection = nombre de la coleccion de la empresa
       const dbSubDominio = await accessToDataBase(updateUser.value.subDominio)
+      const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: updateUser.value.subDominio, nameCollection: 'empresas' })
+      const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
+      await subDominioEmpresasCollections.updateOne({}, { $set: { razonSocial: nombre, email, telefono } })
       const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: updateUser.value.subDominio, nameCollection: 'usuarios' })
       const subDominioUsuariosCollections = await dbSubDominio.collection(subDominioUsuariosCollectionsName)
       const updateUserSubDominio = await subDominioUsuariosCollections.findOneAndUpdate(

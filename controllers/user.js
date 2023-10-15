@@ -7,7 +7,7 @@ export const getUsers = async (req, res) => {
   try {
     const db = await accessToDataBase(dataBasePrincipal)
     const usuariosCollection = await db.collection('usuarios')
-    const users = await usuariosCollection.find().toArray()
+    const users = await usuariosCollection.find({ subDominioId: { $exists: false } }).toArray()
     return res.status(200).json(users)
   } catch (e) {
     console.log(e)

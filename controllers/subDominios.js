@@ -111,11 +111,47 @@ export const createSubDominio = async (req, res) => {
       telefono,
       modulosId
     })
-
     return res.status(200).json({ status: 'sub dominio y usuario creado' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
+  }
+}
+export const updateSubDominio = async (req, res) => {
+  const { _id } = req.params
+  try {
+    const { subDominio, razonSocial, documentoIdentidad, email, telefono, modulos } = req.body.empresaData
+    const db = await accessToDataBase(dataBasePrincipal)
+    const subDominiosCollection = await db.collection('sub-dominios')
+    const modulosId = modulos?.map(modulo => modulo._id)
+    await subDominiosCollection.updateOne({ _id }, { $set: { razonSocial, documentoIdentidad, email, telefono, modulosId } })
+    // luego de actualizar el sub dominio, actualizamos los usuarios y personas
+    const usuariosCollection = await db.collection('usuarios')
+    const updateUser = await usuariosCollection.findOneAndUpdate({ subDominioId: _id }, { $set: { nombre: razonSocial, email, telefono } }, { returnNewDocument: true })
+    console.log({ updateUser })
+    const personasCollection = await db.collection('personas')
+    await personasCollection.updateOne({ usuarioId: updateUser.value._id }, { $set: { nombre: razonSocial, email, telefono, documentoIdentidad } })
+    // actualizamos los datos de la base de datos del sub dominio
+    const dbSubDominio = await accessToDataBase(subDominio)
+    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'usuarios' })
+    const subDominioUsuariosCollections = await dbSubDominio.collection(subDominioUsuariosCollectionsName)
+    const updateUsuarioSubDominio = await subDominioUsuariosCollections.findOneAndUpdate(
+      { usuarioAibiz: updateUser.value._id },
+      { $set: { nombre: razonSocial, email, telefono } },
+      { returnNewDocument: true }
+    )
+    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'personas' })
+    const subDominioPersonasCollections = await dbSubDominio.collection(subDominioPersonasCollectionsName)
+    await subDominioPersonasCollections.updateOne(
+      { usuarioId: updateUsuarioSubDominio.value._id },
+      { $set: { nombre: razonSocial, email, telefono, documentoIdentidad } }
+    )
+    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'empresas' })
+    const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
+    await subDominioEmpresasCollections.updateOne({}, { $set: { razonSocial, documentoIdentidad, email, telefono, modulosId } })
+    return res.status(200).json({ status: 'Sub-dominio actualizado' })
+  } catch (e) {
+    console.log(e)
   }
 }
 

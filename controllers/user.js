@@ -6,9 +6,9 @@ import { encryptPassword } from '../utils/hashPassword.js'
 export const getUsers = async (req, res) => {
   try {
     const db = await accessToDataBase(dataBasePrincipal)
-    const usuariosCollection = await db.collection('usuarios')
-    const users = await usuariosCollection.find({ subDominioId: { $exists: false } }).toArray()
-    return res.status(200).json(users)
+    const personasCollection = await db.collection('personas')
+    const personas = await personasCollection.find({ subDominioId: { $exists: false } }).toArray()
+    return res.status(200).json(personas)
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })

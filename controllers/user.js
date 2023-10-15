@@ -3,6 +3,18 @@ import { dataBasePrincipal } from '../constants.js'
 import { accessToDataBase, formatCollectionName } from '../utils/dataBaseConfing.js'
 import { encryptPassword } from '../utils/hashPassword.js'
 
+export const getUsers = async (req, res) => {
+  try {
+    const db = await accessToDataBase(dataBasePrincipal)
+    const usuariosCollection = await db.collection('usuarios')
+    const users = await usuariosCollection.find().toArray()
+    return res.status(200).json(users)
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor' })
+  }
+}
+
 export const createUserSuperAdmi = async (req, res) => {
   const { nombre, email, password } = req.body
   try {

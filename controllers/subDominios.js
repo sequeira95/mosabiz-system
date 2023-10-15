@@ -169,7 +169,7 @@ export const disabledSubDominio = async (req, res) => {
     return res.status(500).json({ error: 'Error al desactivar Sub-dominio' })
   }
 }
-export const disabledSubDominios = async (req, res) => {
+export const disabledmanySubDominios = async (req, res) => {
   const isSuperAdmin = req?.isSuperAdmin
   const isProgramador = req?.isProgramador
   if (!(isSuperAdmin || isProgramador)) return res.status(400).json({ error: 'Este usuario no tiene permiso para desactivar un sub-dominio' })

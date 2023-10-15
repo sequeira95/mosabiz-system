@@ -9,6 +9,6 @@ router.post('/create', requireToken, createSubDominio)
 router.post('/disabled/:id', requireToken, disabledSubDominio)
 router.post('/disabledMany', requireToken, disabledmanySubDominios)
 router.post('/deleteMany', requireToken, deleteManySubDominios)
-router.put('/update/:_id', requireToken, updateSubDominio)
+router.post('/update/:_id', requireToken, updateSubDominio)
 
 export default router

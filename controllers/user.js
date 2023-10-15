@@ -2,6 +2,7 @@ import moment from 'moment'
 import { dataBasePrincipal } from '../constants.js'
 import { accessToDataBase, formatCollectionName } from '../utils/dataBaseConfing.js'
 import { encryptPassword } from '../utils/hashPassword.js'
+import { ObjectId } from 'mongodb'
 
 export const getUsers = async (req, res) => {
   try {
@@ -112,8 +113,8 @@ export const updateUser = async (req, res) => {
   try {
     const db = await accessToDataBase(dataBasePrincipal)
     const personasCollection = await db.collection('personas')
-    const persona = await personasCollection.findOne({ _id })
-    await personasCollection.updateOne({ _id }, { $set: { nombre, email, telefono } })
+    const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
+    await personasCollection.updateOne({ _id: persona._id }, { $set: { nombre, email, telefono } })
     const usuariosCollection = await db.collection('usuarios')
     const updateUser = await usuariosCollection.findOneAndUpdate({ _id: persona.usuarioId }, { $set: { nombre, email } }, { returnNewDocument: true })
     if (updateUser.value.subDominio) {

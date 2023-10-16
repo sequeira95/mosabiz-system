@@ -193,6 +193,12 @@ export const disabledmanySubDominios = async (req, res) => {
     const listUser = await usuariosCollection.find({ subDominioId: { $in: listSubDominiosId } }).map((p) => p._id).toArray()
     const personasCollection = await db.collection('personas')
     await personasCollection.updateMany({ usuarioId: { $in: listUser } }, { $set: { activo: false } })
+    for (const empresa of empresaData) {
+      const dbSubDominio = await accessToDataBase(empresa.subDominio)
+      const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: empresa.subDominio, nameCollection: 'empresas' })
+      const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
+      await subDominioEmpresasCollections.updateOne({}, { $set: { activo: false } })
+    }
     return res.status(200).json({ status: 'Sub-dominios desactivados' })
   } catch (e) {
     console.log(e)

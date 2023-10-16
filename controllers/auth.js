@@ -23,7 +23,7 @@ export const login = async (req, res) => {
       const persona = await personasCollection.findOne({ usuarioId: new ObjectId(usuario._id) })
       return res.status(200).json(persona)
     } catch (e) {
-      console.log(e)
+      // console.log(e)
       return res.status(500).json({ error: 'Error de servidor' })
     }
   }
@@ -49,7 +49,7 @@ export const login = async (req, res) => {
     }, res)
     return res.status(200).json(({ token, expiresIn, persona }))
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }
@@ -62,7 +62,7 @@ export const refreshToken = async (req, res) => {
     delete usuario.password
     return res.json({ token, expiresIn, usuario })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }

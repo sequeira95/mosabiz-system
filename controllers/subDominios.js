@@ -14,7 +14,7 @@ export const getSubDominios = async (req, res) => {
     const subDominios = await subDominiosCollection.find().toArray()
     return res.status(200).json(subDominios)
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }
@@ -67,7 +67,7 @@ export const createSubDominio = async (req, res) => {
     })
     // enviamos el email con el password
     const emailConfing = {
-      from: '"prueba 👻" <pruebaenviocorreonode@gmail.com>',
+      from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
       to: email,
       subject: 'verifique cuenta de email',
       html: `
@@ -114,7 +114,7 @@ export const createSubDominio = async (req, res) => {
     })
     return res.status(200).json({ status: 'sub dominio y usuario creado' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }
@@ -150,7 +150,7 @@ export const updateSubDominio = async (req, res) => {
     await subDominioEmpresasCollections.updateOne({}, { $set: { razonSocial, documentoIdentidad, email, telefono, modulosId } })
     return res.status(200).json({ status: 'Sub-dominio actualizado' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
   }
 }
 
@@ -161,7 +161,7 @@ export const disabledSubDominio = async (req, res) => {
   // if (!isSuperAdmin) return res.status(400).json({ error: 'Este usuario no tiene permiso para desactivar un sub-dominio' })
   try {
     const db = await accessToDataBase(dataBasePrincipal)
-    const isActive = empresa.activo ? empresa.activo : false
+    const isActive = !empresa.activo
     const subDominiosCollection = await db.collection('sub-dominios')
     await subDominiosCollection.updateOne({ _id: new ObjectId(_id) }, { $set: { activo: isActive } })
     const usuariosCollection = await db.collection('usuarios')
@@ -174,7 +174,7 @@ export const disabledSubDominio = async (req, res) => {
     await subDominioEmpresaCollections.updateOne({}, { $set: { activo: isActive } })
     return res.status(200).json({ status: 'Sub-dominio desactivado' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error al desactivar Sub-dominio' })
   }
 }
@@ -202,7 +202,7 @@ export const disabledmanySubDominios = async (req, res) => {
     }
     return res.status(200).json({ status: 'Sub-dominios desactivados' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error al desactivar Sub-dominio' })
   }
 }
@@ -230,7 +230,7 @@ export const deleteManySubDominios = async (req, res) => {
     } */
     return res.status(200).json({ status: 'Sub-dominios eliminados' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error al eliminar Sub-dominios' })
   }
 }

@@ -10,7 +10,7 @@ export const generateToken = ({ uid, fechaActPass, email, isSuperAdmin, isAdmin,
     })
     return { token, expiresIn }
   } catch (e) {
-    console.log(e)
+    // console.log(e)
   }
 }
 export const tokenVerificationErrors = {

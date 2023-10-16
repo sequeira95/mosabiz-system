@@ -8,7 +8,7 @@ export const transport = nodemailer.createTransport({
 })
 export async function senEmail (confing) {
   try {
-    console.log({ confing, user: process.env.userEmailGmail, pass: process.env.passwordEmailGmail })
+    // console.log({ confing, user: process.env.userEmailGmail, pass: process.env.passwordEmailGmail })
     await transport.sendMail(confing)
   } catch (e) {
     return console.log(e.message)

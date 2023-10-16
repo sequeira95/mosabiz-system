@@ -23,7 +23,7 @@ export const requireToken = async (req, res, next) => {
     req.isProgramador = isProgramador
     next()
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).send({ error: tokenVerificationErrors[e.message] })
   }
 }

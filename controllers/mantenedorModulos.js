@@ -16,7 +16,7 @@ export const createModules = async (req, res) => {
     await modulosCollection.insertMany(listModulos)
     return res.json({ status: 'ok' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }
@@ -28,7 +28,7 @@ export const getModules = async (req, res) => {
     const modulos = await modulosCollection.find().toArray()
     return res.status(200).json(modulos)
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }

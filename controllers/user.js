@@ -3,6 +3,7 @@ import { dataBasePrincipal } from '../constants.js'
 import { accessToDataBase/* , formatCollectionName */ } from '../utils/dataBaseConfing.js'
 import { encryptPassword } from '../utils/hashPassword.js'
 import { ObjectId } from 'mongodb'
+import { senEmail } from '../utils/nodemailsConfing.js'
 
 export const getUsers = async (req, res) => {
   try {
@@ -11,7 +12,7 @@ export const getUsers = async (req, res) => {
     const personas = await personasCollection.find({ subDominioId: { $exists: false } }).toArray()
     return res.status(200).json(personas)
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }
@@ -41,13 +42,17 @@ export const createUserSuperAdmi = async (req, res) => {
     })
     return res.status(200).json({ status: 'usuario creado' }) // ({ token, expiresIn, persona })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }
 export const createUserAdmi = async (req, res) => {
-  const { nombre, email, password = '123456789', telefono } = req.body
+  const { nombre, email, telefono } = req.body
   try {
+    // generamos un password aleatorio
+    const randomPassword = crypto.randomBytes(10).toString('hex')
+    // encriptamos el password
+    const password = await encryptPassword(randomPassword)
     const db = await accessToDataBase(dataBasePrincipal)
     const usuariosCollection = await db.collection('usuarios')
     // buscamos si el usuario ya existe
@@ -55,11 +60,10 @@ export const createUserAdmi = async (req, res) => {
     // en caso de que exista, retornamos un error
     if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
     // encriptamos el password
-    const newPassword = await encryptPassword(password)
     const userCol = await usuariosCollection.insertOne({
       nombre,
       email,
-      password: newPassword,
+      password,
       isAdmin: true,
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
@@ -73,9 +77,20 @@ export const createUserAdmi = async (req, res) => {
       usuarioId: userCol.insertedId,
       fechaCreacion: moment().toDate()
     })
+    // enviamos el email con el password
+    const emailConfing = {
+      from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
+      to: email,
+      subject: 'verifique cuenta de email',
+      html: `
+      <p>email: ${email}</p>
+      <p>Contraseña: ${randomPassword}</p>
+      `
+    }
+    await senEmail(emailConfing)
     return res.status(200).json({ status: 'usuario creado' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }
@@ -105,7 +120,7 @@ export const createUserProgramador = async (req, res) => {
     })
     return res.status(200).json({ status: 'usuario creado' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }
@@ -144,7 +159,7 @@ export const updateUser = async (req, res) => {
       await subDominioPersonasCollections.updateOne({ usuarioId: new ObjectId(updateUserSubDominio.value._id) }, { $set: { nombre, email, telefono } }) */
     return res.status(200).json({ status: 'usuario actualizado con exito' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error al editar usuario' })
   }
 }
@@ -163,7 +178,7 @@ export const deleteUser = async (req, res) => {
     await usuariosCollection.deleteOne({ _id: new ObjectId(persona.usuarioId) })
     return res.status(200).json({ status: 'usuario eliminado' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error al eliminar usuario' })
   }
 }
@@ -179,7 +194,7 @@ export const deleteUserMany = async (req, res) => {
     await usuariosCollection.deleteMany({ _id: { $in: filterListUsuarios } })
     return res.status(200).json({ status: 'usuarios eliminados' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error al eliminar usuarios' })
   }
 }

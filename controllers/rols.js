@@ -8,7 +8,7 @@ export const getRols = async (req, res) => {
     const rols = await rolsCollections.find().toArray()
     return res.status(200).json(rols)
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }
@@ -21,7 +21,7 @@ export const createRol = async (req, res) => {
     await rolsCollections.insertOne({ nombre, descripcion })
     return res.status(200).json({ ok: 'Rol creado' })
   } catch (e) {
-    console.log(e)
+    // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }

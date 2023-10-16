@@ -32,8 +32,8 @@ POST  http://localhost:5000/v1/users/create/superAdmi
 content-type: application/json
 
 {
-  "nombre": "Super Admin",
-  "email":"superAdmin@sp.com", 
-  "password":"abc",
-  "telefono":"1234567891"
+  "nombre": "Alfredo Oquendo",
+  "email":"monasteriosoquendo@gmail.com", 
+  "password":"alfredo123",
+  "telefono":""
 }

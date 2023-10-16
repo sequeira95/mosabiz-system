@@ -1,6 +1,6 @@
 import moment from 'moment'
 import { dataBasePrincipal } from '../constants.js'
-import { accessToDataBase, formatCollectionName } from '../utils/dataBaseConfing.js'
+import { accessToDataBase/* , formatCollectionName */ } from '../utils/dataBaseConfing.js'
 import { encryptPassword } from '../utils/hashPassword.js'
 import { ObjectId } from 'mongodb'
 
@@ -116,7 +116,8 @@ export const updateUser = async (req, res) => {
     const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
     await personasCollection.updateOne({ _id: new ObjectId(persona._id) }, { $set: { nombre, email, telefono } })
     const usuariosCollection = await db.collection('usuarios')
-    const updateUser = await usuariosCollection.findOneAndUpdate({ _id: new ObjectId(persona.usuarioId) }, { $set: { nombre, email } }, { returnNewDocument: true })
+    await usuariosCollection.updateOne({ _id: new ObjectId(persona.usuarioId) }, { $set: { nombre, email, telefono } })
+    /* const updateUser = await usuariosCollection.findOneAndUpdate({ _id: new ObjectId(persona.usuarioId) }, { $set: { nombre, email } }, { returnNewDocument: true })
     console.log({ updateUser })
     if (updateUser.value.subDominio) {
       const subDominiosCollection = await db.collection('subDominios')
@@ -136,8 +137,7 @@ export const updateUser = async (req, res) => {
       )
       const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: updateUser.value.subDominio, nameCollection: 'personas' })
       const subDominioPersonasCollections = await dbSubDominio.collection(subDominioPersonasCollectionsName)
-      await subDominioPersonasCollections.updateOne({ usuarioId: new ObjectId(updateUserSubDominio.value._id) }, { $set: { nombre, email, telefono } })
-    }
+      await subDominioPersonasCollections.updateOne({ usuarioId: new ObjectId(updateUserSubDominio.value._id) }, { $set: { nombre, email, telefono } }) */
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error al editar usuario' })

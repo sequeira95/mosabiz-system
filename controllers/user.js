@@ -4,6 +4,7 @@ import { accessToDataBase/* , formatCollectionName */ } from '../utils/dataBaseC
 import { encryptPassword } from '../utils/hashPassword.js'
 import { ObjectId } from 'mongodb'
 import { senEmail } from '../utils/nodemailsConfing.js'
+import crypto from 'node:crypto'
 
 export const getUsers = async (req, res) => {
   try {
@@ -48,18 +49,22 @@ export const createUserSuperAdmi = async (req, res) => {
 }
 export const createUserAdmi = async (req, res) => {
   const { nombre, email, telefono } = req.body
+  console.log(req.body)
   try {
-    // generamos un password aleatorio
-    const randomPassword = crypto.randomBytes(10).toString('hex')
-    // encriptamos el password
-    const password = await encryptPassword(randomPassword)
+    console.log('entrando try')
     const db = await accessToDataBase(dataBasePrincipal)
     const usuariosCollection = await db.collection('usuarios')
     // buscamos si el usuario ya existe
     const verifyUser = await usuariosCollection.findOne({ email })
+    console.log('verificando', { verifyUser })
     // en caso de que exista, retornamos un error
     if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
     // encriptamos el password
+    // generamos un password aleatorio
+    const randomPassword = crypto.randomBytes(10).toString('hex')
+    // encriptamos el password
+    const password = await encryptPassword(randomPassword)
+    console.log('password', password, randomPassword)
     const userCol = await usuariosCollection.insertOne({
       nombre,
       email,
@@ -69,6 +74,7 @@ export const createUserAdmi = async (req, res) => {
       fechaCreacion: moment().toDate()
     })
     const personasCollection = await db.collection('personas')
+    console.log(userCol)
     await personasCollection.insertOne({
       nombre,
       email,
@@ -78,6 +84,7 @@ export const createUserAdmi = async (req, res) => {
       fechaCreacion: moment().toDate()
     })
     // enviamos el email con el password
+    console.log(email, randomPassword)
     const emailConfing = {
       from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
       to: email,
@@ -88,10 +95,11 @@ export const createUserAdmi = async (req, res) => {
       `
     }
     await senEmail(emailConfing)
+    console.log(emailConfing)
     return res.status(200).json({ status: 'usuario creado' })
   } catch (e) {
     // console.log(e)
-    return res.status(500).json({ error: 'Error de servidor' })
+    return res.status(500).json({ error: 'Error al crear usuario' })
   }
 }
 export const createUserProgramador = async (req, res) => {

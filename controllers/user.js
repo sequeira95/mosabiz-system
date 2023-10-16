@@ -117,6 +117,7 @@ export const updateUser = async (req, res) => {
     await personasCollection.updateOne({ _id: new ObjectId(persona._id) }, { $set: { nombre, email, telefono } })
     const usuariosCollection = await db.collection('usuarios')
     const updateUser = await usuariosCollection.findOneAndUpdate({ _id: new ObjectId(persona.usuarioId) }, { $set: { nombre, email } }, { returnNewDocument: true })
+    console.log({ updateUser })
     if (updateUser.value.subDominio) {
       const subDominiosCollection = await db.collection('subDominios')
       await subDominiosCollection.updateOne({ _id: new ObjectId(updateUser.value.subDominioId) }, { $set: { nombre, email, telefono } })

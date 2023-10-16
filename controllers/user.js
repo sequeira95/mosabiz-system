@@ -49,14 +49,11 @@ export const createUserSuperAdmi = async (req, res) => {
 }
 export const createUserAdmi = async (req, res) => {
   const { nombre, email, telefono } = req.body
-  console.log(req.body)
   try {
-    console.log('entrando try')
     const db = await accessToDataBase(dataBasePrincipal)
     const usuariosCollection = await db.collection('usuarios')
     // buscamos si el usuario ya existe
     const verifyUser = await usuariosCollection.findOne({ email })
-    console.log('verificando', { verifyUser })
     // en caso de que exista, retornamos un error
     if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
     // encriptamos el password
@@ -74,7 +71,6 @@ export const createUserAdmi = async (req, res) => {
       fechaCreacion: moment().toDate()
     })
     const personasCollection = await db.collection('personas')
-    console.log(userCol)
     await personasCollection.insertOne({
       nombre,
       email,
@@ -84,7 +80,6 @@ export const createUserAdmi = async (req, res) => {
       fechaCreacion: moment().toDate()
     })
     // enviamos el email con el password
-    console.log(email, randomPassword)
     const emailConfing = {
       from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
       to: email,
@@ -95,7 +90,6 @@ export const createUserAdmi = async (req, res) => {
       `
     }
     await senEmail(emailConfing)
-    console.log(emailConfing)
     return res.status(200).json({ status: 'usuario creado' })
   } catch (e) {
     // console.log(e)

@@ -142,6 +142,7 @@ export const updateUser = async (req, res) => {
       const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: updateUser.value.subDominio, nameCollection: 'personas' })
       const subDominioPersonasCollections = await dbSubDominio.collection(subDominioPersonasCollectionsName)
       await subDominioPersonasCollections.updateOne({ usuarioId: new ObjectId(updateUserSubDominio.value._id) }, { $set: { nombre, email, telefono } }) */
+    return res.status(200).json({ status: 'usuario actualizado con exito' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error al editar usuario' })

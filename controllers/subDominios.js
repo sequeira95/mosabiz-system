@@ -121,10 +121,10 @@ export const createSubDominio = async (req, res) => {
 export const updateSubDominio = async (req, res) => {
   const { _id } = req.params
   try {
-    const { subDominio, razonSocial, documentoIdentidad, email, telefono, modulos } = req.body.empresaData
+    const { subDominio, razonSocial, documentoIdentidad, email, telefono, modulosId } = req.body.empresaData
     const db = await accessToDataBase(dataBasePrincipal)
     const subDominiosCollection = await db.collection('sub-dominios')
-    const modulosId = modulos?.map(modulo => modulo._id) || []
+    // const modulosId = modulos?.map(modulo => modulo._id) || []
     await subDominiosCollection.updateOne({ _id: new ObjectId(_id) }, { $set: { razonSocial, documentoIdentidad, email, telefono, modulosId } })
     // luego de actualizar el sub dominio, actualizamos los usuarios y personas
     const usuariosCollection = await db.collection('usuarios')

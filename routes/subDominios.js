@@ -6,7 +6,7 @@ const router = express.Router()
 
 router.get('/', requireToken, getSubDominios)
 router.post('/create', requireToken, createSubDominio)
-router.post('/disabled/:id', requireToken, disabledSubDominio)
+router.post('/disabled/:_id', requireToken, disabledSubDominio)
 router.post('/disabledMany', requireToken, disabledmanySubDominios)
 router.post('/deleteMany', requireToken, deleteManySubDominios)
 router.post('/update/:_id', requireToken, updateSubDominio)

@@ -23,7 +23,7 @@ export const createUserSuperAdmi = async (req, res) => {
     const usuariosCollection = await db.collection('usuarios')
     // encriptamos el password
     const newPassword = await encryptPassword(password)
-    await usuariosCollection.insertOne({
+    const userCol = await usuariosCollection.insertOne({
       nombre,
       email,
       password: newPassword,
@@ -36,6 +36,7 @@ export const createUserSuperAdmi = async (req, res) => {
       nombre,
       email,
       isSuperAdmin: true,
+      usuarioId: userCol.insertedId,
       fechaCreacion: moment().toDate()
     })
     return res.status(200).json({ status: 'usuario creado' }) // ({ token, expiresIn, persona })
@@ -45,7 +46,7 @@ export const createUserSuperAdmi = async (req, res) => {
   }
 }
 export const createUserAdmi = async (req, res) => {
-  const { nombre, email, password, telefono } = req.body
+  const { nombre, email, password = '123456789', telefono } = req.body
   try {
     const db = await accessToDataBase(dataBasePrincipal)
     const usuariosCollection = await db.collection('usuarios')
@@ -55,7 +56,7 @@ export const createUserAdmi = async (req, res) => {
     if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
     // encriptamos el password
     const newPassword = await encryptPassword(password)
-    await usuariosCollection.insertOne({
+    const userCol = await usuariosCollection.insertOne({
       nombre,
       email,
       password: newPassword,
@@ -69,6 +70,7 @@ export const createUserAdmi = async (req, res) => {
       email,
       telefono,
       isAdmin: true,
+      usuarioId: userCol.insertedId,
       fechaCreacion: moment().toDate()
     })
     return res.status(200).json({ status: 'usuario creado' })
@@ -110,12 +112,14 @@ export const createUserProgramador = async (req, res) => {
 export const updateUser = async (req, res) => {
   const { _id } = req.params
   const { nombre, email, telefono } = req.body
+  console.log(req.params, req.body)
   try {
     const db = await accessToDataBase(dataBasePrincipal)
     const personasCollection = await db.collection('personas')
     const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
     await personasCollection.updateOne({ _id: new ObjectId(persona._id) }, { $set: { nombre, email, telefono } })
     const usuariosCollection = await db.collection('usuarios')
+    await usuariosCollection.findOne({ _id: new ObjectId(persona.usuarioId) })
     await usuariosCollection.updateOne({ _id: new ObjectId(persona.usuarioId) }, { $set: { nombre, email, telefono } })
     /* const updateUser = await usuariosCollection.findOneAndUpdate({ _id: new ObjectId(persona.usuarioId) }, { $set: { nombre, email } }, { returnNewDocument: true })
     console.log({ updateUser })
@@ -145,17 +149,36 @@ export const updateUser = async (req, res) => {
 }
 
 export const deleteUser = async (req, res) => {
-  const isSuperAdmin = req?.isSuperAdmin
-  const isProgramador = req?.isProgramador
-  if (!(isSuperAdmin || isProgramador)) return res.status(400).json({ error: 'Este usuario no tiene permiso para eliminar otro usuario' })
+  // const isSuperAdmin = req?.isSuperAdmin
+  // const isProgramador = req?.isProgramador
+  // if (!(isSuperAdmin || isProgramador)) return res.status(400).json({ error: 'Este usuario no tiene permiso para eliminar otro usuario' })
   const { _id } = req.params
   try {
     const db = await accessToDataBase(dataBasePrincipal)
+    const personasCollection = await db.collection('personas')
+    const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
+    await personasCollection.deleteOne({ _id: new ObjectId(persona._id) })
     const usuariosCollection = await db.collection('usuarios')
-    await usuariosCollection.deleteOne({ _id })
+    await usuariosCollection.deleteOne({ _id: new ObjectId(persona.usuarioId) })
     return res.status(200).json({ status: 'usuario eliminado' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error al eliminar usuario' })
+  }
+}
+export const deleteUserMany = async (req, res) => {
+  const userList = req.body
+  try {
+    const filterListPersonas = userList.filter(user => !user.isSuperAdmin).map(user => new ObjectId(user._id))
+    const filterListUsuarios = userList.filter(user => !user.isSuperAdmin).map(user => new ObjectId(user.usuarioId))
+    const db = await accessToDataBase(dataBasePrincipal)
+    const personasCollection = await db.collection('personas')
+    await personasCollection.deleteMany({ _id: { $in: filterListPersonas } })
+    const usuariosCollection = await db.collection('usuarios')
+    await usuariosCollection.deleteMany({ _id: { $in: filterListUsuarios } })
+    return res.status(200).json({ status: 'usuarios eliminados' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error al eliminar usuarios' })
   }
 }

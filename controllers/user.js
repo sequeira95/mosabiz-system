@@ -114,12 +114,12 @@ export const updateUser = async (req, res) => {
     const db = await accessToDataBase(dataBasePrincipal)
     const personasCollection = await db.collection('personas')
     const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
-    await personasCollection.updateOne({ _id: persona._id }, { $set: { nombre, email, telefono } })
+    await personasCollection.updateOne({ _id: new ObjectId(persona._id) }, { $set: { nombre, email, telefono } })
     const usuariosCollection = await db.collection('usuarios')
-    const updateUser = await usuariosCollection.findOneAndUpdate({ _id: persona.usuarioId }, { $set: { nombre, email } }, { returnNewDocument: true })
+    const updateUser = await usuariosCollection.findOneAndUpdate({ _id: new ObjectId(persona.usuarioId) }, { $set: { nombre, email } }, { returnNewDocument: true })
     if (updateUser.value.subDominio) {
       const subDominiosCollection = await db.collection('subDominios')
-      await subDominiosCollection.updateOne({ _id: updateUser.value.subDominioId }, { $set: { nombre, email, telefono } })
+      await subDominiosCollection.updateOne({ _id: new ObjectId(updateUser.value.subDominioId) }, { $set: { nombre, email, telefono } })
       // enviromentEmpresa = nombre del sub dominio o del enviroment de sub dominio
       // nameCollection = nombre de la coleccion de la empresa
       const dbSubDominio = await accessToDataBase(updateUser.value.subDominio)
@@ -135,7 +135,7 @@ export const updateUser = async (req, res) => {
       )
       const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: updateUser.value.subDominio, nameCollection: 'personas' })
       const subDominioPersonasCollections = await dbSubDominio.collection(subDominioPersonasCollectionsName)
-      await subDominioPersonasCollections.updateOne({ usuarioId: updateUserSubDominio.value._id }, { $set: { nombre, email, telefono } })
+      await subDominioPersonasCollections.updateOne({ usuarioId: new ObjectId(updateUserSubDominio.value._id) }, { $set: { nombre, email, telefono } })
     }
   } catch (e) {
     console.log(e)

@@ -37,3 +37,6 @@ content-type: application/json
   "password":"alfredo123",
   "telefono":""
 }
+###
+POST  http://localhost:5000/v1/rols
+content-type: application/json

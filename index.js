@@ -9,6 +9,11 @@ import rolsRouter from './routes/rols.js'
 import mantenedorModulosRouter from './routes/mantenedorModulos.js'
 import userRouter from './routes/user.js'
 
+// import SD
+
+import { subDominioName } from './constants.js'
+import authSDRouter from './routes/subDominios/authSubDominio.js'
+
 export const clientDb = database // .db(process.env.DB_NAME)
 const app = express()
 app.disable('x-powered-by')
@@ -25,5 +30,9 @@ app.use('/v1/auth', authRouter)
 app.use('/v1/rols', rolsRouter)
 app.use('/v1/modulos', mantenedorModulosRouter)
 app.use('/v1/users', userRouter)
+
+// endPoints SD
+
+app.use(`/v1/${subDominioName}/auth`, authSDRouter)
 
 app.listen(PORT, () => console.log('http://localhost:' + PORT))

@@ -81,6 +81,15 @@ export const createSubDominio = async (req, res) => {
 
     // creamos los campos del sub dominio en la  nueva base de datos
     const dbSubDominio = await accessToDataBase(subDominio)
+    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'empresas' })
+    const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
+    const newSubDominioEmpresa = await subDominioEmpresasCollections.insertOne({
+      razonSocial,
+      documentoIdentidad,
+      email,
+      telefono,
+      modulosId
+    })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'usuarios' })
     const subDominioUsuariosCollections = await dbSubDominio.collection(subDominioUsuariosCollectionsName)
     const newUsuarioSubDominio = await subDominioUsuariosCollections.insertOne({
@@ -90,7 +99,8 @@ export const createSubDominio = async (req, res) => {
       password,
       fechaActPass: moment().toDate(),
       usuarioAibiz: newUsuario.insertedId,
-      fechaCreacion: moment().toDate()
+      fechaCreacion: moment().toDate(),
+      empresaId: newSubDominioEmpresa.insertedId
     })
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'personas' })
     const subDominioPersonasCollections = await dbSubDominio.collection(subDominioPersonasCollectionsName)
@@ -101,16 +111,8 @@ export const createSubDominio = async (req, res) => {
       isEmpresa: true,
       usuarioId: newUsuarioSubDominio.insertedId,
       documentoIdentidad,
-      fechaCreacion: moment().toDate()
-    })
-    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'empresas' })
-    const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
-    await subDominioEmpresasCollections.insertOne({
-      razonSocial,
-      documentoIdentidad,
-      email,
-      telefono,
-      modulosId
+      fechaCreacion: moment().toDate(),
+      empresaId: newSubDominioEmpresa.insertedId
     })
     return res.status(200).json({ status: 'sub dominio y usuario creado' })
   } catch (e) {

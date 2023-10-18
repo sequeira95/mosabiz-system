@@ -1,5 +1,11 @@
 import { dataBasePrincipal } from '../constants.js'
 import { accessToDataBase } from '../utils/dataBaseConfing.js'
+// Importamos el módulo fs/promises
+import fs from 'fs/promises'
+// Importamos el archivo JSON
+const rolsJson = await fs.readFile('./mocks/roles.json')
+// Convertimos el contenido del archivo JSON a un objeto JavaScript
+const listOfRols = JSON.parse(rolsJson)
 
 export const getRols = async (req, res) => {
   try {
@@ -15,10 +21,10 @@ export const getRols = async (req, res) => {
 
 export const createRol = async (req, res) => {
   try {
-    const { nombre, descripcion } = req.body
     const db = await accessToDataBase(dataBasePrincipal)
     const rolsCollections = await db.collection('rols')
-    await rolsCollections.insertOne({ nombre, descripcion })
+    console.log({ listOfRols })
+    await rolsCollections.insertMany(listOfRols)
     return res.status(200).json({ ok: 'Rol creado' })
   } catch (e) {
     // console.log(e)

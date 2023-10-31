@@ -56,6 +56,9 @@ export const createCliente = async (req, res) => {
     const randomPassword = crypto.randomBytes(10).toString('hex')
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
+    const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
+    const empresaCollection = await db.collection(subDominioEmpresaCollectionsName)
+    const empresa = await empresaCollection.findOne()
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     const userCol = await usuariosCollection.insertOne({
@@ -78,7 +81,8 @@ export const createCliente = async (req, res) => {
       clienteId: clienteCol.insertedId,
       isEmpresa: true,
       usuarioId: userCol.insertedId,
-      fechaCreacion: moment().toDate()
+      fechaCreacion: moment().toDate(),
+      empresaId: empresa._id
     })
     // enviamos el email con el password
     const emailConfing = {

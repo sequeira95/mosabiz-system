@@ -16,7 +16,6 @@ export const login = async (req, res) => {
     try {
       token = token.split(' ')[1]
       const { uid, fechaActPass } = jwt.verify(token, process.env.JWT_SECRETSD)
-      const db = await accessToDataBase(dataBaseSecundaria)
       const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresas' })
       const subDominioEmpresasCollections = await db.collection(subDominioEmpresasCollectionsName)
       const empresa = await subDominioEmpresasCollections.findOne({})
@@ -31,7 +30,13 @@ export const login = async (req, res) => {
       const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
       const personasCollection = await db.collection(subDominioPersonasCollectionsName)
       const persona = await personasCollection.findOne({ usuarioId: new ObjectId(usuario._id) })
-      return res.status(200).json(persona)
+      let cliente = {}
+      if (persona.clienteId) {
+        const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
+        const clientesCollection = await db.collection(subDominioClientesCollectionsName)
+        cliente = await clientesCollection.findOne({ _id: new ObjectId(persona.clienteId) })
+      }
+      return res.status(200).json({ persona, empresa, cliente })
     } catch (e) {
       // console.log(e)
       return res.status(500).json({ error: 'Error de servidor' })
@@ -39,6 +44,11 @@ export const login = async (req, res) => {
   }
 
   try {
+    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresas' })
+    const subDominioEmpresasCollections = await db.collection(subDominioEmpresasCollectionsName)
+    const empresa = await subDominioEmpresasCollections.findOne({})
+    if (!empresa) throw new Error('No existe empresa')
+    if (empresa.activo === false) throw new Error('Empresa desactivada')
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     const usuario = await usuariosCollection.findOne({ email })
@@ -55,7 +65,13 @@ export const login = async (req, res) => {
       uid: usuario._id,
       fechaActPass: usuario.fechaActPass
     }, res)
-    return res.status(200).json(({ token, expiresIn, persona }))
+    let cliente = {}
+    if (persona.clienteId) {
+      const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
+      const clientesCollection = await db.collection(subDominioClientesCollectionsName)
+      cliente = await clientesCollection.findOne({ _id: new ObjectId(persona.clienteId) })
+    }
+    return res.status(200).json(({ token, expiresIn, persona, empresa, cliente }))
   } catch (e) {
     // console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })

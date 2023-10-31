@@ -100,6 +100,9 @@ export const createUserCliente = async (req, res) => {
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
     })
+    const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
+    const empresaCollection = await db.collection(subDominioEmpresaCollectionsName)
+    const empresa = await empresaCollection.findOne()
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
     await personasCollection.insertOne({
@@ -109,7 +112,8 @@ export const createUserCliente = async (req, res) => {
       clienteId,
       telefono,
       usuarioId: userCol.insertedId,
-      fechaCreacion: moment().toDate()
+      fechaCreacion: moment().toDate(),
+      empresaId: empresa._id
     })
     // enviamos el email con el password
     const emailConfing = {

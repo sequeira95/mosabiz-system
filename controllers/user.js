@@ -29,7 +29,6 @@ export const createUserSuperAdmi = async (req, res) => {
       nombre,
       email,
       password: newPassword,
-      isSuperAdmin: true,
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
     })
@@ -66,7 +65,6 @@ export const createUserAdmi = async (req, res) => {
       nombre,
       email,
       password,
-      isAdmin: true,
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
     })
@@ -107,7 +105,6 @@ export const createUserProgramador = async (req, res) => {
       nombre,
       email,
       password: newPassword,
-      isProgramador: true,
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
     })

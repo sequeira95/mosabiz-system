@@ -23,6 +23,9 @@ export const createSubDominio = async (req, res) => {
   try {
     const { subDominio, razonSocial, documentoIdentidad, email, telefono, modulos } = req.body.empresaData
     const db = await accessToDataBase(dataBasePrincipal)
+    // const rolesCollection = await db.collection('rols')
+    // buscamos si el sub-dominio ya existe
+    // const rolSuperAdmin = await rolesCollection.findOne({ tipo: 'empresa', nombre: 'Administrador' })
     const subDominiosCollection = await db.collection('sub-dominios')
     // buscamos si el sub-dominio ya existe
     const verifySubDominio = await subDominiosCollection.findOne({ subDominio })
@@ -48,7 +51,6 @@ export const createSubDominio = async (req, res) => {
       subDominio,
       nombre: razonSocial,
       telefono,
-      modulosId,
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
     })
@@ -81,7 +83,7 @@ export const createSubDominio = async (req, res) => {
 
     // creamos los campos del sub dominio en la  nueva base de datos
     const dbSubDominio = await accessToDataBase(subDominio)
-    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'empresas' })
+    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'empresa' })
     const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
     const newSubDominioEmpresa = await subDominioEmpresasCollections.insertOne({
       razonSocial,
@@ -95,7 +97,6 @@ export const createSubDominio = async (req, res) => {
     const newUsuarioSubDominio = await subDominioUsuariosCollections.insertOne({
       nombre: razonSocial,
       email,
-      telefono,
       password,
       fechaActPass: moment().toDate(),
       usuarioAibiz: newUsuario.insertedId,
@@ -109,10 +110,14 @@ export const createSubDominio = async (req, res) => {
       email,
       telefono,
       isEmpresa: true,
+      isAdministrador: true,
       usuarioId: newUsuarioSubDominio.insertedId,
       documentoIdentidad,
       fechaCreacion: moment().toDate(),
       empresaId: newSubDominioEmpresa.insertedId
+      /* roles: [
+        { _id: rolSuperAdmin._id, nombre: rolSuperAdmin.nombre }
+      ] */
     })
     return res.status(200).json({ status: 'sub dominio y usuario creado' })
   } catch (e) {

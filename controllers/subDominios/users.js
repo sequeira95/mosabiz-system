@@ -1,9 +1,9 @@
 import moment from 'moment'
-import { dataBaseSecundaria, subDominioName } from '../../constants'
-import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConfing'
-import { encryptPassword } from '../../utils/hashPassword'
+import { dataBaseSecundaria, subDominioName } from '../../constants.js'
+import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConfing.js'
+import { encryptPassword } from '../../utils/hashPassword.js'
 import crypto from 'node:crypto'
-import { senEmail } from '../../utils/nodemailsConfing'
+import { senEmail } from '../../utils/nodemailsConfing.js'
 import { ObjectId } from 'mongodb'
 
 export const getUsers = async (req, res) => {

@@ -1,6 +1,6 @@
 import express from 'express'
-import { getPerfil } from '../../controllers/subDominios/perfiles'
-import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken'
+import { getPerfil } from '../../controllers/subDominios/perfiles.js'
+import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
 
 const router = express.Router()
 

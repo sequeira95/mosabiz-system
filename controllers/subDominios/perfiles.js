@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb'
-import { dataBaseSecundaria, subDominioName } from '../../constants'
-import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConfing'
+import { dataBaseSecundaria, subDominioName } from '../../constants.js'
+import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConfing.js'
 
 export const getPerfilEmpresa = async (req, res) => {
   const { uid } = req.uid

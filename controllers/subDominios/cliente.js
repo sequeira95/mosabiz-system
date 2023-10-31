@@ -1,8 +1,8 @@
 import moment from 'moment'
-import { dataBaseSecundaria, subDominioName } from '../../constants'
-import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConfing'
-import { encryptPassword } from '../../utils/hashPassword'
-import { senEmail } from '../../utils/nodemailsConfing'
+import { dataBaseSecundaria, subDominioName } from '../../constants.js'
+import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConfing.js'
+import { encryptPassword } from '../../utils/hashPassword.js'
+import { senEmail } from '../../utils/nodemailsConfing.js'
 
 export const getClientes = async (req, res) => {
   try {

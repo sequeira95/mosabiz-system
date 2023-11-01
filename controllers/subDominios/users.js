@@ -11,10 +11,10 @@ export const getUsers = async (req, res) => {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
-    const persoans = await personasCollection.aggregate([
+    const personas = await personasCollection.aggregate([
       { $match: { isEmpresa: true } }
     ])
-    return res.status(200).json(persoans)
+    return res.status(200).json(personas)
   } catch (error) {
     return res.status(500).json({ error })
   }
@@ -24,10 +24,10 @@ export const getUsersClientes = async (req, res) => {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioUsersClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const usersClientesCollection = await db.collection(subDominioUsersClientesCollectionsName)
-    const usersClientes = await usersClientesCollection.aggregate([
+    const personas = await usersClientesCollection.aggregate([
       { $match: { isCliente: true, clienteId: new ObjectId(req.body._id) } }
     ])
-    return res.status(200).json(usersClientes)
+    return res.status(200).json(personas)
   } catch (error) {
     return res.status(500).json({ error })
   }

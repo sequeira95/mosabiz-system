@@ -54,7 +54,7 @@ export const createUser = async (req, res) => {
     })
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
-    await personasCollection.insertOne({
+    const newUser = await personasCollection.insertOne({
       nombre,
       email,
       isEmpresa: true,
@@ -64,6 +64,7 @@ export const createUser = async (req, res) => {
       usuarioId: userCol.insertedId,
       fechaCreacion: moment().toDate()
     })
+    const persona = await personasCollection.findOne({ _id: newUser.insertedId })
     // enviamos el email con el password
     const emailConfing = {
       from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
@@ -75,7 +76,7 @@ export const createUser = async (req, res) => {
       `
     }
     await senEmail(emailConfing)
-    return res.status(200).json({ status: 'usuario creado' })
+    return res.status(200).json({ status: 'usuario creado', persona })
   } catch (e) {
     // console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de crear usuario' })
@@ -133,7 +134,7 @@ export const createUserCliente = async (req, res) => {
     const empresa = await empresaCollection.findOne()
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
-    await personasCollection.insertOne({
+    const newUser = await personasCollection.insertOne({
       nombre,
       email,
       isCliente: true,
@@ -155,7 +156,8 @@ export const createUserCliente = async (req, res) => {
       `
     }
     await senEmail(emailConfing)
-    return res.status(200).json({ status: 'usuario creado' })
+    const persona = await personasCollection.findOne({ _id: newUser.insertedId })
+    return res.status(200).json({ status: 'usuario creado', persona })
   } catch (e) {
     // console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de crear usuario' })

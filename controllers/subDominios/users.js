@@ -25,7 +25,7 @@ export const getUsersClientes = async (req, res) => {
     const subDominioUsersClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const usersClientesCollection = await db.collection(subDominioUsersClientesCollectionsName)
     const usersClientes = await usersClientesCollection.aggregate([
-      { $match: { isCliente: true, clienteId: new ObjectId(req.params._id) } }
+      { $match: { isCliente: true, clienteId: new ObjectId(req.body._id) } }
     ])
     return res.status(200).json(usersClientes)
   } catch (error) {
@@ -80,6 +80,33 @@ export const createUser = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de crear usuario' })
   }
 }
+export const updateUser = async (req, res) => {
+  const { _id, nombre, email, clientes, telefono } = req.body
+  try {
+    const db = await accessToDataBase(dataBaseSecundaria)
+    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+    const personasCollection = await db.collection(subDominioPersonasCollectionsName)
+    const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
+    // en caso de que no exista, retornamos un error
+    if (!persona) return res.status(400).json({ error: 'El usuario no existe' })
+    await personasCollection.updateOne({ _id: persona._id }, {
+      nombre,
+      email,
+      clientes,
+      telefono
+    })
+    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
+    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
+    await usuariosCollection.updateOne({ _id: persona.usuarioId }, {
+      nombre,
+      email
+    })
+    return res.status(200).json({ status: 'usuario actualizado' })
+  } catch (e) {
+    // console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de actualizar usuario' + e.message })
+  }
+}
 export const createUserCliente = async (req, res) => {
   const { nombre, email, telefono, clienteId } = req.body
   try {
@@ -130,5 +157,46 @@ export const createUserCliente = async (req, res) => {
   } catch (e) {
     // console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de crear usuario' })
+  }
+}
+export const updateUserCliente = async (req, res) => {
+  const { _id, nombre, email, telefono } = req.body
+  try {
+    const db = await accessToDataBase(dataBaseSecundaria)
+    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+    const personasCollection = await db.collection(subDominioPersonasCollectionsName)
+    const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
+    // en caso de que no exista, retornamos un error
+    if (!persona) return res.status(400).json({ error: 'El usuario no existe' })
+    await personasCollection.updateOne({ _id: persona._id }, {
+      nombre,
+      email,
+      telefono
+    })
+    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
+    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
+    await usuariosCollection.updateOne({ _id: persona.usuarioId }, {
+      nombre,
+      email
+    })
+    return res.status(200).json({ status: 'usuario actualizado' })
+  } catch (e) {
+    // console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de actualizar usuario' + e.message })
+  }
+}
+export const deleteUser = async (req, res) => {
+  const { _id } = req.body
+  const db = await accessToDataBase(dataBaseSecundaria)
+  try {
+    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+    const personasCollection = await db.collection(subDominioPersonasCollectionsName)
+    const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
+    await personasCollection.deleteOne({ _id: persona._id })
+    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
+    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
+    await usuariosCollection.deleteOne({ _id: persona.usuarioId })
+  } catch (e) {
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar usuario' + e.message })
   }
 }

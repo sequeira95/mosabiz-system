@@ -1,6 +1,7 @@
 import { ObjectId } from 'mongodb'
 import { dataBaseSecundaria, subDominioName } from '../../constants.js'
 import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConfing.js'
+import { uploadImg } from '../../utils/cloudImage.js'
 
 export const getPerfilEmpresa = async (req, res) => {
   const { uid } = req.uid
@@ -54,5 +55,28 @@ export const getPerfil = async (req, res) => {
 }
 
 export const updatePerfilEmpresa = async (req, res) => {
-  console.log(req.body)
+  const { _id, email, telefono, direccion } = req.body
+  const db = await accessToDataBase(dataBaseSecundaria)
+  try {
+    const empresaData = { email, telefono, direccion }
+    if (req.files) {
+      const imgLogo = req.files?.logo
+      const extension = imgLogo.mimetype.split('/')[1]
+      const namePath = `logo-${subDominioName}.${extension}`
+      const resImgLogo = await uploadImg(imgLogo.data, namePath)
+      empresaData.logo.path = resImgLogo.filePath
+      empresaData.logo.type = extension
+      empresaData.logo.url = resImgLogo.url
+      empresaData.logo.name = resImgLogo.name
+      empresaData.logo.fileId = resImgLogo.fileId
+    }
+    console.log({ _id, email, telefono, direccion }, req.files)
+    const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
+    const empresaCollection = await db.collection(subDominioEmpresaCollectionsName)
+    const empresa = await empresaCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { ...empresaData }, { returnNewDocument: true })
+    console.log({ empresa })
+    return res.status(200).json({ status: 'Empresa actualizada correctamente ', empresa })
+  } catch (e) {
+    return res.status(500).json({ error: 'Error de servidor al momento de actualizar el perfil de la empresa' + e.message })
+  }
 }

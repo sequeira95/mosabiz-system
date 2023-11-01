@@ -46,7 +46,7 @@ content-type: application/json
 
 {
   "_id": "65416fbdd6a0c687dd6c8bbd",
-  "razonSocial":"Angel Mora", 
+  "razonSocial":"AngelMora", 
   "documentoIdentidad":"J123456789",
   "email":"angelmorab13@gmail.com",
   "telefono":"123456789",

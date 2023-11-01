@@ -16,7 +16,7 @@ export const login = async (req, res) => {
     try {
       token = token.split(' ')[1]
       const { uid, fechaActPass } = jwt.verify(token, process.env.JWT_SECRETSD)
-      const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresas' })
+      const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
       const subDominioEmpresasCollections = await db.collection(subDominioEmpresasCollectionsName)
       const empresa = await subDominioEmpresasCollections.findOne({})
       if (!empresa) throw new Error('No existe empresa')
@@ -44,7 +44,7 @@ export const login = async (req, res) => {
   }
 
   try {
-    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresas' })
+    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
     const subDominioEmpresasCollections = await db.collection(subDominioEmpresasCollectionsName)
     const empresa = await subDominioEmpresasCollections.findOne({})
     if (!empresa) throw new Error('No existe empresa')

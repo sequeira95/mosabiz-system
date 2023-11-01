@@ -143,7 +143,7 @@ export const updateUser = async (req, res) => {
       // enviromentEmpresa = nombre del sub dominio o del enviroment de sub dominio
       // nameCollection = nombre de la coleccion de la empresa
       const dbSubDominio = await accessToDataBase(updateUser.value.subDominio)
-      const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: updateUser.value.subDominio, nameCollection: 'empresas' })
+      const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: updateUser.value.subDominio, nameCollection: 'empresa' })
       const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
       await subDominioEmpresasCollections.updateOne({}, { $set: { razonSocial: nombre, email, telefono } })
       const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: updateUser.value.subDominio, nameCollection: 'usuarios' })

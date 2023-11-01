@@ -72,19 +72,13 @@ export const updatePerfilEmpresa = async (req, res) => {
       empresaData.logo.fileId = resImgLogo.fileId
     }
     console.log({ _id, razonSocial, documentoIdentidad, email, telefono, direccion }, req.files)
-    const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
+    const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresas' })
     const empresaCollection = await db.collection(subDominioEmpresaCollectionsName)
-    await empresaCollection.updateOne({ _id: new ObjectId(_id) }, { $set: { ...empresaData } }, { returnNewDocument: true })
+    const empresa = await empresaCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { $set: { ...empresaData } }, { returnDocument: 'after' })
     console.log('act perfil empresa paso 1')
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    const usuario = await usuariosCollection.findOne({ _id: new ObjectId(uid) })
-    await usuariosCollection.updateOne({ _id: usuario._id }, {
-      $set: {
-        nombre: razonSocial,
-        email
-      }
-    })
+    const usuario = await usuariosCollection.findOneAndUpdate({ _id: new ObjectId(uid) }, { $set: { nombre: razonSocial, email } }, { returnDocument: 'after' })
     console.log('act perfil empresa paso 2')
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
@@ -100,9 +94,8 @@ export const updatePerfilEmpresa = async (req, res) => {
     // actualizamos los datos correspondiente pero en la base de datos de aibiz
     const dbAibiz = await accessToDataBase(dataBasePrincipal)
     const aibizUsuariosCollectionName = await dbAibiz.collection('usuarios')
-    const usuarioAibiz = await aibizUsuariosCollectionName.findOne({ _id: usuario.usuarioAibiz })
+    const usuarioAibiz = await aibizUsuariosCollectionName.findOneAndUpdate({ _id: usuario.usuarioAibiz }, { $set: { nombre: razonSocial, documentoIdentidad, email, telefono } })
     console.log('act perfil empresa paso 4', { usuarioAibiz })
-    await aibizUsuariosCollectionName.updateOne({ _id: usuarioAibiz._id }, { $set: { nombre: razonSocial, documentoIdentidad, email, telefono } })
     console.log('act perfil empresa paso 5')
     const aibizSubDominioCollectionName = await dbAibiz.collection('sub-dominios')
     await aibizSubDominioCollectionName.updateOne({ _id: usuarioAibiz.subDominioId }, { $set: { razonSocial, documentoIdentidad, email, telefono } })
@@ -111,7 +104,7 @@ export const updatePerfilEmpresa = async (req, res) => {
     await aibizPersonasCollectionName.updateOne({ usuarioId: usuarioAibiz._id }, { $set: { nombre: razonSocial, documentoIdentidad, email, telefono } })
     console.log('act perfil empresa paso 7')
 
-    return res.status(200).json({ status: 'Empresa actualizada correctamente ' })
+    return res.status(200).json({ status: 'Empresa actualizada correctamente ', empresa })
   } catch (e) {
     return res.status(500).json({ error: 'Error de servidor al momento de actualizar el perfil de la empresa' + e.message })
   }

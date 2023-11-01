@@ -135,7 +135,7 @@ export const updateSubDominio = async (req, res) => {
     await subDominiosCollection.updateOne({ _id: new ObjectId(_id) }, { $set: { razonSocial, documentoIdentidad, email, telefono, modulosId } })
     // luego de actualizar el sub dominio, actualizamos los usuarios y personas
     const usuariosCollection = await db.collection('usuarios')
-    const updateUser = await usuariosCollection.findOneAndUpdate({ subDominioId: new ObjectId(_id) }, { $set: { nombre: razonSocial, email, telefono, modulosId } }, { returnNewDocument: true })
+    const updateUser = await usuariosCollection.findOneAndUpdate({ subDominioId: new ObjectId(_id) }, { $set: { nombre: razonSocial, email, telefono, modulosId } }, { returnDocument: 'after' })
     console.log({ updateUser })
     const personasCollection = await db.collection('personas')
     await personasCollection.updateOne({ usuarioId: updateUser._id }, { $set: { nombre: razonSocial, email, telefono, documentoIdentidad, modulosId } })
@@ -147,13 +147,14 @@ export const updateSubDominio = async (req, res) => {
       { usuarioAibiz: updateUser._id },
       { $set: { nombre: razonSocial, email, telefono } }
     )
+    console.log({ updateUsuarioSubDominio })
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'personas' })
     const subDominioPersonasCollections = await dbSubDominio.collection(subDominioPersonasCollectionsName)
     await subDominioPersonasCollections.updateOne(
       { usuarioId: updateUsuarioSubDominio._id },
       { $set: { nombre: razonSocial, email, telefono, documentoIdentidad } }
     )
-    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'empresas' })
+    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'empresa' })
     const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
     await subDominioEmpresasCollections.updateOne({}, { $set: { razonSocial, documentoIdentidad, email, telefono, modulosId } })
     return res.status(200).json({ status: 'Sub-dominio actualizado' })
@@ -177,7 +178,7 @@ export const disabledSubDominio = async (req, res) => {
     const personasCollection = await db.collection('personas')
     await personasCollection.updateOne({ usuarioId: usuarioSubDominio._id }, { $set: { activo: isActive } })
     const dbSubDominio = await accessToDataBase(empresa.subDominio)
-    const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: empresa.subDominio, nameCollection: 'empresas' })
+    const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: empresa.subDominio, nameCollection: 'empresa' })
     const subDominioEmpresaCollections = await dbSubDominio.collection(subDominioEmpresaCollectionsName)
     await subDominioEmpresaCollections.updateOne({}, { $set: { activo: isActive } })
     return res.status(200).json({ status: 'Sub-dominio desactivado' })
@@ -204,7 +205,7 @@ export const disabledmanySubDominios = async (req, res) => {
     await personasCollection.updateMany({ usuarioId: { $in: listUser } }, { $set: { activo: false } })
     for (const empresa of empresaData) {
       const dbSubDominio = await accessToDataBase(empresa.subDominio)
-      const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: empresa.subDominio, nameCollection: 'empresas' })
+      const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: empresa.subDominio, nameCollection: 'empresa' })
       const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
       await subDominioEmpresasCollections.updateOne({}, { $set: { activo: false } })
     }

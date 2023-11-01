@@ -88,10 +88,7 @@ export const updateUser = async (req, res) => {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
-    const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
-    // en caso de que no exista, retornamos un error
-    if (!persona) return res.status(400).json({ error: 'El usuario no existe' })
-    await personasCollection.updateOne({ _id: persona._id }, {
+    const persona = await personasCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, {
       $set: {
         nombre,
         email,
@@ -99,11 +96,11 @@ export const updateUser = async (req, res) => {
         telefono,
         modulos
       }
-    })
+    }, { returnDocument: 'after' })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email } })
-    return res.status(200).json({ status: 'usuario actualizado' })
+    return res.status(200).json({ status: 'usuario actualizado', persona })
   } catch (e) {
     // console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de actualizar usuario' + e.message })
@@ -169,10 +166,7 @@ export const updateUserCliente = async (req, res) => {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
-    const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
-    // en caso de que no exista, retornamos un error
-    if (!persona) return res.status(400).json({ error: 'El usuario no existe' })
-    await personasCollection.updateOne({ _id: persona._id }, { $set: { nombre, email, telefono, modulos } })
+    const persona = await personasCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { $set: { nombre, email, telefono, modulos } }, { returnDocument: 'after' })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email } })

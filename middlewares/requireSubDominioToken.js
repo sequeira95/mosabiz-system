@@ -25,6 +25,16 @@ export const requireSubDominioToken = async (req, res, next) => {
     if (!usuario) throw new Error('No existe usuario')
     if (usuario.activo === false) throw new Error('Usuario desactivado')
     if (moment(fechaActPass).valueOf() !== moment(usuario.fechaActPass).valueOf()) throw new Error('Contraseña no coinciden')
+    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: dataBaseSecundaria, nameCollection: 'personas' })
+    const personasCollection = await db.collection(subDominioPersonasCollectionsName)
+    const persona = await personasCollection.findOne({ usuarioId: usuario._id })
+    if (persona && persona.clienteId) {
+      const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: dataBaseSecundaria, nameCollection: 'clientes' })
+      const clientesCollection = await db.collection(subDominioClientesCollectionsName)
+      const cliente = await clientesCollection.findOne({ _id: new ObjectId(persona.clienteId) })
+      if (!cliente) throw new Error('No existe cliente')
+      if (cliente.activo === false) throw new Error('El cliente se encuentra inactivo')
+    }
     req.uid = uid
     next()
   } catch (e) {

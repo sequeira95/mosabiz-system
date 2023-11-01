@@ -35,6 +35,8 @@ export const login = async (req, res) => {
         const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
         const clientesCollection = await db.collection(subDominioClientesCollectionsName)
         cliente = await clientesCollection.findOne({ _id: new ObjectId(persona.clienteId) })
+        if (!cliente) throw new Error('No existe cliente')
+        if (cliente.activo === false) throw new Error('El cliente se encuentra inactivo')
       }
       return res.status(200).json({ persona, empresa, cliente })
     } catch (e) {
@@ -61,6 +63,13 @@ export const login = async (req, res) => {
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
     const persona = await personasCollection.findOne({ usuarioId: usuario._id })
+    if (persona && persona.clienteId) {
+      const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
+      const clientesCollection = await db.collection(subDominioClientesCollectionsName)
+      const cliente = await clientesCollection.findOne({ _id: new ObjectId(persona.clienteId) })
+      if (!cliente) return res.status(403).json({ error: 'El cliente no existe' })
+      if (cliente.activo === false) return res.status(403).json({ error: 'El cliente no se encuentra activo' })
+    }
     const { token, expiresIn } = generateTokenSD({
       uid: usuario._id,
       fechaActPass: usuario.fechaActPass

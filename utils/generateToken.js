@@ -3,11 +3,11 @@ export const generateToken = ({ uid, fechaActPass, email, isSuperAdmin, isAdmin,
   const expiresIn = 1000 * 60 * 60 * 24 * 30
   try {
     const token = jwt.sign({ uid, fechaActPass, email, isSuperAdmin, isAdmin, isProgramador }, process.env.JWT_SECRET, { expiresIn })
-    res.cookie('aibizToken', token, {
+    /* res.cookie('aibizToken', token, {
       httpOnly: true,
       secure: !(process.env.MODO === 'developer'),
       expires: new Date(Date.now() + expiresIn)
-    })
+    }) */
     return { token, expiresIn }
   } catch (e) {
     // console.log(e)
@@ -17,11 +17,11 @@ export const generateTokenSD = ({ uid, fechaActPass }, res) => {
   const expiresIn = 1000 * 60 * 60 * 24 * 30
   try {
     const token = jwt.sign({ uid, fechaActPass }, process.env.JWT_SECRETSD, { expiresIn })
-    res.cookie('SDToken', token, {
+    /* res.cookie('SDToken', token, {
       httpOnly: true,
       secure: !(process.env.MODO === 'developer'),
       expires: new Date(Date.now() + expiresIn)
-    })
+    }) */
     return { token, expiresIn }
   } catch (e) {
     // console.log(e)

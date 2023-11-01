@@ -52,3 +52,7 @@ export const getPerfil = async (req, res) => {
   if (tipo === 'cliente') return await getPerfilCliente(req, res)
   return res.status(500).json({ error: 'Error de servidor al momento de buscar los datos del perfil' })
 }
+
+export const updatePerfilEmpresa = async (req, res) => {
+  console.log(req.body)
+}

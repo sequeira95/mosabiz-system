@@ -90,7 +90,7 @@ export const recoverPassword = async (req, res) => {
     const usuario = await usuariosCollection.findOne({ email })
     if (!usuario) return res.status(403).json({ error: 'Este email no se encuentra registrado' })
     // generamos un password aleatorio
-    const randomPassword = crypto.randomBytes(10).toString('hex')
+    const randomPassword = crypto.randomBytes(3).toString('hex')
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
     // actualizamos el usuario con el nuevo password

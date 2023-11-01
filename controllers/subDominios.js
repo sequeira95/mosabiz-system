@@ -40,7 +40,7 @@ export const createSubDominio = async (req, res) => {
     const newSubDominio = await subDominiosCollection.insertOne({ subDominio, razonSocial, documentoIdentidad, email, telefono, modulosId, fechaCreacion: moment().toDate() })
     const usuariosCollection = await db.collection('usuarios')
     // generamos un password aleatorio
-    const randomPassword = crypto.randomBytes(10).toString('hex')
+    const randomPassword = crypto.randomBytes(3).toString('hex')
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
     // insertamos un usuario por defecto para el nuevo sub dominio

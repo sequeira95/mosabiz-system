@@ -57,7 +57,7 @@ export const createUserAdmi = async (req, res) => {
     if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
     // encriptamos el password
     // generamos un password aleatorio
-    const randomPassword = crypto.randomBytes(10).toString('hex')
+    const randomPassword = crypto.randomBytes(3).toString('hex')
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
     console.log('password', password, randomPassword)

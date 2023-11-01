@@ -42,7 +42,7 @@ export const createUser = async (req, res) => {
     const verifyUser = await usuariosCollection.findOne({ email })
     // en caso de que exista, retornamos un error
     if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
-    const randomPassword = crypto.randomBytes(10).toString('hex')
+    const randomPassword = crypto.randomBytes(3).toString('hex')
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
     const userCol = await usuariosCollection.insertOne({
@@ -90,7 +90,7 @@ export const createUserCliente = async (req, res) => {
     const verifyUser = await usuariosCollection.findOne({ email })
     // en caso de que exista, retornamos un error
     if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
-    const randomPassword = crypto.randomBytes(10).toString('hex')
+    const randomPassword = crypto.randomBytes(3).toString('hex')
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
     const userCol = await usuariosCollection.insertOne({

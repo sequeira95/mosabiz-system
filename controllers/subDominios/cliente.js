@@ -53,7 +53,7 @@ export const createCliente = async (req, res) => {
       fechaCreacion: moment().toDate()
     })
     // creamos el usuario asociado a este nuevo cliente
-    const randomPassword = crypto.randomBytes(10).toString('hex')
+    const randomPassword = crypto.randomBytes(3).toString('hex')
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
     const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })

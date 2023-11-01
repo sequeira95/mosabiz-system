@@ -5,5 +5,5 @@ import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken
 const router = express.Router()
 
 router.post('/', requireSubDominioToken, getPerfil)
-router.post('/updatePerfilEmpresa', updatePerfilEmpresa)
+router.post('/updatePerfilEmpresa', requireSubDominioToken, updatePerfilEmpresa)
 export default router

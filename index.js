@@ -14,6 +14,7 @@ import userRouter from './routes/user.js'
 import authSDRouter from './routes/subDominios/authSubDominio.js'
 import perfilSDRouter from './routes/subDominios/perfiles.js'
 import usersSDRouter from './routes/subDominios/users.js'
+import clientesSDRouter from './routes/subDominios/cliente.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
 const app = express()
@@ -37,5 +38,6 @@ app.use('/v1/users', userRouter)
 app.use('/v1/sub-dominio/auth', authSDRouter)
 app.use('/v1/sub-dominio/perfil', perfilSDRouter)
 app.use('/v1/sub-dominio/users', usersSDRouter)
+app.use('/v1/sub-dominio/clientes', clientesSDRouter)
 
 app.listen(PORT, () => console.log('http://localhost:' + PORT))

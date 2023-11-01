@@ -136,6 +136,7 @@ export const updateSubDominio = async (req, res) => {
     // luego de actualizar el sub dominio, actualizamos los usuarios y personas
     const usuariosCollection = await db.collection('usuarios')
     const updateUser = await usuariosCollection.findOneAndUpdate({ subDominioId: new ObjectId(_id) }, { $set: { nombre: razonSocial, email, telefono, modulosId } }, { returnNewDocument: true })
+    console.log({ updateUser })
     const personasCollection = await db.collection('personas')
     await personasCollection.updateOne({ usuarioId: updateUser._id }, { $set: { nombre: razonSocial, email, telefono, documentoIdentidad, modulosId } })
     // actualizamos los datos de la base de datos del sub dominio

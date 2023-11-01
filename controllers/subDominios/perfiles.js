@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { dataBaseSecundaria, subDominioName } from '../../constants.js'
+import { dataBasePrincipal, dataBaseSecundaria, subDominioName } from '../../constants.js'
 import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConfing.js'
 import { uploadImg } from '../../utils/cloudImage.js'
 
@@ -55,10 +55,11 @@ export const getPerfil = async (req, res) => {
 }
 
 export const updatePerfilEmpresa = async (req, res) => {
-  const { _id, email, telefono, direccion } = req.body
+  const { _id, razonSocial, documentoIdentidad, email, telefono, direccion } = req.body
+  const { uid } = req.uid
   const db = await accessToDataBase(dataBaseSecundaria)
   try {
-    const empresaData = { email, telefono, direccion }
+    const empresaData = { razonSocial, documentoIdentidad, email, telefono, direccion }
     if (req.files) {
       const imgLogo = req.files?.logo
       const extension = imgLogo.mimetype.split('/')[1]
@@ -70,12 +71,47 @@ export const updatePerfilEmpresa = async (req, res) => {
       empresaData.logo.name = resImgLogo.name
       empresaData.logo.fileId = resImgLogo.fileId
     }
-    console.log({ _id, email, telefono, direccion }, req.files)
+    console.log({ _id, razonSocial, documentoIdentidad, email, telefono, direccion }, req.files)
     const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
     const empresaCollection = await db.collection(subDominioEmpresaCollectionsName)
-    const empresa = await empresaCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { ...empresaData }, { returnNewDocument: true })
-    console.log({ empresa })
-    return res.status(200).json({ status: 'Empresa actualizada correctamente ', empresa })
+    await empresaCollection.updateOne({ _id: new ObjectId(_id) }, { $set: { ...empresaData } }, { returnNewDocument: true })
+    console.log('act perfil empresa paso 1')
+    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
+    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
+    const usuario = await usuariosCollection.findOne({ _id: new ObjectId(uid) })
+    await usuariosCollection.updateOne({ _id: usuario._id }, {
+      $set: {
+        nombre: razonSocial,
+        email
+      }
+    })
+    console.log('act perfil empresa paso 2')
+    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+    const personasCollection = await db.collection(subDominioPersonasCollectionsName)
+    await personasCollection.updateOne({ usuarioId: usuario._id }, {
+      $set: {
+        nombre: razonSocial,
+        email,
+        telefono,
+        direccion
+      }
+    })
+    console.log('act perfil empresa paso 3')
+    // actualizamos los datos correspondiente pero en la base de datos de aibiz
+    const dbAibiz = await accessToDataBase(dataBasePrincipal)
+    const aibizUsuariosCollectionName = await dbAibiz.collection('usuarios')
+    const usuarioAibiz = await aibizUsuariosCollectionName.findOne({ _id: usuario.usuarioAibiz })
+    console.log('act perfil empresa paso 4', { usuarioAibiz })
+    await aibizUsuariosCollectionName.updateOne({ _id: usuarioAibiz._id }, { $set: { nombre: razonSocial, documentoIdentidad, email, telefono } })
+    console.log('act perfil empresa paso 5')
+    const aibizSubDominioCollectionName = await dbAibiz.collection('sub-dominios')
+    await aibizSubDominioCollectionName.updateOne({ _id: usuarioAibiz.subDominioId }, { $set: { razonSocial, documentoIdentidad, email, telefono } })
+    console.log('act perfil empresa paso 6')
+    const aibizPersonasCollectionName = await dbAibiz.collection('personas')
+    await aibizPersonasCollectionName.updateOne({ usuarioId: usuarioAibiz._id }, { $set: { nombre: razonSocial, documentoIdentidad, email, telefono } })
+    console.log('act perfil empresa paso 7')
+
+    return res.status(200).json({ status: 'Empresa actualizada correctamente ' })
   } catch (e) {
     return res.status(500).json({ error: 'Error de servidor al momento de actualizar el perfil de la empresa' + e.message })
   }

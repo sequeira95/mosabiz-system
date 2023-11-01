@@ -40,3 +40,16 @@ content-type: application/json
 ###
 POST  http://localhost:5000/v1/rols
 content-type: application/json
+###
+POST  http://localhost:5000/v1/sub-dominio/perfil/updatePerfilEmpresa
+content-type: application/json
+
+{
+  "_id": "65416fbdd6a0c687dd6c8bbd",
+  "razonSocial":"Angel Mora", 
+  "documentoIdentidad":"J123456789",
+  "email":"angelmorab13@gmail.com",
+  "telefono":"123456789",
+  "direccion":"direccion"
+}
+###

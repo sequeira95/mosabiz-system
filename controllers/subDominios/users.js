@@ -90,17 +90,16 @@ export const updateUser = async (req, res) => {
     // en caso de que no exista, retornamos un error
     if (!persona) return res.status(400).json({ error: 'El usuario no existe' })
     await personasCollection.updateOne({ _id: persona._id }, {
-      nombre,
-      email,
-      clientes,
-      telefono
+      $set: {
+        nombre,
+        email,
+        clientes,
+        telefono
+      }
     })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    await usuariosCollection.updateOne({ _id: persona.usuarioId }, {
-      nombre,
-      email
-    })
+    await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email } })
     return res.status(200).json({ status: 'usuario actualizado' })
   } catch (e) {
     // console.log(e)
@@ -168,17 +167,10 @@ export const updateUserCliente = async (req, res) => {
     const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
     // en caso de que no exista, retornamos un error
     if (!persona) return res.status(400).json({ error: 'El usuario no existe' })
-    await personasCollection.updateOne({ _id: persona._id }, {
-      nombre,
-      email,
-      telefono
-    })
+    await personasCollection.updateOne({ _id: persona._id }, { $set: { nombre, email, telefono } })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    await usuariosCollection.updateOne({ _id: persona.usuarioId }, {
-      nombre,
-      email
-    })
+    await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email } })
     return res.status(200).json({ status: 'usuario actualizado' })
   } catch (e) {
     // console.log(e)

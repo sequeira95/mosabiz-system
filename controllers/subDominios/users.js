@@ -33,7 +33,7 @@ export const getUsersClientes = async (req, res) => {
   }
 }
 export const createUser = async (req, res) => {
-  const { nombre, email, clientes, telefono } = req.body
+  const { nombre, email, clientes, telefono, modulos } = req.body
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
@@ -60,6 +60,7 @@ export const createUser = async (req, res) => {
       isEmpresa: true,
       clientes,
       telefono,
+      modulos,
       usuarioId: userCol.insertedId,
       fechaCreacion: moment().toDate()
     })
@@ -81,7 +82,7 @@ export const createUser = async (req, res) => {
   }
 }
 export const updateUser = async (req, res) => {
-  const { _id, nombre, email, clientes, telefono } = req.body
+  const { _id, nombre, email, clientes, telefono, modulos } = req.body
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
@@ -94,7 +95,8 @@ export const updateUser = async (req, res) => {
         nombre,
         email,
         clientes,
-        telefono
+        telefono,
+        modulos
       }
     })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
@@ -107,7 +109,7 @@ export const updateUser = async (req, res) => {
   }
 }
 export const createUserCliente = async (req, res) => {
-  const { nombre, email, telefono, clienteId } = req.body
+  const { nombre, email, telefono, clienteId, modulos } = req.body
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
@@ -137,6 +139,7 @@ export const createUserCliente = async (req, res) => {
       isCliente: true,
       clienteId,
       telefono,
+      modulos,
       usuarioId: userCol.insertedId,
       fechaCreacion: moment().toDate(),
       empresaId: empresa._id
@@ -159,7 +162,7 @@ export const createUserCliente = async (req, res) => {
   }
 }
 export const updateUserCliente = async (req, res) => {
-  const { _id, nombre, email, telefono } = req.body
+  const { _id, nombre, email, telefono, modulos } = req.body
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
@@ -167,7 +170,7 @@ export const updateUserCliente = async (req, res) => {
     const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
     // en caso de que no exista, retornamos un error
     if (!persona) return res.status(400).json({ error: 'El usuario no existe' })
-    await personasCollection.updateOne({ _id: persona._id }, { $set: { nombre, email, telefono } })
+    await personasCollection.updateOne({ _id: persona._id }, { $set: { nombre, email, telefono, modulos } })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email } })

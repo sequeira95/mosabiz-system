@@ -8,6 +8,7 @@ import authRouter from './routes/auth.js'
 import rolsRouter from './routes/rols.js'
 import mantenedorModulosRouter from './routes/mantenedorModulos.js'
 import userRouter from './routes/user.js'
+import fileUpload from 'express-fileupload'
 
 // import SD
 
@@ -22,6 +23,12 @@ app.disable('x-powered-by')
 app.use(cors({
   origin: '*'
 }))
+app.use(fileUpload({
+  limits: { fileSize: 50 * 1024 * 1024 }
+  /* useTempFiles: true,
+  tempFileDir: './uploads' */
+}))
+
 const PORT = process.env.PORT || 5000
 
 // midelware

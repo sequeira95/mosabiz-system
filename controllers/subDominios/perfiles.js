@@ -4,7 +4,7 @@ import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConf
 import { uploadImg } from '../../utils/cloudImage.js'
 
 export const getPerfilEmpresa = async (req, res) => {
-  const { uid } = req.uid
+  const uid = req.uid
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
@@ -19,7 +19,7 @@ export const getPerfilEmpresa = async (req, res) => {
   }
 }
 export const getPerfilusuario = async (req, res) => {
-  const { uid } = req.uid
+  const uid = req.uid
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
@@ -31,7 +31,7 @@ export const getPerfilusuario = async (req, res) => {
   }
 }
 export const getPerfilCliente = async (req, res) => {
-  const { uid } = req.uid
+  const uid = req.uid
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
@@ -55,24 +55,29 @@ export const getPerfil = async (req, res) => {
 }
 
 export const updatePerfilEmpresa = async (req, res) => {
-  const { _id, razonSocial, documentoIdentidad, email, telefono, direccion } = req.body
-  const { uid } = req.uid
+  const { _id, razonSocial, documentoIdentidad, email, telefono, countryCode, direccion } = req.body
+  const uid = req.uid
   const db = await accessToDataBase(dataBaseSecundaria)
   try {
-    const empresaData = { razonSocial, documentoIdentidad, email, telefono, direccion }
+    const empresaData = { razonSocial, documentoIdentidad, email, telefono, direccion, countryCode }
+    console.log({ empresaData })
     if (req.files) {
       const imgLogo = req.files?.logo
       const extension = imgLogo.mimetype.split('/')[1]
       const namePath = `logo-${subDominioName}.${extension}`
       const resImgLogo = await uploadImg(imgLogo.data, namePath)
-      empresaData.logo.path = resImgLogo.filePath
-      empresaData.logo.type = extension
-      empresaData.logo.url = resImgLogo.url
-      empresaData.logo.name = resImgLogo.name
-      empresaData.logo.fileId = resImgLogo.fileId
+      // console.log(resImgLogo)
+      empresaData.logo = {
+        path: resImgLogo.filePath,
+        name: resImgLogo.name,
+        url: resImgLogo.url,
+        type: extension,
+        fileId: resImgLogo.fileId
+      }
+      // console.log(empresaData, resImgLogo)
     }
-    console.log({ _id, razonSocial, documentoIdentidad, email, telefono, direccion }, req.files)
-    const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresas' })
+
+    const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
     const empresaCollection = await db.collection(subDominioEmpresaCollectionsName)
     const empresa = await empresaCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { $set: { ...empresaData } }, { returnDocument: 'after' })
     console.log('act perfil empresa paso 1')
@@ -86,6 +91,7 @@ export const updatePerfilEmpresa = async (req, res) => {
       $set: {
         nombre: razonSocial,
         email,
+        countryCode,
         telefono,
         direccion
       }
@@ -94,18 +100,19 @@ export const updatePerfilEmpresa = async (req, res) => {
     // actualizamos los datos correspondiente pero en la base de datos de aibiz
     const dbAibiz = await accessToDataBase(dataBasePrincipal)
     const aibizUsuariosCollectionName = await dbAibiz.collection('usuarios')
-    const usuarioAibiz = await aibizUsuariosCollectionName.findOneAndUpdate({ _id: usuario.usuarioAibiz }, { $set: { nombre: razonSocial, documentoIdentidad, email, telefono } })
+    const usuarioAibiz = await aibizUsuariosCollectionName.findOneAndUpdate({ _id: usuario.usuarioAibiz }, { $set: { nombre: razonSocial, documentoIdentidad, email, telefono, countryCode } })
     console.log('act perfil empresa paso 4', { usuarioAibiz })
     console.log('act perfil empresa paso 5')
     const aibizSubDominioCollectionName = await dbAibiz.collection('sub-dominios')
-    await aibizSubDominioCollectionName.updateOne({ _id: usuarioAibiz.subDominioId }, { $set: { razonSocial, documentoIdentidad, email, telefono } })
+    await aibizSubDominioCollectionName.updateOne({ _id: usuarioAibiz.subDominioId }, { $set: { razonSocial, documentoIdentidad, email, telefono, countryCode } })
     console.log('act perfil empresa paso 6')
     const aibizPersonasCollectionName = await dbAibiz.collection('personas')
-    await aibizPersonasCollectionName.updateOne({ usuarioId: usuarioAibiz._id }, { $set: { nombre: razonSocial, documentoIdentidad, email, telefono } })
+    await aibizPersonasCollectionName.updateOne({ usuarioId: usuarioAibiz._id }, { $set: { nombre: razonSocial, documentoIdentidad, email, telefono, countryCode } })
     console.log('act perfil empresa paso 7')
 
     return res.status(200).json({ status: 'Empresa actualizada correctamente ', empresa })
   } catch (e) {
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de actualizar el perfil de la empresa' + e.message })
   }
 }

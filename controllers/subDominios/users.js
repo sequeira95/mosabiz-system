@@ -1,7 +1,7 @@
 import moment from 'moment'
 import { dataBaseSecundaria, subDominioName } from '../../constants.js'
 import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConfing.js'
-import { encryptPassword } from '../../utils/hashPassword.js'
+import { comparePassword, encryptPassword } from '../../utils/hashPassword.js'
 import crypto from 'node:crypto'
 import { senEmail } from '../../utils/nodemailsConfing.js'
 import { ObjectId } from 'mongodb'
@@ -15,8 +15,9 @@ export const getUsers = async (req, res) => {
       { $match: { isEmpresa: true } }
     ]).toArray()
     return res.status(200).json(personas)
-  } catch (error) {
-    return res.status(500).json({ error })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtener usuarios' })
   }
 }
 export const getUsersClientes = async (req, res) => {
@@ -28,8 +29,9 @@ export const getUsersClientes = async (req, res) => {
       { $match: { isCliente: true, clienteId: new ObjectId(req.body._id) } }
     ]).toArray()
     return res.status(200).json(personas)
-  } catch (error) {
-    return res.status(500).json({ error })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtener usuarios del clientes' })
   }
 }
 export const createUser = async (req, res) => {
@@ -79,7 +81,7 @@ export const createUser = async (req, res) => {
     await senEmail(emailConfing)
     return res.status(200).json({ status: 'usuario creado', persona })
   } catch (e) {
-    // console.log(e)
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de crear usuario' })
   }
 }
@@ -104,7 +106,7 @@ export const updateUser = async (req, res) => {
     await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email } })
     return res.status(200).json({ status: 'usuario actualizado', persona })
   } catch (e) {
-    // console.log(e)
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de actualizar usuario' + e.message })
   }
 }
@@ -160,7 +162,7 @@ export const createUserCliente = async (req, res) => {
     const persona = await personasCollection.findOne({ _id: newUser.insertedId })
     return res.status(200).json({ status: 'usuario creado', persona })
   } catch (e) {
-    // console.log(e)
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de crear usuario' })
   }
 }
@@ -176,7 +178,7 @@ export const updateUserCliente = async (req, res) => {
     await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email } })
     return res.status(200).json({ status: 'usuario actualizado', persona })
   } catch (e) {
-    // console.log(e)
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de actualizar usuario' + e.message })
   }
 }
@@ -192,6 +194,25 @@ export const deleteUser = async (req, res) => {
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     await usuariosCollection.deleteOne({ _id: persona.usuarioId })
   } catch (e) {
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar usuario' + e.message })
+  }
+}
+export const changePassword = async (req, res) => {
+  const { oldPassword, newPassword } = req.body
+  const uid = req.uid
+  try {
+    const db = await accessToDataBase(dataBaseSecundaria)
+    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
+    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
+    const usuario = await usuariosCollection.findOne({ _id: new ObjectId(uid) })
+    const isValidPassword = await comparePassword(oldPassword, usuario.password)
+    if (!isValidPassword) return res.status(400).json({ error: 'Contraseña incorrecta' })
+    const password = await encryptPassword(newPassword)
+    await usuariosCollection.updateOne({ _id: new ObjectId(uid) }, { $set: { password } })
+    return res.status(200).json({ status: 'Contraseña actualizada exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de cambiar la contraseña' + e.message })
   }
 }

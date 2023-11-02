@@ -11,7 +11,6 @@ export const login = async (req, res) => {
   const db = await accessToDataBase(dataBaseSecundaria)
   const { email, password } = req.body
   let token = req.headers?.authorization
-  console.log({ email, password, token })
   if (token) {
     // quitamos el Bearer del token
     try {

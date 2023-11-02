@@ -8,7 +8,7 @@ const imagekit = new ImageKit({
 
 export async function uploadImg (fileData, fileName) {
   return await imagekit.upload({
-    folder: 'imgPrincipal',
+    folder: 'aibiz',
     file: fileData,
     fileName
   })

@@ -208,3 +208,17 @@ export const disableManydClient = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de desactivar la empresa' + e.message })
   }
 }
+
+export const deleteCliente = async (req, res) => {
+  const { _id } = req.body
+  try {
+    const db = await accessToDataBase(dataBaseSecundaria)
+    const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
+    const clientesCollection = await db.collection(subDominioClientesCollectionsName)
+    const cliente = await clientesCollection.findOneAndDelete({ _id: new ObjectId(_id) })
+    return res.status(200).json({ status: 'Cliente eliminado exitosamente', cliente })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar el cliente' })
+  }
+}

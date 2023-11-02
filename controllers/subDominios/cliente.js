@@ -7,11 +7,20 @@ import { ObjectId } from 'mongodb'
 import crypto from 'node:crypto'
 
 export const getClientes = async (req, res) => {
+  const { clientesId } = req.query
+  const clientesIdArray = []
+  if (clientesId && clientesId[0]) {
+    clientesIdArray.push({
+      $match: {
+        _id: { $in: clientesId.map((e) => new ObjectId(e)) }
+      }
+    })
+  }
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
     const clientesCollection = await db.collection(subDominioClientesCollectionsName)
-    const clientes = await clientesCollection.aggregate([]).toArray()
+    const clientes = await clientesCollection.aggregate(clientesIdArray).toArray()
     return res.status(200).json(clientes)
   } catch (e) {
     console.log(e)

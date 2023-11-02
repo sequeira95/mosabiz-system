@@ -4,15 +4,17 @@ import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConf
 import { encryptPassword } from '../../utils/hashPassword.js'
 import { senEmail } from '../../utils/nodemailsConfing.js'
 import { ObjectId } from 'mongodb'
+import crypto from 'node:crypto'
 
 export const getClientes = async (req, res) => {
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
     const clientesCollection = await db.collection(subDominioClientesCollectionsName)
-    const clientes = await clientesCollection.aggregate([])
+    const clientes = await clientesCollection.aggregate([]).toArray()
     return res.status(200).json(clientes)
   } catch (e) {
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar clientes' + e.message })
   }
 }
@@ -20,6 +22,7 @@ export const createCliente = async (req, res) => {
   const {
     razonSocial,
     email,
+    tipoDocumento,
     documentoIdentidad,
     countryCode,
     telefono,
@@ -41,9 +44,15 @@ export const createCliente = async (req, res) => {
     const verifyClient = await clientesCollection.findOne({ documentoIdentidad })
     // en caso de que exista, retornamos un error
     if (verifyClient) return res.status(400).json({ error: 'Esta empresa ya se encuentra registrado' })
+    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
+    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
+    const verifyUserEmail = await clientesCollection.findOne({ email })
+    if (verifyUserEmail) return res.status(400).json({ error: 'Este email ya se encuentra registrado' })
     const clienteCol = await clientesCollection.insertOne({
       razonSocial,
       email,
+      tipoDocumento,
+      documentoIdentidad,
       countryCode,
       telefono,
       direccion,
@@ -63,9 +72,9 @@ export const createCliente = async (req, res) => {
     const password = await encryptPassword(randomPassword)
     const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
     const empresaCollection = await db.collection(subDominioEmpresaCollectionsName)
-    const empresa = await empresaCollection.findOne()
-    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
-    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
+    const empresa = await empresaCollection.findOne({})
+    // const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
+    // const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     const userCol = await usuariosCollection.insertOne({
       nombre: razonSocial,
       email,
@@ -102,7 +111,7 @@ export const createCliente = async (req, res) => {
     const cliente = await clientesCollection.findOne({ _id: clienteCol.insertedId })
     return res.status(200).json({ status: 'cliente creado exitosamente', cliente })
   } catch (e) {
-    // console.log(e)
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de crear cliente' })
   }
 }
@@ -111,6 +120,7 @@ export const updateCliente = async (req, res) => {
     _id,
     razonSocial,
     email,
+    tipoDocumento,
     documentoIdentidad,
     countryCode,
     telefono,
@@ -139,6 +149,7 @@ export const updateCliente = async (req, res) => {
         pais,
         codPostal,
         tipoEmpresa,
+        tipoDocumento,
         documentoIdentidad,
         clasificacionContribuyente,
         primerPeriodoFiscal,
@@ -152,7 +163,9 @@ export const updateCliente = async (req, res) => {
       $set: {
         nombre: razonSocial,
         email,
-        direccion
+        direccion,
+        tipoDocumento,
+        documentoIdentidad
       }
     }, { returnDocument: 'after' })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
@@ -160,7 +173,7 @@ export const updateCliente = async (req, res) => {
     await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre: razonSocial, email } })
     return res.status(200).json({ status: 'Cliente actualizado exitosamente', cliente: clienteCol })
   } catch (e) {
-    // console.log(e)
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de crear cliente' })
   }
 }
@@ -173,6 +186,7 @@ export const disabledClient = async (req, res) => {
     const cliente = await clientesCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { $set: { activo: false } }, { returnDocument: 'after' })
     return res.status(200).json({ status: 'Empresa desactivada correctamente', cliente })
   } catch (e) {
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de desactivar la empresa' + e.message })
   }
 }
@@ -186,6 +200,7 @@ export const disableManydClient = async (req, res) => {
     await clientesCollection.updateMany({ _id: { $in: listClientId } }, { $set: { activo: false } })
     return res.status(200).json({ status: 'Empresa desactivadas correctamente' })
   } catch (e) {
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de desactivar la empresa' + e.message })
   }
 }

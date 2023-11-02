@@ -37,7 +37,18 @@ export const createSubDominio = async (req, res) => {
     if (verifyEmail) return res.status(400).json({ error: 'El email ya existe' })
     // en caso de que no exista, insertamos el sub-dominio
     const modulosId = modulos?.map(modulo => modulo._id)
-    const newSubDominio = await subDominiosCollection.insertOne({ subDominio, razonSocial, documentoIdentidad, email, telefono, modulosId, fechaCreacion: moment().toDate() })
+    const tipoDocumento = documentoIdentidad[0]
+    const newDocumentoIdentidad = documentoIdentidad.slice(1)
+    const newSubDominio = await subDominiosCollection.insertOne({
+      subDominio,
+      razonSocial,
+      tipoDocumento,
+      documentoIdentidad: newDocumentoIdentidad,
+      email,
+      telefono,
+      modulosId,
+      fechaCreacion: moment().toDate()
+    })
     const usuariosCollection = await db.collection('usuarios')
     // generamos un password aleatorio
     const randomPassword = crypto.randomBytes(3).toString('hex')
@@ -62,7 +73,8 @@ export const createSubDominio = async (req, res) => {
       subDominio,
       nombre: razonSocial,
       telefono,
-      documentoIdentidad,
+      tipoDocumento,
+      documentoIdentidad: newDocumentoIdentidad,
       modulosId,
       usuarioId: newUsuario.insertedId,
       fechaCreacion: moment().toDate()

@@ -52,13 +52,14 @@ export const createUser = async (req, res) => {
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
     })
+    const objectIdClientes = clientes.map(e => new ObjectId(e))
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
     const newUser = await personasCollection.insertOne({
       nombre,
       email,
       isEmpresa: true,
-      clientes,
+      clientes: objectIdClientes,
       telefono,
       modulos,
       usuarioId: userCol.insertedId,
@@ -88,11 +89,12 @@ export const updateUser = async (req, res) => {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
+    const objectIdClientes = clientes.map(e => new ObjectId(e))
     const persona = await personasCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, {
       $set: {
         nombre,
         email,
-        clientes,
+        clientes: objectIdClientes,
         telefono,
         modulos
       }

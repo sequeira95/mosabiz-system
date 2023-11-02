@@ -174,7 +174,7 @@ export const updateUserCliente = async (req, res) => {
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email } })
-    return res.status(200).json({ status: 'usuario actualizado' })
+    return res.status(200).json({ status: 'usuario actualizado', persona })
   } catch (e) {
     // console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de actualizar usuario' + e.message })

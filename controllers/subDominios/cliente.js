@@ -99,7 +99,8 @@ export const createCliente = async (req, res) => {
       `
     }
     await senEmail(emailConfing)
-    return res.status(200).json({ status: 'cliente creado exitosamente' })
+    const cliente = await clientesCollection.findOne({ _id: clienteCol.insertedId })
+    return res.status(200).json({ status: 'cliente creado exitosamente', cliente })
   } catch (e) {
     // console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de crear cliente' })
@@ -157,7 +158,7 @@ export const updateCliente = async (req, res) => {
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre: razonSocial, email } })
-    return res.status(200).json({ status: 'Cliente actualizado exitosamente' })
+    return res.status(200).json({ status: 'Cliente actualizado exitosamente', cliente: clienteCol })
   } catch (e) {
     // console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de crear cliente' })

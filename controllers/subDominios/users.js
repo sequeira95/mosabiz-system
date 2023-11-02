@@ -13,7 +13,7 @@ export const getUsers = async (req, res) => {
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
     const personas = await personasCollection.aggregate([
       { $match: { isEmpresa: true } }
-    ])
+    ]).toArray()
     return res.status(200).json(personas)
   } catch (error) {
     return res.status(500).json({ error })
@@ -26,7 +26,7 @@ export const getUsersClientes = async (req, res) => {
     const usersClientesCollection = await db.collection(subDominioUsersClientesCollectionsName)
     const personas = await usersClientesCollection.aggregate([
       { $match: { isCliente: true, clienteId: new ObjectId(req.body._id) } }
-    ])
+    ]).toArray()
     return res.status(200).json(personas)
   } catch (error) {
     return res.status(500).json({ error })

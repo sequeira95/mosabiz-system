@@ -189,10 +189,11 @@ export const deleteUser = async (req, res) => {
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
     const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
-    await personasCollection.deleteOne({ _id: persona._id })
+    const personaDelete = await personasCollection.findOneAndDelete({ _id: persona._id })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     await usuariosCollection.deleteOne({ _id: persona.usuarioId })
+    return res.status(200).json({ status: 'usuario eliminado', persona: personaDelete })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar usuario' + e.message })

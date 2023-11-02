@@ -38,7 +38,8 @@ content-type: application/json
   "telefono":""
 }
 ###
-POST  http://localhost:5000/v1/rols
+
+POST  http://localhost:5000/v1/modulos
 content-type: application/json
 ###
 POST  http://localhost:5000/v1/sub-dominio/perfil/updatePerfilEmpresa

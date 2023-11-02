@@ -1,26 +1,34 @@
 [
   {
-    "nombre":"Facturación"
+    "key": "65242b56ad591f1bc6f52ecb",
+    "nombre": "Facturación"
   },
   {
-    "nombre":"Contabilidad"
+    "key": "65242b56ad591f1bc6f52ecc",
+    "nombre": "Contabilidad"
   },
   {
-    "nombre":"Administración"
+    "key": "65242b56ad591f1bc6f52ecd",
+    "nombre": "Administración"
   },
   {
-    "nombre":"Compras"
+    "key": "65242b56ad591f1bc6f52ece",
+    "nombre": "Compras"
   },
   {
-    "nombre":"Gestión humana"
+    "key": "65242b56ad591f1bc6f52ecf",
+    "nombre": "Gestion humana"
   },
   {
-    "nombre":"Inventarios"
+    "key": "65242b56ad591f1bc6f52ed0",
+    "nombre": "Inventarios"
   },
   {
-    "nombre":"Tributos"
+    "key": "65242b56ad591f1bc6f52ed1",
+    "nombre": "Triburos"
   },
   {
-    "nombre":"Usuarios"
+    "key": "65242b56ad591f1bc6f52ed2",
+    "nombre": "Usuarios"
   }
 ]

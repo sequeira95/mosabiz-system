@@ -116,3 +116,54 @@ export const updatePerfilEmpresa = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de actualizar el perfil de la empresa' + e.message })
   }
 }
+
+export const updatePerfilCliente = async (req, res) => {
+  const { _id, razonSocial, documentoIdentidad, email, telefono, countryCode, direccion } = req.body
+  const uid = req.uid
+  const db = await accessToDataBase(dataBaseSecundaria)
+  try {
+    const clienteData = { razonSocial, documentoIdentidad, email, telefono, direccion, countryCode }
+    console.log({ clienteData })
+    if (req.files) {
+      const imgLogo = req.files?.logo
+      const extension = imgLogo.mimetype.split('/')[1]
+      const namePath = `logo-${razonSocial}.${extension}`
+      const resImgLogo = await uploadImg(imgLogo.data, namePath)
+      // console.log(resImgLogo)
+      clienteData.logo = {
+        path: resImgLogo.filePath,
+        name: resImgLogo.name,
+        url: resImgLogo.url,
+        type: extension,
+        fileId: resImgLogo.fileId
+      }
+      // console.log(clienteData, resImgLogo)
+    }
+
+    const subDominioClienteCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
+    const clientesCollection = await db.collection(subDominioClienteCollectionsName)
+    const cliente = await clientesCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { $set: { ...clienteData } }, { returnDocument: 'after' })
+    console.log('act perfil empresa paso 1')
+    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
+    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
+    const usuario = await usuariosCollection.findOneAndUpdate({ _id: new ObjectId(uid) }, { $set: { nombre: razonSocial, email } }, { returnDocument: 'after' })
+    console.log('act perfil empresa paso 2')
+    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+    const personasCollection = await db.collection(subDominioPersonasCollectionsName)
+    await personasCollection.updateOne({ usuarioId: usuario._id }, {
+      $set: {
+        nombre: razonSocial,
+        email,
+        countryCode,
+        telefono,
+        direccion
+      }
+    })
+    console.log('act perfil empresa paso 3')
+
+    return res.status(200).json({ status: 'Empresa actualizada correctamente ', cliente })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de actualizar el perfil de la empresa' + e.message })
+  }
+}

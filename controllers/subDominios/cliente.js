@@ -203,6 +203,20 @@ export const disabledClient = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de desactivar la empresa' + e.message })
   }
 }
+
+export const enableClient = async (req, res) => {
+  const { _id } = req.body
+  try {
+    const db = await accessToDataBase(dataBaseSecundaria)
+    const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
+    const clientesCollection = await db.collection(subDominioClientesCollectionsName)
+    const cliente = await clientesCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { $set: { activo: true } }, { returnDocument: 'after' })
+    return res.status(200).json({ status: 'Empresa activada correctamente', cliente })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de activar la empresa' + e.message })
+  }
+}
 export const disableManydClient = async (req, res) => {
   const listClient = req.body
   try {

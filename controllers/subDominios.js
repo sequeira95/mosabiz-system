@@ -99,7 +99,8 @@ export const createSubDominio = async (req, res) => {
     const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
     const newSubDominioEmpresa = await subDominioEmpresasCollections.insertOne({
       razonSocial,
-      documentoIdentidad,
+      tipoDocumento,
+      documentoIdentidad: newDocumentoIdentidad,
       email,
       telefono,
       modulosId
@@ -124,7 +125,8 @@ export const createSubDominio = async (req, res) => {
       isEmpresa: true,
       isAdministrador: true,
       usuarioId: newUsuarioSubDominio.insertedId,
-      documentoIdentidad,
+      tipoDocumento,
+      documentoIdentidad: newDocumentoIdentidad,
       fechaCreacion: moment().toDate(),
       empresaId: newSubDominioEmpresa.insertedId
       /* roles: [

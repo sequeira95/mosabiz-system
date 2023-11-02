@@ -137,7 +137,7 @@ export const createUserCliente = async (req, res) => {
       tipoDocumento,
       documentoIdentidad,
       isCliente: true,
-      clienteId,
+      clienteId: new ObjectId(clienteId),
       telefono,
       modulos,
       usuarioId: userCol.insertedId,

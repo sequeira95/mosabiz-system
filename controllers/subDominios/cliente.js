@@ -7,7 +7,7 @@ import { ObjectId } from 'mongodb'
 import crypto from 'node:crypto'
 
 export const getClientes = async (req, res) => {
-  const { clientesId } = req.query
+  const { clientesId } = req.body
   const clientesIdArray = []
   if (clientesId && clientesId[0]) {
     clientesIdArray.push({

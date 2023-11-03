@@ -200,17 +200,18 @@ export const deleteUser = async (req, res) => {
   }
 }
 export const changePassword = async (req, res) => {
-  const { oldPassword, newPassword } = req.body
+  const { passwordActual, newPassword, _id } = req.body
+  console.log(req.body)
   const uid = req.uid
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     const usuario = await usuariosCollection.findOne({ _id: new ObjectId(uid) })
-    const isValidPassword = await comparePassword(oldPassword, usuario.password)
+    const isValidPassword = await comparePassword(passwordActual, usuario.password)
     if (!isValidPassword) return res.status(400).json({ error: 'Contraseña incorrecta' })
     const password = await encryptPassword(newPassword)
-    await usuariosCollection.updateOne({ _id: new ObjectId(uid) }, { $set: { password } })
+    await usuariosCollection.updateOne({ _id: new ObjectId(uid) }, { $set: { password, fechaActPass: moment().toDate() } })
     return res.status(200).json({ status: 'Contraseña actualizada exitosamente' })
   } catch (e) {
     console.log(e)

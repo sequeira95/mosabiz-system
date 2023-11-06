@@ -23,11 +23,15 @@ export const createUserSuperAdmi = async (req, res) => {
   try {
     const db = await accessToDataBase(dataBasePrincipal)
     const usuariosCollection = await db.collection('usuarios')
+    // buscamos si el usuario ya existe
+    const verifyUser = await usuariosCollection.findOne({ email: email.toLowerCase() })
+    // en caso de que exista, retornamos un error
+    if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
     // encriptamos el password
     const newPassword = await encryptPassword(password)
     const userCol = await usuariosCollection.insertOne({
       nombre,
-      email,
+      email: email.toLowerCase(),
       password: newPassword,
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
@@ -35,7 +39,7 @@ export const createUserSuperAdmi = async (req, res) => {
     const personasCollection = await db.collection('personas')
     await personasCollection.insertOne({
       nombre,
-      email,
+      email: email.toLowerCase(),
       isSuperAdmin: true,
       usuarioId: userCol.insertedId,
       fechaCreacion: moment().toDate()
@@ -52,7 +56,7 @@ export const createUserAdmi = async (req, res) => {
     const db = await accessToDataBase(dataBasePrincipal)
     const usuariosCollection = await db.collection('usuarios')
     // buscamos si el usuario ya existe
-    const verifyUser = await usuariosCollection.findOne({ email })
+    const verifyUser = await usuariosCollection.findOne({ email: email.toLowerCase() })
     // en caso de que exista, retornamos un error
     if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
     // encriptamos el password
@@ -63,7 +67,7 @@ export const createUserAdmi = async (req, res) => {
     console.log('password', password, randomPassword)
     const userCol = await usuariosCollection.insertOne({
       nombre,
-      email,
+      email: email.toLowerCase(),
       password,
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
@@ -71,7 +75,7 @@ export const createUserAdmi = async (req, res) => {
     const personasCollection = await db.collection('personas')
     await personasCollection.insertOne({
       nombre,
-      email,
+      email: email.toLowerCase(),
       telefono,
       isAdmin: true,
       usuarioId: userCol.insertedId,
@@ -80,10 +84,10 @@ export const createUserAdmi = async (req, res) => {
     // enviamos el email con el password
     const emailConfing = {
       from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
-      to: email,
+      to: email.toLowerCase(),
       subject: 'verifique cuenta de email',
       html: `
-      <p>email: ${email}</p>
+      <p>email: ${email.toLowerCase()}</p>
       <p>Contraseña: ${randomPassword}</p>
       `
     }
@@ -103,7 +107,7 @@ export const createUserProgramador = async (req, res) => {
     const newPassword = await encryptPassword(password)
     const userCol = await usuariosCollection.insertOne({
       nombre,
-      email,
+      email: email.toLowerCase(),
       password: newPassword,
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
@@ -111,7 +115,7 @@ export const createUserProgramador = async (req, res) => {
     const personasCollection = await db.collection('personas')
     await personasCollection.insertOne({
       nombre,
-      email,
+      email: email.toLowerCase(),
       telefono,
       isProgramador: true,
       usuarioId: userCol.insertedId,
@@ -131,10 +135,10 @@ export const updateUser = async (req, res) => {
     const db = await accessToDataBase(dataBasePrincipal)
     const personasCollection = await db.collection('personas')
     const persona = await personasCollection.findOne({ _id: new ObjectId(_id) })
-    await personasCollection.updateOne({ _id: new ObjectId(persona._id) }, { $set: { nombre, email, telefono } })
+    await personasCollection.updateOne({ _id: new ObjectId(persona._id) }, { $set: { nombre, email: email.toLowerCase(), telefono } })
     const usuariosCollection = await db.collection('usuarios')
     await usuariosCollection.findOne({ _id: new ObjectId(persona.usuarioId) })
-    await usuariosCollection.updateOne({ _id: new ObjectId(persona.usuarioId) }, { $set: { nombre, email, telefono } })
+    await usuariosCollection.updateOne({ _id: new ObjectId(persona.usuarioId) }, { $set: { nombre, email: email.toLowerCase(), telefono } })
     /* const updateUser = await usuariosCollection.findOneAndUpdate({ _id: new ObjectId(persona.usuarioId) }, { $set: { nombre, email } }, { returnNewDocument: true })
     console.log({ updateUser })
     if (updateUser.value.subDominio) {

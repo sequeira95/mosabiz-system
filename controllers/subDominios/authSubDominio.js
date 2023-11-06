@@ -53,7 +53,7 @@ export const login = async (req, res) => {
     if (empresa.activo === false) throw new Error('Empresa desactivada')
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    const usuario = await usuariosCollection.findOne({ email })
+    const usuario = await usuariosCollection.findOne({ email: email.toLowerCase() })
     // en caso de que no exista el email , retornamos un error
     if (!usuario) return res.status(403).json({ error: 'Usuario o contraseña incorrecto' })
     const isValidPassword = await comparePassword(password, usuario.password)
@@ -96,7 +96,7 @@ export const recoverPassword = async (req, res) => {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    const usuario = await usuariosCollection.findOne({ email })
+    const usuario = await usuariosCollection.findOne({ email: email.toLowerCase() })
     if (!usuario) return res.status(403).json({ error: 'Este email no se encuentra registrado' })
     // generamos un password aleatorio
     const randomPassword = crypto.randomBytes(3).toString('hex')
@@ -112,7 +112,7 @@ export const recoverPassword = async (req, res) => {
     // enviamos el email con el nuevo password
     const emailConfing = {
       from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
-      to: email,
+      to: email.toLowerCase(),
       subject: 'Actialización de contraseña',
       html: `
       <p>Contraseña: ${randomPassword}</p>

@@ -32,7 +32,7 @@ export const createSubDominio = async (req, res) => {
     // en caso de que exista, retornamos un error
     if (verifySubDominio) return res.status(400).json({ error: 'El sub-dominio ya existe' })
     // buscamos si el email ya existe
-    const verifyEmail = await subDominiosCollection.findOne({ email })
+    const verifyEmail = await subDominiosCollection.findOne({ email: email.toLowerCase() })
     // en caso de que exista, retornamos un error
     if (verifyEmail) return res.status(400).json({ error: 'El email ya existe' })
     // en caso de que no exista, insertamos el sub-dominio
@@ -44,7 +44,7 @@ export const createSubDominio = async (req, res) => {
       razonSocial,
       tipoDocumento,
       documentoIdentidad: newDocumentoIdentidad,
-      email,
+      email: email.toLowerCase(),
       telefono,
       modulosId,
       fechaCreacion: moment().toDate()
@@ -56,7 +56,7 @@ export const createSubDominio = async (req, res) => {
     const password = await encryptPassword(randomPassword)
     // insertamos un usuario por defecto para el nuevo sub dominio
     const newUsuario = await usuariosCollection.insertOne({
-      email,
+      email: email.toLowerCase(),
       password,
       subDominioId: newSubDominio.insertedId,
       subDominio,
@@ -68,7 +68,7 @@ export const createSubDominio = async (req, res) => {
     // insertamos una persona por defecto para el nuevo sub dominio
     const personasCollection = await db.collection('personas')
     await personasCollection.insertOne({
-      email,
+      email: email.toLowerCase(),
       subDominioId: newSubDominio.insertedId,
       subDominio,
       nombre: razonSocial,
@@ -82,10 +82,10 @@ export const createSubDominio = async (req, res) => {
     // enviamos el email con el password
     const emailConfing = {
       from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
-      to: email,
+      to: email.toLowerCase(),
       subject: 'verifique cuenta de email',
       html: `
-      <p>email: ${email}</p>
+      <p>email: ${email.toLowerCase()}</p>
       <p>Contraseña: ${randomPassword}</p>
       `
     }
@@ -101,7 +101,7 @@ export const createSubDominio = async (req, res) => {
       razonSocial,
       tipoDocumento,
       documentoIdentidad: newDocumentoIdentidad,
-      email,
+      email: email.toLowerCase(),
       telefono,
       modulosId
     })
@@ -109,7 +109,7 @@ export const createSubDominio = async (req, res) => {
     const subDominioUsuariosCollections = await dbSubDominio.collection(subDominioUsuariosCollectionsName)
     const newUsuarioSubDominio = await subDominioUsuariosCollections.insertOne({
       nombre: razonSocial,
-      email,
+      email: email.toLowerCase(),
       password,
       fechaActPass: moment().toDate(),
       usuarioAibiz: newUsuario.insertedId,
@@ -120,7 +120,7 @@ export const createSubDominio = async (req, res) => {
     const subDominioPersonasCollections = await dbSubDominio.collection(subDominioPersonasCollectionsName)
     await subDominioPersonasCollections.insertOne({
       nombre: razonSocial,
-      email,
+      email: email.toLowerCase(),
       telefono,
       isEmpresa: true,
       isAdministrador: true,
@@ -146,31 +146,31 @@ export const updateSubDominio = async (req, res) => {
     const db = await accessToDataBase(dataBasePrincipal)
     const subDominiosCollection = await db.collection('sub-dominios')
     // const modulosId = modulos?.map(modulo => modulo._id) || []
-    await subDominiosCollection.updateOne({ _id: new ObjectId(_id) }, { $set: { razonSocial, documentoIdentidad, email, telefono, modulosId } })
+    await subDominiosCollection.updateOne({ _id: new ObjectId(_id) }, { $set: { razonSocial, documentoIdentidad, email: email.toLowerCase(), telefono, modulosId } })
     // luego de actualizar el sub dominio, actualizamos los usuarios y personas
     const usuariosCollection = await db.collection('usuarios')
-    const updateUser = await usuariosCollection.findOneAndUpdate({ subDominioId: new ObjectId(_id) }, { $set: { nombre: razonSocial, email, telefono, modulosId } }, { returnDocument: 'after' })
+    const updateUser = await usuariosCollection.findOneAndUpdate({ subDominioId: new ObjectId(_id) }, { $set: { nombre: razonSocial, email: email.toLowerCase(), telefono, modulosId } }, { returnDocument: 'after' })
     console.log({ updateUser })
     const personasCollection = await db.collection('personas')
-    await personasCollection.updateOne({ usuarioId: updateUser._id }, { $set: { nombre: razonSocial, email, telefono, documentoIdentidad, modulosId } })
+    await personasCollection.updateOne({ usuarioId: updateUser._id }, { $set: { nombre: razonSocial, email: email.toLowerCase(), telefono, documentoIdentidad, modulosId } })
     // actualizamos los datos de la base de datos del sub dominio
     const dbSubDominio = await accessToDataBase(subDominio)
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'usuarios' })
     const subDominioUsuariosCollections = await dbSubDominio.collection(subDominioUsuariosCollectionsName)
     const updateUsuarioSubDominio = await subDominioUsuariosCollections.findOneAndUpdate(
       { usuarioAibiz: updateUser._id },
-      { $set: { nombre: razonSocial, email, telefono } }
+      { $set: { nombre: razonSocial, email: email.toLowerCase(), telefono } }
     )
     console.log({ updateUsuarioSubDominio })
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'personas' })
     const subDominioPersonasCollections = await dbSubDominio.collection(subDominioPersonasCollectionsName)
     await subDominioPersonasCollections.updateOne(
       { usuarioId: updateUsuarioSubDominio._id },
-      { $set: { nombre: razonSocial, email, telefono, documentoIdentidad } }
+      { $set: { nombre: razonSocial, email: email.toLowerCase(), telefono, documentoIdentidad } }
     )
     const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominio, nameCollection: 'empresa' })
     const subDominioEmpresasCollections = await dbSubDominio.collection(subDominioEmpresasCollectionsName)
-    await subDominioEmpresasCollections.updateOne({}, { $set: { razonSocial, documentoIdentidad, email, telefono, modulosId } })
+    await subDominioEmpresasCollections.updateOne({}, { $set: { razonSocial, documentoIdentidad, email: email.toLowerCase(), telefono, modulosId } })
     return res.status(200).json({ status: 'Sub-dominio actualizado' })
   } catch (e) {
     // console.log(e)

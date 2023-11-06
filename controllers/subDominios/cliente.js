@@ -8,6 +8,7 @@ import crypto from 'node:crypto'
 
 export const getClientes = async (req, res) => {
   const { clientesId } = req.body
+  console.log(req.body)
   const clientesIdArray = []
   if (clientesId && clientesId[0]) {
     clientesIdArray.push({
@@ -48,7 +49,30 @@ export const createCliente = async (req, res) => {
   } = req.body
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
+    const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
     const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
+    const empresaCollection = await db.collection(subDominioEmpresaCollectionsName)
+    const empresa = await empresaCollection.aggregate([
+      {
+        $lookup:
+          {
+            from: `${subDominioClientesCollectionsName}`,
+            pipeline: [
+              { $count: 'empresasLength' }
+            ],
+            as: 'empresas'
+          }
+      },
+      { $unwind: { path: '$empresas', preserveNullAndEmptyArrays: true } },
+      {
+        $project:
+        {
+          limiteUsuarios: '$limiteEmpresas',
+          empresasLength: '$empresas.empresasLength'
+        }
+      }
+    ]).toArray()
+    if (empresa[0].empresasLength && empresa[0].empresasLength >= empresa[0].limiteUsuarios) return res.status(400).json({ error: 'El limite de empresas ha sido alcanzado' })
     const clientesCollection = await db.collection(subDominioClientesCollectionsName)
     // buscamos si la empresa ya existe
     const verifyClient = await clientesCollection.findOne({ documentoIdentidad })
@@ -56,11 +80,11 @@ export const createCliente = async (req, res) => {
     if (verifyClient) return res.status(400).json({ error: 'Esta empresa ya se encuentra registrado' })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    const verifyUserEmail = await clientesCollection.findOne({ email })
+    const verifyUserEmail = await clientesCollection.findOne({ email: email.toLowerCase() })
     if (verifyUserEmail) return res.status(400).json({ error: 'Este email ya se encuentra registrado' })
     const clienteCol = await clientesCollection.insertOne({
       razonSocial,
-      email,
+      email: email.toLowerCase(),
       tipoDocumento,
       documentoIdentidad,
       countryCode,
@@ -75,20 +99,18 @@ export const createCliente = async (req, res) => {
       primerPeriodoFiscal,
       limiteUsuarios: parseInt(limiteUsuarios),
       modulos,
-      fechaCreacion: moment().toDate()
+      fechaCreacion: moment().toDate(),
+      activo: true
     })
     // creamos el usuario asociado a este nuevo cliente
     const randomPassword = crypto.randomBytes(3).toString('hex')
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
-    const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
-    const empresaCollection = await db.collection(subDominioEmpresaCollectionsName)
-    const empresa = await empresaCollection.findOne({})
     // const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     // const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     const userCol = await usuariosCollection.insertOne({
       nombre: razonSocial,
-      email,
+      email: email.toLowerCase(),
       password,
       isCliente: true,
       clienteId: clienteCol.insertedId,
@@ -99,7 +121,7 @@ export const createCliente = async (req, res) => {
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
     await personasCollection.insertOne({
       nombre: razonSocial,
-      email,
+      email: email.toLowerCase(),
       direccion,
       isCliente: true,
       isAdministrador: true,
@@ -111,10 +133,10 @@ export const createCliente = async (req, res) => {
     // enviamos el email con el password
     const emailConfing = {
       from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
-      to: email,
+      to: email.toLowerCase(),
       subject: 'verifique cuenta de email',
       html: `
-      <p>email: ${email}</p>
+      <p>email: ${email.toLowerCase()}</p>
       <p>Contraseña: ${randomPassword}</p>
       `
     }
@@ -153,7 +175,7 @@ export const updateCliente = async (req, res) => {
     const clienteCol = await clientesCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, {
       $set: {
         razonSocial,
-        email,
+        email: email.toLowerCase(),
         countryCode,
         telefono,
         direccion,
@@ -175,7 +197,7 @@ export const updateCliente = async (req, res) => {
     const persona = await personasCollection.findOneAndUpdate({ clienteId: clienteCol._id, isAdministrador: true }, {
       $set: {
         nombre: razonSocial,
-        email,
+        email: email.toLowerCase(),
         direccion,
         tipoDocumento,
         documentoIdentidad
@@ -183,7 +205,7 @@ export const updateCliente = async (req, res) => {
     }, { returnDocument: 'after' })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre: razonSocial, email } })
+    await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre: razonSocial, email: email.toLowerCase() } })
     return res.status(200).json({ status: 'Cliente actualizado exitosamente', cliente: clienteCol })
   } catch (e) {
     console.log(e)

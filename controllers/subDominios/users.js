@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { dataBaseSecundaria, subDominioName } from '../../constants.js'
+import { dataBasePrincipal, dataBaseSecundaria, subDominioName } from '../../constants.js'
 import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConfing.js'
 import { comparePassword, encryptPassword } from '../../utils/hashPassword.js'
 import crypto from 'node:crypto'
@@ -41,7 +41,7 @@ export const createUser = async (req, res) => {
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     // buscamos si el usuario ya existe
-    const verifyUser = await usuariosCollection.findOne({ email })
+    const verifyUser = await usuariosCollection.findOne({ email: email.toLowerCase() })
     // en caso de que exista, retornamos un error
     if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
     const randomPassword = crypto.randomBytes(3).toString('hex')
@@ -49,7 +49,7 @@ export const createUser = async (req, res) => {
     const password = await encryptPassword(randomPassword)
     const userCol = await usuariosCollection.insertOne({
       nombre,
-      email,
+      email: email.toLowerCase(),
       password,
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
@@ -59,7 +59,7 @@ export const createUser = async (req, res) => {
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
     const newUser = await personasCollection.insertOne({
       nombre,
-      email,
+      email: email.toLowerCase(),
       isEmpresa: true,
       clientes: objectIdClientes,
       telefono,
@@ -71,10 +71,10 @@ export const createUser = async (req, res) => {
     // enviamos el email con el password
     const emailConfing = {
       from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
-      to: email,
+      to: email.toLowerCase(),
       subject: 'verifique cuenta de email',
       html: `
-      <p>email: ${email}</p>
+      <p>email: ${email.toLowerCase()}</p>
       <p>Contraseña: ${randomPassword}</p>
       `
     }
@@ -95,7 +95,7 @@ export const updateUser = async (req, res) => {
     const persona = await personasCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, {
       $set: {
         nombre,
-        email,
+        email: email.toLowerCase(),
         clientes: objectIdClientes,
         telefono,
         modulos
@@ -103,7 +103,7 @@ export const updateUser = async (req, res) => {
     }, { returnDocument: 'after' })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email } })
+    await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email: email.toLowerCase() } })
     return res.status(200).json({ status: 'usuario actualizado', persona })
   } catch (e) {
     console.log(e)
@@ -114,10 +114,36 @@ export const createUserCliente = async (req, res) => {
   const { nombre, email, telefono, clienteId, modulos, tipoDocumento, documentoIdentidad } = req.body
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
+    const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
+    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+    const clientesCollection = await db.collection(subDominioClientesCollectionsName)
+    const cliente = await clientesCollection.aggregate([
+      { $match: { _id: new ObjectId(clienteId) } },
+      {
+        $lookup:
+          {
+            from: `${subDominioPersonasCollectionsName}`,
+            pipeline: [
+              { $match: { clienteId: new ObjectId(clienteId) } },
+              { $count: 'userLength' }
+            ],
+            as: 'personas'
+          }
+      },
+      { $unwind: { path: '$personas', preserveNullAndEmptyArrays: true } },
+      {
+        $project:
+        {
+          limiteUsuarios: '$limiteUsuarios',
+          userLength: '$personas.userLength'
+        }
+      }
+    ]).toArray()
+    if (cliente[0].userLength >= cliente[0].limiteUsuarios) return res.status(400).json({ error: 'El limite de usuarios ha sido alcanzado' })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
     // buscamos si el usuario ya existe
-    const verifyUser = await usuariosCollection.findOne({ email })
+    const verifyUser = await usuariosCollection.findOne({ email: email.toLowerCase() })
     // en caso de que exista, retornamos un error
     if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
     const randomPassword = crypto.randomBytes(3).toString('hex')
@@ -125,7 +151,7 @@ export const createUserCliente = async (req, res) => {
     const password = await encryptPassword(randomPassword)
     const userCol = await usuariosCollection.insertOne({
       nombre,
-      email,
+      email: email.toLowerCase(),
       password,
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
@@ -133,11 +159,10 @@ export const createUserCliente = async (req, res) => {
     const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
     const empresaCollection = await db.collection(subDominioEmpresaCollectionsName)
     const empresa = await empresaCollection.findOne({})
-    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
     const newUser = await personasCollection.insertOne({
       nombre,
-      email,
+      email: email.toLowerCase(),
       tipoDocumento,
       documentoIdentidad,
       isCliente: true,
@@ -151,10 +176,10 @@ export const createUserCliente = async (req, res) => {
     // enviamos el email con el password
     const emailConfing = {
       from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
-      to: email,
+      to: email.toLowerCase(),
       subject: 'verifique cuenta de email',
       html: `
-      <p>email: ${email}</p>
+      <p>email: ${email.toLowerCase()}</p>
       <p>Contraseña: ${randomPassword}</p>
       `
     }
@@ -172,10 +197,10 @@ export const updateUserCliente = async (req, res) => {
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
-    const persona = await personasCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { $set: { nombre, email, telefono, modulos } }, { returnDocument: 'after' })
+    const persona = await personasCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { $set: { nombre, email: email.toLowerCase(), telefono, modulos } }, { returnDocument: 'after' })
     const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email } })
+    await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre, email: email.toLowerCase() } })
     return res.status(200).json({ status: 'usuario actualizado', persona })
   } catch (e) {
     console.log(e)
@@ -200,8 +225,7 @@ export const deleteUser = async (req, res) => {
   }
 }
 export const changePassword = async (req, res) => {
-  const { passwordActual, newPassword, _id } = req.body
-  console.log(req.body)
+  const { passwordActual, newPassword } = req.body
   const uid = req.uid
   try {
     const db = await accessToDataBase(dataBaseSecundaria)
@@ -212,6 +236,11 @@ export const changePassword = async (req, res) => {
     if (!isValidPassword) return res.status(400).json({ error: 'Contraseña incorrecta' })
     const password = await encryptPassword(newPassword)
     await usuariosCollection.updateOne({ _id: new ObjectId(uid) }, { $set: { password, fechaActPass: moment().toDate() } })
+    if (usuario.usuarioAibiz) {
+      const db = await accessToDataBase(dataBasePrincipal)
+      const aibizUsuariosCollection = await db.collection('usuarios')
+      await aibizUsuariosCollection.updateOne({ _id: new ObjectId(usuario.usuarioAibiz) }, { $set: { password, fechaActPass: moment().toDate() } })
+    }
     return res.status(200).json({ status: 'Contraseña actualizada exitosamente' })
   } catch (e) {
     console.log(e)

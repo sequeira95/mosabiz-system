@@ -30,7 +30,7 @@ export const login = async (req, res) => {
 
   try {
     const usuariosCollection = await db.collection('usuarios')
-    const usuario = await usuariosCollection.findOne({ email })
+    const usuario = await usuariosCollection.findOne({ email: email.toLowerCase() })
     // en caso de que no exista el email , retornamos un error
     if (!usuario) return res.status(403).json({ error: 'Usuario o contraseña incorrecto' })
     const isValidPassword = await comparePassword(password, usuario.password)

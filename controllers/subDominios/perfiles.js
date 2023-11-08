@@ -1,18 +1,20 @@
 import { ObjectId } from 'mongodb'
 import { dataBasePrincipal, dataBaseSecundaria, subDominioName } from '../../constants.js'
-import { accessToDataBase, formatCollectionName } from '../../utils/dataBaseConfing.js'
+import { accessToDataBase, formatCollectionName, getItemSD } from '../../utils/dataBaseConfing.js'
 import { uploadImg } from '../../utils/cloudImage.js'
 
 export const getPerfilEmpresa = async (req, res) => {
   const uid = req.uid
   try {
-    const db = await accessToDataBase(dataBaseSecundaria)
+    /* const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const personasCollection = await db.collection(subDominioPersonasCollectionsName)
     const persona = await personasCollection.findOne({ empresaId: new ObjectId(uid) })
     const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
     const empresaCollection = await db.collection(subDominioEmpresaCollectionsName)
-    const empresa = await empresaCollection.findOne({ _id: new ObjectId(persona.empresaId) })
+    const empresa = await empresaCollection.findOne({ _id: new ObjectId(persona.empresaId) }) */
+    const persona = await getItemSD({ nameCollection: 'personas', filters: { usuarioId: new ObjectId(uid) } })
+    const empresa = await getItemSD({ nameCollection: 'empresa', filters: { _id: new ObjectId(persona.empresaId) } })
     return res.status(200).json({ empresa, persona })
   } catch (e) {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar los datos del perfil de la empresa' })

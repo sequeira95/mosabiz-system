@@ -1,3 +1,4 @@
+import { dataBasePrincipal, dataBaseSecundaria, subDominioName } from '../constants.js'
 import { clientDb } from '../index.js'
 // accedemos a la base de datos correspondiente
 export async function accessToDataBase (dataBaseName) {
@@ -9,4 +10,74 @@ export function formatCollectionName ({ enviromentEmpresa, enviromentClienteId, 
     return `col_${enviromentEmpresa}_${enviromentClienteId}_${nameCollection}`
   }
   return `col_${enviromentEmpresa}_${nameCollection}`
+}
+// funciones base de datos principal
+export async function getCollection ({ nameCollection, filters = {} }) {
+  const db = await accessToDataBase(dataBasePrincipal)
+  const collection = await db.collection(nameCollection)
+  return await collection.find(filters).toArray()
+}
+export async function getItem ({ nameCollection, filters = {} }) {
+  const db = await accessToDataBase(dataBasePrincipal)
+  const collection = await db.collection(nameCollection)
+  return await collection.findOne(filters).toArray()
+}
+export async function updateItem ({ nameCollection, filters = {}, update = {} }) {
+  const db = await accessToDataBase(dataBasePrincipal)
+  const collection = await db.collection(nameCollection)
+  return await collection.findOneAndUpdate(filters, update, { returnDocument: 'after' })
+}
+export async function upsertItem ({ nameCollection, filters = {}, update = {} }) {
+  const db = await accessToDataBase(dataBasePrincipal)
+  const collection = await db.collection(nameCollection)
+  return await collection.findOneAndUpdate(filters, update, { upsert: true, returnDocument: 'after' })
+}
+export async function agreggateCollections ({ nameCollection, pipeline = [] }) {
+  const db = await accessToDataBase(dataBasePrincipal)
+  const collection = await db.collection(nameCollection)
+  return await collection.aggregate(pipeline).toArray()
+}
+// funciones base de datos secundaria
+export async function getCollectionSD ({ enviromentClienteId, nameCollection, filters = {} }) {
+  console.log(enviromentClienteId, nameCollection, filters = {})
+  const db = await accessToDataBase(dataBaseSecundaria)
+  let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
+  if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
+  const collection = await db.collection(collecionName)
+  return await collection.find(filters).toArray()
+}
+export async function getItemSD ({ enviromentClienteId, nameCollection, filters = {} }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
+  if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
+  const collection = await db.collection(collecionName)
+  return await collection.findOne(filters)
+}
+export async function updateItemSD ({ enviromentClienteId, nameCollection, filters = {}, update = {} }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
+  if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
+  const collection = await db.collection(collecionName)
+  return await collection.findOneAndUpdate(filters, update, { returnDocument: 'after' })
+}
+export async function upsertItemSD ({ enviromentClienteId, nameCollection, filters = {}, update = {} }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
+  if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
+  const collection = await db.collection(collecionName)
+  return await collection.findOneAndUpdate(filters, update, { upsert: true, returnDocument: 'after' })
+}
+export async function agreggateCollectionsSD ({ enviromentClienteId, nameCollection, pipeline = [] }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
+  if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
+  const collection = await db.collection(collecionName)
+  return await collection.aggregate(pipeline).toArray()
+}
+export async function createItemSD ({ enviromentClienteId, nameCollection, item = {} }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
+  if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
+  const collection = await db.collection(collecionName)
+  return await collection.insertOne(item)
 }

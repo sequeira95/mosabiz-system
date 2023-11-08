@@ -37,6 +37,16 @@ export async function agreggateCollections ({ nameCollection, pipeline = [] }) {
   const collection = await db.collection(nameCollection)
   return await collection.aggregate(pipeline).toArray()
 }
+export async function createItem ({ nameCollection, item = {} }) {
+  const db = await accessToDataBase(dataBasePrincipal)
+  const collection = await db.collection(nameCollection)
+  return await collection.insertOne(item)
+}
+export async function deleteItem ({ nameCollection, filters = {} }) {
+  const db = await accessToDataBase(dataBasePrincipal)
+  const collection = await db.collection(nameCollection)
+  return await collection.deleteOne(filters)
+}
 // funciones base de datos secundaria
 export async function getCollectionSD ({ enviromentClienteId, nameCollection, filters = {} }) {
   console.log(enviromentClienteId, nameCollection, filters = {})
@@ -80,4 +90,11 @@ export async function createItemSD ({ enviromentClienteId, nameCollection, item 
   if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
   const collection = await db.collection(collecionName)
   return await collection.insertOne(item)
+}
+export async function deleteItemSD ({ enviromentClienteId, nameCollection, filters = {} }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
+  if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
+  const collection = await db.collection(collecionName)
+  return await collection.deleteOne(filters)
 }

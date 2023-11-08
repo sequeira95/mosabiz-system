@@ -1,6 +1,6 @@
 import moment from 'moment'
 import { dataBasePrincipal } from '../constants.js'
-import { accessToDataBase/* , formatCollectionName */ } from '../utils/dataBaseConfing.js'
+import { accessToDataBase, createItem, /* , formatCollectionName */ getCollection, getItem } from '../utils/dataBaseConfing.js'
 import { encryptPassword } from '../utils/hashPassword.js'
 import { ObjectId } from 'mongodb'
 import { senEmail } from '../utils/nodemailsConfing.js'
@@ -8,9 +8,10 @@ import crypto from 'node:crypto'
 
 export const getUsers = async (req, res) => {
   try {
-    const db = await accessToDataBase(dataBasePrincipal)
+    /* const db = await accessToDataBase(dataBasePrincipal)
     const personasCollection = await db.collection('personas')
-    const personas = await personasCollection.find({ subDominioId: { $exists: false } }).toArray()
+    const personas = await personasCollection.find({ subDominioId: { $exists: false } }).toArray() */
+    const personas = await getCollection({ nameCollection: 'personas', filters: { subDominioId: { $exists: false } } })
     return res.status(200).json(personas)
   } catch (e) {
     // console.log(e)
@@ -53,10 +54,11 @@ export const createUserSuperAdmi = async (req, res) => {
 export const createUserAdmi = async (req, res) => {
   const { nombre, email, telefono } = req.body
   try {
-    const db = await accessToDataBase(dataBasePrincipal)
-    const usuariosCollection = await db.collection('usuarios')
+    /* const db = await accessToDataBase(dataBasePrincipal)
+    const usuariosCollection = await db.collection('usuarios') */
     // buscamos si el usuario ya existe
-    const verifyUser = await usuariosCollection.findOne({ email: email.toLowerCase() })
+    // const verifyUser = await usuariosCollection.findOne({ email: email.toLowerCase() })
+    const verifyUser = await getItem({ nameCollection: 'usuarios', filters: { email: email.toLowerCase() } })
     // en caso de que exista, retornamos un error
     if (verifyUser) return res.status(400).json({ error: 'El usuario ya se encuentra registrado' })
     // encriptamos el password
@@ -65,21 +67,42 @@ export const createUserAdmi = async (req, res) => {
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
     console.log('password', password, randomPassword)
-    const userCol = await usuariosCollection.insertOne({
+    /* const userCol = await usuariosCollection.insertOne({
       nombre,
       email: email.toLowerCase(),
       password,
       fechaActPass: moment().toDate(),
       fechaCreacion: moment().toDate()
+    }) */
+    const userCol = await createItem({
+      nameCollection: 'usuarios',
+      item: {
+        nombre,
+        email: email.toLowerCase(),
+        password,
+        fechaActPass: moment().toDate(),
+        fechaCreacion: moment().toDate()
+      }
     })
-    const personasCollection = await db.collection('personas')
-    await personasCollection.insertOne({
+    // const personasCollection = await db.collection('personas')
+    /* await personasCollection.insertOne({
       nombre,
       email: email.toLowerCase(),
       telefono,
       isAdmin: true,
       usuarioId: userCol.insertedId,
       fechaCreacion: moment().toDate()
+    }) */
+    await createItem({
+      nameCollection: 'personas',
+      item: {
+        nombre,
+        email: email.toLowerCase(),
+        telefono,
+        isAdmin: true,
+        usuarioId: userCol.insertedId,
+        fechaCreacion: moment().toDate()
+      }
     })
     // enviamos el email con el password
     const emailConfing = {

@@ -1,6 +1,6 @@
 import moment from 'moment'
-import { dataBasePrincipal, dataBaseSecundaria, subDominioName } from '../../constants.js'
-import { accessToDataBase, agreggateCollectionsSD, createItemSD, deleteItemSD, formatCollectionName, getItemSD, updateItem, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { subDominioName } from '../../constants.js'
+import { agreggateCollectionsSD, createItemSD, deleteItemSD, formatCollectionName, getItemSD, updateItem, updateItemSD } from '../../utils/dataBaseConfing.js'
 import { comparePassword, encryptPassword } from '../../utils/hashPassword.js'
 import crypto from 'node:crypto'
 import { senEmail } from '../../utils/nodemailsConfing.js'

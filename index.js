@@ -17,6 +17,7 @@ import perfilSDRouter from './routes/subDominios/perfiles.js'
 import usersSDRouter from './routes/subDominios/users.js'
 import clientesSDRouter from './routes/subDominios/cliente.js'
 import ajustesSDRouter from './routes/subDominios/ajustes.js'
+import planCuentaSDRouter from './routes/subDominios/planCuenta.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
 const app = express()
@@ -48,5 +49,6 @@ app.use('/v1/sub-dominio/perfil', perfilSDRouter)
 app.use('/v1/sub-dominio/users', usersSDRouter)
 app.use('/v1/sub-dominio/clientes', clientesSDRouter)
 app.use('/v1/sub-dominio/ajustes', ajustesSDRouter)
+app.use('/v1/sub-dominio/planCuenta', planCuentaSDRouter)
 
 app.listen(PORT, () => console.log('http://localhost:' + PORT))

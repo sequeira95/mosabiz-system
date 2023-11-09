@@ -15,6 +15,5 @@ export async function uploadImg (fileData, fileName) {
 }
 
 export async function deleteImg (fileId) {
-  console.log(fileId, 'idfile')
   return await imagekit.deleteFile(fileId)
 }

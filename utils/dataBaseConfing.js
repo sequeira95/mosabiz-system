@@ -1,4 +1,4 @@
-import { dataBasePrincipal, dataBaseSecundaria, subDominioName } from '../constants.js'
+import { collectionNameClient, dataBasePrincipal, dataBaseSecundaria, subDominioName } from '../constants.js'
 import { clientDb } from '../index.js'
 // accedemos a la base de datos correspondiente
 export async function accessToDataBase (dataBaseName) {
@@ -49,7 +49,6 @@ export async function deleteItem ({ nameCollection, filters = {} }) {
 }
 // funciones base de datos secundaria
 export async function getCollectionSD ({ enviromentClienteId, nameCollection, filters = {} }) {
-  console.log(enviromentClienteId, nameCollection, filters = {})
   const db = await accessToDataBase(dataBaseSecundaria)
   let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
   if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
@@ -97,4 +96,14 @@ export async function deleteItemSD ({ enviromentClienteId, nameCollection, filte
   if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
   const collection = await db.collection(collecionName)
   return await collection.deleteOne(filters)
+}
+
+export async function deleteCollection ({ enviromentClienteId }) {
+  const db = await accessToDataBase(dataBasePrincipal)
+  const listCollections = collectionNameClient
+  for (const collection of listCollections) {
+    const nameCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection: collection })
+    await db.collection(nameCollection).drop()
+    console.log(`La coleccion ${collection} fue eliminada`)
+  }
 }

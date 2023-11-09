@@ -8,7 +8,6 @@ import crypto from 'node:crypto'
 
 export const getClientes = async (req, res) => {
   const { clientesId } = req.body
-  console.log(req.body)
   const clientesIdArray = []
   if (clientesId && clientesId[0]) {
     clientesIdArray.push({

@@ -219,7 +219,6 @@ export const createUserCliente = async (req, res) => {
         }
       ]
     })
-    console.log({ cliente })
     if (cliente[0].userLength >= cliente[0].limiteUsuarios) return res.status(400).json({ error: 'El limite de usuarios ha sido alcanzado' })
     /* const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
     const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName) */

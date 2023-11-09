@@ -66,7 +66,6 @@ export const createUserAdmi = async (req, res) => {
     const randomPassword = crypto.randomBytes(3).toString('hex')
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
-    console.log('password', password, randomPassword)
     /* const userCol = await usuariosCollection.insertOne({
       nombre,
       email: email.toLowerCase(),
@@ -153,7 +152,6 @@ export const createUserProgramador = async (req, res) => {
 export const updateUser = async (req, res) => {
   const { _id } = req.params
   const { nombre, email, telefono } = req.body
-  console.log(req.params, req.body)
   try {
     const db = await accessToDataBase(dataBasePrincipal)
     const personasCollection = await db.collection('personas')

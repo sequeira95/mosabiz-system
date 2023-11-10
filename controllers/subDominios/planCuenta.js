@@ -50,10 +50,10 @@ export const saveCuenta = async (req, res) => {
   }
 }
 export const deleteCuenta = async (req, res) => {
-  const { _id } = req.body.cuenta
+  const { cuentaId } = req.body.cuenta
   const { clienteId } = req.body
   try {
-    await deleteItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
+    await deleteItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(cuentaId) } })
     return res.status(200).json({ status: 'Cuenta eliminada exitosamente' })
   } catch (e) {
     console.log(e)

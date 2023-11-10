@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { getCollectionSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { nivelesCodigoByLength } from '../../constants.js'
 import { ObjectId } from 'mongodb'
 
@@ -7,7 +7,13 @@ export const getPlanCuenta = async (req, res) => {
   const { clienteId } = req.body
   console.log({ clienteId })
   try {
-    const planCuenta = await getCollectionSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId })
+    const planCuenta = await agreggateCollectionsSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $sort: { nivel: 1, codigo: 1 } }
+      ]
+    })
     return res.status(200).json({ planCuenta })
   } catch (e) {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar el plan de cuenta' + e.message })

@@ -32,7 +32,6 @@ app.use(fileUpload({
 }))
 
 const PORT = process.env.PORT || 5000
-
 // midelware
 app.use(express.json())
 app.use(cookieParser())

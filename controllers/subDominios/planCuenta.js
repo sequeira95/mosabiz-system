@@ -69,7 +69,7 @@ export const saveCuentaToExcel = async (req, res) => {
           filter: { codigo: String(e.codigo) },
           update: {
             $set: {
-              codigo: String(e.codigo),
+              // codigo: String(e.codigo),
               descripcion: e.descripcion,
               conciliacion: e.conciliacion,
               tipo: e.tipo.toLowerCase() !== 'grupo' ? 'Movimiento' : e.tipo,

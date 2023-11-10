@@ -31,9 +31,11 @@ export const getTipoAjustesCliente = async (req, res) => {
 export const upsertAjusteCliente = async (req, res) => {
   const ajuste = req.body.ajuste
   const clienteId = req.body.clienteId
+  if (ajuste._id) delete ajuste._id
   if (!clienteId) return res.status(400).json({ error: 'Falta el cliente' })
   try {
     if (!ajuste.fechaCreacion) ajuste.fechaCreacion = moment().toDate()
+    ajuste.nivelCuenta = parseInt(ajuste.nivelCuenta)
     const ajusteActualizado = await upsertItemSD({
       enviromentClienteId: clienteId,
       nameCollection: 'ajustes',

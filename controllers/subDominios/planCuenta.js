@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, deleteItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, deleteItemSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { nivelesCodigoByLength } from '../../constants.js'
 import { ObjectId } from 'mongodb'
 
@@ -25,6 +25,8 @@ export const saveCuenta = async (req, res) => {
   try {
     const nivelCuenta = nivelesCodigoByLength[codigo.length]
     const fechaCreacion = req.body.cuenta.fechaCreacion ? req.body.cuenta.fechaCreacion : moment().toDate()
+    const verifyCuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { codigo } })
+    if (!_id && verifyCuenta) return res.status(400).json({ error: 'Ya existe una cuenta con este codigo' })
     const cuenta = await upsertItemSD({
       nameCollection: 'planCuenta',
       enviromentClienteId: clienteId,

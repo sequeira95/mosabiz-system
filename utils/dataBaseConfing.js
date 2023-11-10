@@ -97,7 +97,20 @@ export async function deleteItemSD ({ enviromentClienteId, nameCollection, filte
   const collection = await db.collection(collecionName)
   return await collection.deleteOne(filters)
 }
-
+export async function deleteManyItemsSD ({ enviromentClienteId, nameCollection, filters = {} }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
+  if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
+  const collection = await db.collection(collecionName)
+  return await collection.deleteMany(filters)
+}
+export async function bulkWriteSD ({ enviromentClienteId, nameCollection, pipeline = [] }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
+  if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
+  const collection = await db.collection(collecionName)
+  return await collection.bulkWrite(pipeline)
+}
 export async function deleteCollection ({ enviromentClienteId }) {
   const db = await accessToDataBase(dataBaseSecundaria)
   const listCollections = collectionNameClient

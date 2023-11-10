@@ -1,6 +1,6 @@
 import moment from 'moment'
 import { dataBaseSecundaria, subDominioName } from '../../constants.js'
-import { accessToDataBase, agreggateCollectionsSD, createItemSD, formatCollectionName, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { accessToDataBase, agreggateCollectionsSD, createItemSD, deleteCollection, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import { encryptPassword } from '../../utils/hashPassword.js'
 import { senEmail } from '../../utils/nodemailsConfing.js'
 import { ObjectId } from 'mongodb'
@@ -324,11 +324,14 @@ export const disableManydClient = async (req, res) => {
 export const deleteCliente = async (req, res) => {
   const { _id } = req.body
   try {
-    const db = await accessToDataBase(dataBaseSecundaria)
-    const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
-    const clientesCollection = await db.collection(subDominioClientesCollectionsName)
-    const cliente = await clientesCollection.findOneAndDelete({ _id: new ObjectId(_id) })
-    return res.status(200).json({ status: 'Cliente eliminado exitosamente', cliente })
+    const personasCliente = await getCollectionSD({ nameCollection: 'personas', filters: { clienteId: new ObjectId(_id) } })
+    const listUserId = personasCliente.map(persona => persona.usuarioId)
+    const listPersonasId = personasCliente.map(persona => persona._id)
+    await deleteManyItemsSD({ nameCollection: 'usuarios', filters: { _id: { $in: listUserId } } })
+    await deleteManyItemsSD({ nameCollection: 'personas', filters: { _id: { $in: listPersonasId } } })
+    await deleteCollection({ enviromentClienteId: _id })
+    await deleteItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(_id) } })
+    return res.status(200).json({ status: 'Cliente eliminado exitosamente' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar el cliente' })

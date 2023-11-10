@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, deleteItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { nivelesCodigoByLength } from '../../constants.js'
 import { ObjectId } from 'mongodb'
 
@@ -47,5 +47,16 @@ export const saveCuenta = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar esta cuenta' + e.message })
+  }
+}
+export const deleteCuenta = async (req, res) => {
+  const { _id } = req.body.cuenta
+  const { clienteId } = req.body
+  try {
+    await deleteItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
+    return res.status(200).json({ status: 'Cuenta eliminada exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar esta cuenta' + e.message })
   }
 }

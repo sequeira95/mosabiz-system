@@ -11,7 +11,7 @@ export const getPlanCuenta = async (req, res) => {
       nameCollection: 'planCuenta',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $sort: { nivel: 1, codigo: 1 } }
+        { $sort: { nivelCuenta: 1, codigo: 1 } }
       ]
     })
     return res.status(200).json({ planCuenta })

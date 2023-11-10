@@ -107,5 +107,6 @@ export async function deleteCollection ({ enviromentClienteId }) {
     console.log(nameCollection)
     await db.collection(nameCollection).drop()
     console.log(`La coleccion ${collection} fue eliminada`)
+    continue
   }
 }

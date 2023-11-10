@@ -20,7 +20,7 @@ export const getPlanCuenta = async (req, res) => {
   }
 }
 export const saveCuenta = async (req, res) => {
-  const { codigo, descripcion, conciliacion, tipo, nivel, _id } = req.body.cuenta
+  const { codigo, descripcion, conciliacion, tipo, _id } = req.body.cuenta
   const clienteId = req.body.clienteId
   try {
     const nivelCuenta = nivelesCodigoByLength[codigo.length]
@@ -38,7 +38,6 @@ export const saveCuenta = async (req, res) => {
           descripcion,
           conciliacion,
           tipo,
-          nivel,
           nivelCuenta,
           fechaCreacion
         }

@@ -15,7 +15,10 @@ export const login = async (req, res) => {
     // quitamos el Bearer del token
     try {
       token = token.split(' ')[1]
-      const { uid, fechaActPass } = jwt.verify(token, process.env.JWT_SECRETSD)
+      const { uid, fechaActPass, exp } = jwt.verify(token, process.env.JWT_SECRETSD)
+      const isValidFechaExp = moment.unix(exp) < moment()
+      console.log({ n: 1, fecha: moment.unix(exp) })
+      if (isValidFechaExp) throw new Error('Token expirado')
       const empresa = await getItemSD({ nameCollection: 'empresa' })
       if (!empresa) throw new Error('No existe empresa')
       if (empresa.activo === false) throw new Error('Empresa desactivada')

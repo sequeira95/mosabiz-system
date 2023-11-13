@@ -37,7 +37,7 @@ export const saveCuenta = async (req, res) => {
           codigo,
           descripcion,
           conciliacion,
-          tipo,
+          tipo: tipo.toLowerCase() !== 'grupo' ? 'Movimiento' : 'Grupo',
           nivelCuenta,
           fechaCreacion
         }
@@ -72,7 +72,7 @@ export const saveCuentaToExcel = async (req, res) => {
               // codigo: String(e.codigo),
               descripcion: e.descripcion,
               conciliacion: e.conciliacion,
-              tipo: e.tipo.toLowerCase() !== 'grupo' ? 'Movimiento' : e.tipo,
+              tipo: e.tipo.toLowerCase() !== 'grupo' ? 'Movimiento' : 'Grupo',
               nivelCuenta,
               fechaCreacion: moment().toDate()
             }

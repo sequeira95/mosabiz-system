@@ -45,7 +45,8 @@ export const createCliente = async (req, res) => {
     clasificacionContribuyente,
     primerPeriodoFiscal,
     limiteUsuarios,
-    modulos
+    modulos,
+    periodoActual
   } = req.body
   try {
     const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
@@ -101,6 +102,19 @@ export const createCliente = async (req, res) => {
         activo: true
       }
     })
+    // creamos el primer periodo activo segun los datos del periodo actual
+    if (periodoActual) {
+      const [periodoActualFrom, periodoActualto] = periodoActual.split('/')
+      await createItemSD({
+        nameCollection: 'periodos',
+        item: {
+          periodo: periodoActual,
+          fechaInicio: moment(periodoActualFrom, 'yyyy-MM').toDate(),
+          fechaFin: moment(periodoActualto, 'yyyy-MM').toDate(),
+          activo: true
+        }
+      })
+    }
     // creamos el usuario asociado a este nuevo cliente
     const randomPassword = crypto.randomBytes(3).toString('hex')
     // encriptamos el password

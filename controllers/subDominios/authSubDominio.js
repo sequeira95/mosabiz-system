@@ -1,6 +1,5 @@
 import moment from 'moment'
-import { dataBasePrincipal, dataBaseSecundaria, subDominioName } from '../../constants.js'
-import { accessToDataBase, formatCollectionName, getItemSD, updateItem, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { getItemSD, updateItem, updateItemSD } from '../../utils/dataBaseConfing.js'
 import { generateTokenSD } from '../../utils/generateToken.js'
 import { comparePassword, encryptPassword } from '../../utils/hashPassword.js'
 import jwt from 'jsonwebtoken'
@@ -8,7 +7,6 @@ import { ObjectId } from 'mongodb'
 import { senEmail } from '../../utils/nodemailsConfing.js'
 
 export const login = async (req, res) => {
-  const db = await accessToDataBase(dataBaseSecundaria)
   const { email, password } = req.body
   let token = req.headers?.authorization
   if (token) {
@@ -63,9 +61,10 @@ export const login = async (req, res) => {
     }, res)
     let cliente = {}
     if (persona.clienteId) {
-      const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
+      /* const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
       const clientesCollection = await db.collection(subDominioClientesCollectionsName)
-      cliente = await clientesCollection.findOne({ _id: new ObjectId(persona.clienteId) })
+      cliente = await clientesCollection.findOne({ _id: new ObjectId(persona.clienteId) }) */
+      cliente = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(persona.clienteId) } })
     }
     return res.status(200).json(({ token, expiresIn, persona, empresa, cliente }))
   } catch (e) {
@@ -115,7 +114,7 @@ export const recoverPassword = async (req, res) => {
   }
 }
 
-export const login2 = async (req, res) => {
+/* export const login2 = async (req, res) => {
   const db = await accessToDataBase(dataBaseSecundaria)
   const { email, password } = req.body
   try {
@@ -157,4 +156,4 @@ export const login2 = async (req, res) => {
   } catch (e) {
     return res.status(500).json({ error: 'Error de servidor' })
   }
-}
+} */

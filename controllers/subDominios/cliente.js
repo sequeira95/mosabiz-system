@@ -104,9 +104,11 @@ export const createCliente = async (req, res) => {
     })
     // creamos el primer periodo activo segun los datos del periodo actual
     if (periodoActual) {
+      console.log(clienteCol)
       const [periodoActualFrom, periodoActualto] = periodoActual.split('/')
       await createItemSD({
         nameCollection: 'periodos',
+        enviromentClienteId: clienteCol.insertedId,
         item: {
           periodo: periodoActual,
           fechaInicio: moment(periodoActualFrom, 'yyyy-MM').toDate(),
@@ -185,29 +187,6 @@ export const updateCliente = async (req, res) => {
     modulos
   } = req.body
   try {
-    // const db = await accessToDataBase(dataBaseSecundaria)
-    /* const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
-    const clientesCollection = await db.collection(subDominioClientesCollectionsName)
-    const clienteCol = await clientesCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, {
-      $set: {
-        razonSocial,
-        email: email.toLowerCase(),
-        countryCode,
-        telefono,
-        direccion,
-        primerPeriodoFiscalFechas,
-        estado,
-        pais,
-        codPostal,
-        tipoEmpresa,
-        tipoDocumento,
-        documentoIdentidad,
-        clasificacionContribuyente,
-        primerPeriodoFiscal,
-        limiteUsuarios: parseInt(limiteUsuarios),
-        modulos
-      }
-    }, { returnDocument: 'after' }) */
     const clienteCol = await updateItemSD({
       nameCollection: 'clientes',
       filters: { _id: new ObjectId(_id) },
@@ -232,17 +211,6 @@ export const updateCliente = async (req, res) => {
         }
       }
     })
-    /* const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
-    const personasCollection = await db.collection(subDominioPersonasCollectionsName)
-    const persona = await personasCollection.findOneAndUpdate({ clienteId: clienteCol._id, isAdministrador: true }, {
-      $set: {
-        nombre: razonSocial,
-        email: email.toLowerCase(),
-        direccion,
-        tipoDocumento,
-        documentoIdentidad
-      }
-    }, { returnDocument: 'after' }) */
     const persona = await updateItemSD({
       nameCollection: 'personas',
       filters: { clienteId: clienteCol._id, isAdministrador: true },
@@ -256,9 +224,6 @@ export const updateCliente = async (req, res) => {
         }
       }
     })
-    /* const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
-    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    await usuariosCollection.updateOne({ _id: persona.usuarioId }, { $set: { nombre: razonSocial, email: email.toLowerCase() } }) */
     await updateItemSD({
       nameCollection: 'usuarios',
       filters: { _id: persona.usuarioId },
@@ -278,10 +243,6 @@ export const updateCliente = async (req, res) => {
 export const disabledClient = async (req, res) => {
   const { _id } = req.body
   try {
-    /* const db = await accessToDataBase(dataBaseSecundaria)
-    const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
-    const clientesCollection = await db.collection(subDominioClientesCollectionsName)
-    const cliente = await clientesCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { $set: { activo: false } }, { returnDocument: 'after' }) */
     const cliente = await updateItemSD({
       nameCollection: 'clientes',
       filters: { _id: new ObjectId(_id) },
@@ -301,10 +262,6 @@ export const disabledClient = async (req, res) => {
 export const enableClient = async (req, res) => {
   const { _id } = req.body
   try {
-    /* const db = await accessToDataBase(dataBaseSecundaria)
-    const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
-    const clientesCollection = await db.collection(subDominioClientesCollectionsName)
-    const cliente = await clientesCollection.findOneAndUpdate({ _id: new ObjectId(_id) }, { $set: { activo: true } }, { returnDocument: 'after' }) */
     const cliente = await updateItemSD({
       nameCollection: 'clientes',
       filters: { _id: new ObjectId(_id) },
@@ -336,6 +293,7 @@ export const disableManydClient = async (req, res) => {
 }
 
 export const deleteCliente = async (req, res) => {
+  console.log('elimando ando', req.body)
   const { _id } = req.body
   try {
     const personasCliente = await getCollectionSD({ nameCollection: 'personas', filters: { clienteId: new ObjectId(_id) } })

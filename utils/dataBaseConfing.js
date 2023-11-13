@@ -118,8 +118,13 @@ export async function deleteCollection ({ enviromentClienteId }) {
     console.log(collection)
     const nameCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection: collection })
     console.log(nameCollection)
-    await db.collection(nameCollection).drop()
-    console.log(`La coleccion ${collection} fue eliminada`)
-    continue
+    try {
+      await db.collection(nameCollection).drop()
+      console.log(`La coleccion ${collection} fue eliminada`)
+      continue
+    } catch (e) {
+      console.log({ error: e.message })
+      continue
+    }
   }
 }

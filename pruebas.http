@@ -54,3 +54,11 @@ content-type: application/json
   "direccion":"direccion"
 }
 ###
+
+POST  http://localhost:5000/v1/sub-dominio/clientes/deleteCliente
+content-type: application/json
+
+{
+  "_id": "65528de7b8ac3b70bf1f649e"
+}
+###

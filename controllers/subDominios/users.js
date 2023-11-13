@@ -356,24 +356,16 @@ export const changePassword = async (req, res) => {
   const { passwordActual, newPassword } = req.body
   const uid = req.uid
   try {
-    /* const db = await accessToDataBase(dataBaseSecundaria)
-    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
-    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    const usuario = await usuariosCollection.findOne({ _id: new ObjectId(uid) }) */
     const usuario = await getItemSD({ nameCollection: 'usuarios', filters: { _id: new ObjectId(uid) } })
     const isValidPassword = await comparePassword(passwordActual, usuario.password)
     if (!isValidPassword) return res.status(400).json({ error: 'Contraseña incorrecta' })
     const password = await encryptPassword(newPassword)
-    // await usuariosCollection.updateOne({ _id: new ObjectId(uid) }, { $set: { password, fechaActPass: moment().toDate() } })
     await updateItemSD({
       nameCollection: 'usuarios',
       filters: { _id: new ObjectId(uid) },
       update: { $set: { password, fechaActPass: moment().toDate() } }
     })
     if (usuario.usuarioAibiz) {
-      /* const db = await accessToDataBase(dataBasePrincipal)
-      const aibizUsuariosCollection = await db.collection('usuarios')
-      await aibizUsuariosCollection.updateOne({ _id: new ObjectId(usuario.usuarioAibiz) }, { $set: { password, fechaActPass: moment().toDate() } }) */
       await updateItem({
         nameCollection: 'usuarios',
         filters: { _id: new ObjectId(usuario.usuarioAibiz) },

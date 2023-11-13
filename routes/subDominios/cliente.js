@@ -1,5 +1,5 @@
 import express from 'express'
-import { getClientes, createCliente, disabledClient, disableManydClient, updateCliente, enableClient } from '../../controllers/subDominios/cliente.js'
+import { getClientes, createCliente, disabledClient, disableManydClient, updateCliente, enableClient, deleteCliente } from '../../controllers/subDominios/cliente.js'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
 
 const router = express.Router()
@@ -10,4 +10,5 @@ router.post('/updateCliente', requireSubDominioToken, updateCliente)
 router.post('/disabledClient', requireSubDominioToken, disabledClient)
 router.post('/disableManydClient', requireSubDominioToken, disableManydClient)
 router.post('/enableClient', requireSubDominioToken, enableClient)
+router.post('/deleteCliente', requireSubDominioToken, deleteCliente)
 export default router

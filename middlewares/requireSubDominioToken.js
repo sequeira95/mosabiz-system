@@ -12,7 +12,9 @@ export const requireSubDominioToken = async (req, res, next) => {
     if (!token) throw new Error('No bearer')
     // quitamos el Bearer del token
     token = token.split(' ')[1]
-    const { uid, fechaActPass } = jwt.verify(token, process.env.JWT_SECRETSD)
+    const { uid, fechaActPass, exp } = jwt.verify(token, process.env.JWT_SECRETSD)
+    const isValidFechaExp = moment.unix(exp).endOf('day') < moment().endOf('day')
+    if (isValidFechaExp) throw new Error('Token expirado')
     const db = await accessToDataBase(dataBaseSecundaria)
     const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: dataBaseSecundaria, nameCollection: 'empresa' })
     const subDominioEmpresasCollections = await db.collection(subDominioEmpresasCollectionsName)

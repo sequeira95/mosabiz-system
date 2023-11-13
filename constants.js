@@ -18,4 +18,4 @@ export const nivelesCodigoByLength = {
   9: 5,
   12: 6
 }
-export const collectionNameClient = ['ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo']
+export const collectionNameClient = ['ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes']

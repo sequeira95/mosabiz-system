@@ -66,7 +66,7 @@ export const login = async (req, res) => {
     }
     return res.status(200).json(({ token, expiresIn, persona, empresa, cliente }))
   } catch (e) {
-    // console.log(e)
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }

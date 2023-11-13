@@ -4,6 +4,7 @@ import { ObjectId } from 'mongodb'
 
 export const getListPeriodo = async (req, res) => {
   const { clienteId } = req.body
+  if (!clienteId) return res.status(400).json({ error: 'El clienteId es requerido' })
   try {
     const periodos = await agreggateCollectionsSD({
       nameCollection: 'periodos',

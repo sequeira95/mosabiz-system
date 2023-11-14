@@ -1,23 +1,21 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, createItemSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 
 export const getListComprobantes = async (req, res) => {
-  const { clienteId, periodoId } = req.body
+  const { clienteId, periodoId, nombre } = req.body
   if (!(periodoId || clienteId)) return res.status(400).json({ error: 'Datos incompletos' })
+  let filterNombre = {}
+  if (nombre) {
+    filterNombre = { nombre: { $regex: `/^${nombre}/`, $options: 'i' } }
+  }
   try {
     const comprobantes = await agreggateCollectionsSD({
       nameCollection: 'comprobantes',
       enviromentClienteId: clienteId,
       pipeline: [
         {
-          $match: { periodoId: new ObjectId(periodoId) }
-        },
-        {
-          $project:
-          {
-            nombre: '$nombre'
-          }
+          $match: { periodoId: new ObjectId(periodoId), ...filterNombre }
         }
       ]
     })
@@ -62,21 +60,78 @@ export const updateComprobante = async (req, res) => {
 }
 
 export const getDetallesComprobantes = async (req, res) => {
-  const { clienteId, comprobanteId } = req.body
+  const { clienteId, comprobanteId, itemPorPagina = 1 } = req.body
   if (!(comprobanteId || clienteId)) return res.status(400).json({ error: 'Datos incompletos' })
+  const skip = (itemPorPagina - 1) * itemPorPagina || 0
   try {
     const detallesComprobantes = await agreggateCollectionsSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,
       pipeline: [
+        { $match: { comprobanteId: new ObjectId(comprobanteId) } },
+        { $skip: skip },
+        { $limit: itemPorPagina }
+      ]
+    })
+    const datosExtras = await agreggateCollectionsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { comprobanteId: new ObjectId(comprobanteId) } },
         {
-          $match: { comprobanteId: new ObjectId(comprobanteId) }
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            debe: { $sum: '$debe' },
+            haber: { $sum: '$haber' }
+          }
+        },
+        {
+          $addFields: {
+            total: { $subtract: ['$debe', '$haber'] }
+          }
+        },
+        {
+          $project: {
+            count: '$count',
+            debe: '$debe',
+            haber: '$haber',
+            total: '$total'
+          }
         }
       ]
     })
-    return res.status(200).json({ detallesComprobantes })
+    return res.status(200).json({ detallesComprobantes, datosExtras })
   } catch (e) {
     console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de guardar el comprobante' + e.message })
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar detalles del comprobante' + e.message })
+  }
+}
+export const saveDetalleComprobante = async (req, res) => {
+  const { clienteId, comprobanteId, detalleComprobante } = req.body
+  if (!clienteId) return res.status(400).json({ error: 'Debe seleccionar un cliente' })
+  if (!comprobanteId) return res.status(400).json({ error: 'Debe seleccionar un comprobante' })
+  try {
+    const detalle = detalleComprobante.map(e => {
+      const cuentaId = new ObjectId(e.cuentaId)
+      return {
+        updateOne: {
+          filter: { comprobanteId: new ObjectId(comprobanteId), linea: e.linea },
+          update: {
+            $set: {
+              ...e,
+              cuentaId,
+              fechaCreacion: e.fechaCreacion ? e.fechaCreacion : moment().toDate()
+            }
+          },
+          upsert: true
+        }
+      }
+    })
+    await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalle })
+    return res.status(200).json({ status: 'detalle de comprobante  guardado exitosamente' })
+  } catch (e) {
+    console.log(e.message)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar el detalle del comprobante' + e.message })
   }
 }

@@ -8,15 +8,7 @@ export const getListPeriodo = async (req, res) => {
   try {
     const periodos = await agreggateCollectionsSD({
       nameCollection: 'periodos',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        {
-          $project:
-          {
-            periodo: '$periodo'
-          }
-        }
-      ]
+      enviromentClienteId: clienteId
     })
     return res.status(200).json({ periodos })
   } catch (e) {

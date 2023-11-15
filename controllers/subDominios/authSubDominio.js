@@ -15,7 +15,6 @@ export const login = async (req, res) => {
       token = token.split(' ')[1]
       const { uid, fechaActPass, exp } = jwt.verify(token, process.env.JWT_SECRETSD)
       const isValidFechaExp = moment.unix(exp) < moment()
-      console.log({ n: 1, fecha: moment.unix(exp) })
       if (isValidFechaExp) throw new Error('Token expirado')
       const empresa = await getItemSD({ nameCollection: 'empresa' })
       if (!empresa) throw new Error('No existe empresa')
@@ -61,9 +60,6 @@ export const login = async (req, res) => {
     }, res)
     let cliente = {}
     if (persona.clienteId) {
-      /* const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
-      const clientesCollection = await db.collection(subDominioClientesCollectionsName)
-      cliente = await clientesCollection.findOne({ _id: new ObjectId(persona.clienteId) }) */
       cliente = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(persona.clienteId) } })
     }
     return res.status(200).json(({ token, expiresIn, persona, empresa, cliente }))
@@ -79,10 +75,6 @@ export const logout = (req, res) => {
 export const recoverPassword = async (req, res) => {
   const { email } = req.body
   try {
-    /* const db = await accessToDataBase(dataBaseSecundaria)
-    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
-    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    const usuario = await usuariosCollection.findOne({ email: email.toLowerCase() }) */
     const usuario = await getItemSD({ nameCollection: 'usuarios', filters: { email: email.toLowerCase() } })
     if (!usuario) return res.status(403).json({ error: 'Este email no se encuentra registrado' })
     // generamos un password aleatorio
@@ -90,12 +82,8 @@ export const recoverPassword = async (req, res) => {
     // encriptamos el password
     const password = await encryptPassword(randomPassword)
     // actualizamos el usuario con el nuevo password
-    // await usuariosCollection.updateOne({ _id: usuario._id }, { $set: { password, fechaActPass: moment().toDate() } })
     await updateItemSD({ nameCollection: 'usuarios', filters: { _id: usuario._id }, update: { $set: { password, fechaActPass: moment().toDate() } } })
     if (usuario.usuarioAibiz) {
-      /* const dbPrincipal = await accessToDataBase(dataBasePrincipal)
-      const usuariosCollectionPrincipal = await dbPrincipal.collection('usuarios')
-      await usuariosCollectionPrincipal.updateOne({ _id: new ObjectId(usuario.usuarioAibiz) }, { $set: { password, fechaActPass: moment().toDate() } }) */
       await updateItem({ nameCollection: 'usuarios', filters: { _id: new ObjectId(usuario.usuarioAibiz) }, update: { $set: { password, fechaActPass: moment().toDate() } } })
     }
     // enviamos el email con el nuevo password

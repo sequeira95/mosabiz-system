@@ -1,40 +1,67 @@
 import { ObjectId } from 'mongodb'
 import { agreggateCollectionsSD } from './dataBaseConfing.js'
+import moment from 'moment'
 
-export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, itemsPorPagina, pagina }) => {
+export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, itemsPorPagina, pagina, search = {} }) => {
+  const configMatch = comprobanteId ? { comprobanteId: new ObjectId(comprobanteId) } : {}
+  const searchFor = search.documento ? { 'documento.docReferencia': { $regex: `/${search.documento}/`, $options: 'i' } } : {}
+  console.log(search)
+  if (search.cuenta?._id) {
+    configMatch.cuentaId = new ObjectId(search.cuenta._id)
+  }
+  if (search.descripcion) {
+    configMatch.descripcion = { $regex: `/${search.descripcion}/`, $options: 'i' }
+  }
+  /* if (search.documento) {
+    configMatch.documento = { docReferencia: { $regex: `/${search.documento}/`, $options: 'i' } }
+  } */
+  if (search.fecha) {
+    configMatch.fecha = { $gte: moment(search.fecha).startOf('day').toDate(), $lte: moment(search.fecha).endOf('day').toDate() }
+  }
+  if (search.debe) {
+    configMatch.debe = { $gte: Number(search.debe) }
+  }
+  if (search.haber) {
+    configMatch.haber = { $gte: Number(search.haber) }
+  }
+  console.log({ configMatch })
+  console.log({ searchFor })
   try {
     const detallesComprobantes = await agreggateCollectionsSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { comprobanteId: new ObjectId(comprobanteId) } },
+        { $match: { ...configMatch, ...searchFor } },
         { $sort: { fechaCreacion: 1 } },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) }
       ]
     })
-    const datosExtras = await agreggateCollectionsSD({
-      nameCollection: 'detallesComprobantes',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        { $match: { comprobanteId: new ObjectId(comprobanteId) } },
+    const datosExtras = comprobanteId
+      ? await agreggateCollectionsSD(
         {
-          $group: {
-            _id: null,
-            count: { $sum: 1 },
-            debe: { $sum: '$debe' },
-            haber: { $sum: '$haber' }
-          }
-        },
-        {
-          $project: {
-            count: '$count',
-            debe: '$debe',
-            haber: '$haber'
-          }
-        }
-      ]
-    })
+          nameCollection: 'detallesComprobantes',
+          enviromentClienteId: clienteId,
+          pipeline: [
+            { $match: { comprobanteId: new ObjectId(comprobanteId) } },
+            {
+              $group: {
+                _id: null,
+                count: { $sum: 1 },
+                debe: { $sum: '$debe' },
+                haber: { $sum: '$haber' }
+              }
+            },
+            {
+              $project: {
+                count: '$count',
+                debe: '$debe',
+                haber: '$haber'
+              }
+            }
+          ]
+        })
+      : []
     return ({ detallesComprobantes, cantidad: datosExtras[0]?.count, totalDebe: datosExtras[0]?.debe, totalHaber: datosExtras[0]?.haber })
   } catch (e) {
     console.log(e)

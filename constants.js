@@ -28,6 +28,13 @@ export const ListIndexesClient = [
     ]
   },
   {
+    collection: 'ajustes',
+    indices:
+    [
+      { key: { tipo: 1 }, background: true }
+    ]
+  },
+  {
     collection: 'comprobantes',
     indices:
     [

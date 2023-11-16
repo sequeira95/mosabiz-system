@@ -104,7 +104,6 @@ export const createCliente = async (req, res) => {
     })
     // creamos el primer periodo activo segun los datos del periodo actual
     if (periodoActual) {
-      console.log(clienteCol)
       const [periodoActualFrom, periodoActualto] = periodoActual.split('/')
       await createItemSD({
         nameCollection: 'periodos',
@@ -293,7 +292,6 @@ export const disableManydClient = async (req, res) => {
 }
 
 export const deleteCliente = async (req, res) => {
-  console.log('elimando ando', req.body)
   const { _id } = req.body
   try {
     const personasCliente = await getCollectionSD({ nameCollection: 'personas', filters: { clienteId: new ObjectId(_id) } })

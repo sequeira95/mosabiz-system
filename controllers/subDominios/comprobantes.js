@@ -62,11 +62,10 @@ export const updateComprobante = async (req, res) => {
 }
 
 export const getDetallesComprobantes = async (req, res) => {
-  const { clienteId, comprobanteId, itemsPorPagina, pagina } = req.body
+  const { clienteId, comprobanteId, itemsPorPagina, pagina, search } = req.body
   if (!(comprobanteId || clienteId)) return res.status(400).json({ error: 'Datos incompletos' })
   try {
-    const { detallesComprobantes, cantidad, totalDebe, totalHaber } = await agregateDetalleComprobante({ clienteId, comprobanteId, itemsPorPagina, pagina })
-    console.log({ detallesComprobantes, cantidad, totalDebe, totalHaber })
+    const { detallesComprobantes, cantidad, totalDebe, totalHaber } = await agregateDetalleComprobante({ clienteId, comprobanteId, itemsPorPagina, pagina, search })
     return res.status(200).json({ detallesComprobantes, cantidad, totalDebe, totalHaber })
   } catch (e) {
     console.log(e)
@@ -212,9 +211,7 @@ export const updateDetalleComprobante = async (req, res) => {
 }
 export const deleteDetalleComprobante = async (req, res) => {
   const { clienteId, comprobanteId, pagina, itemsPorPagina, detalle } = req.body
-  console.log({ deleteBody: req.body })
   if (!clienteId) return res.status(400).json({ error: 'Debe seleccionar un cliente' })
-  console.log(detalle)
   try {
     await deleteImg(detalle?.documento?.documento?.fileId)
     await deleteItemSD({

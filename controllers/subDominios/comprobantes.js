@@ -107,20 +107,21 @@ export const saveDetalleComprobante = async (req, res) => {
       debe: debe ? parseFloat(debe) : 0,
       haber: haber ? parseFloat(haber) : 0,
       cCosto,
-      terceroId: terceroId ? new ObjectId(terceroId) : null,
-      fechaCreacion: moment().toDate()
-    }
-    if (req.files) {
-      const documento = req.files.documento
-      const extension = documento.mimetype.split('/')[1]
-      const namePath = `${documento.name}`
-      const resDoc = await uploadImg(documento.data, namePath)
-      datosDetalle.documento = {
+      terceroId: terceroId ? new ObjectId(terceroId) : '',
+      fechaCreacion: moment().toDate(),
+      documento: {
         docReferencia: req.body.docReferencia,
         docFecha: req.body.docFecha ? moment(req.body.docFecha, 'YYYY/MM/DD').toDate() : null,
         docTipo: req.body.docTipo,
-        docObservacion: req.body.docObservacion,
-        documento:
+        docObservacion: req.body.docObservacion
+      }
+    }
+    if (req.files) {
+      const documento = req.files.documentoFile
+      const extension = documento.mimetype.split('/')[1]
+      const namePath = `${documento.name}`
+      const resDoc = await uploadImg(documento.data, namePath)
+      datosDetalle.documento.documento =
         {
           path: resDoc.filePath,
           name: resDoc.name,
@@ -128,7 +129,6 @@ export const saveDetalleComprobante = async (req, res) => {
           type: extension,
           fileId: resDoc.fileId
         }
-      }
     }
     await createItemSD({
       nameCollection: 'detallesComprobantes',
@@ -175,19 +175,20 @@ export const updateDetalleComprobante = async (req, res) => {
       debe: debe ? parseFloat(debe) : 0,
       haber: haber ? parseFloat(haber) : 0,
       cCosto,
-      terceroId: terceroId ? new ObjectId(terceroId) : null
-    }
-    if (req.files) {
-      const documento = req.files.documento
-      const extension = documento.mimetype.split('/')[1]
-      const namePath = `${documento.name}`
-      const resDoc = await uploadImg(documento.data, namePath)
-      datosDetalle.documento = {
+      terceroId: terceroId ? new ObjectId(terceroId) : '',
+      documento: {
         docReferencia: req.body.docReferencia,
         docFecha: req.body.docFecha ? moment(req.body.docFecha, 'YYYY/MM/DD').toDate() : null,
         docTipo: req.body.docTipo,
-        docObservacion: req.body.docObservacion,
-        documento:
+        docObservacion: req.body.docObservacion
+      }
+    }
+    if (req.files) {
+      const documento = req.files.documentoFile
+      const extension = documento.mimetype.split('/')[1]
+      const namePath = `${documento.name}`
+      const resDoc = await uploadImg(documento.data, namePath)
+      datosDetalle.documento.documento =
         {
           path: resDoc.filePath,
           name: resDoc.name,
@@ -195,13 +196,12 @@ export const updateDetalleComprobante = async (req, res) => {
           type: extension,
           fileId: resDoc.fileId
         }
-      }
     }
     await updateItemSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) },
-      update: datosDetalle
+      update: { $set: datosDetalle }
     })
     const { detallesComprobantes, cantidad, totalDebe, totalHaber } = await agregateDetalleComprobante({ clienteId, comprobanteId, itemsPorPagina, pagina })
     return res.status(200).json({ status: 'detalle de comprobante  actualizado exitosamente', detallesComprobantes, cantidad, totalDebe, totalHaber })
@@ -216,7 +216,7 @@ export const deleteDetalleComprobante = async (req, res) => {
   if (!clienteId) return res.status(400).json({ error: 'Debe seleccionar un cliente' })
   console.log(detalle)
   try {
-    await deleteImg(detalle?.documento?.documento?.detalle)
+    await deleteImg(detalle?.documento?.documento?.fileId)
     await deleteItemSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,

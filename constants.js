@@ -21,6 +21,25 @@ export const nivelesCodigoByLength = {
 export const collectionNameClient = ['ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes']
 export const ListIndexesClient = [
   {
-    collection: 'ajustes'
+    collection: 'ajustes',
+    indices:
+    [
+      { key: { tipo: 1 }, background: true }
+    ]
+  },
+  {
+    collection: 'comprobantes',
+    indices:
+    [
+      { key: { periodoId: 1 }, background: true },
+      { key: { periodoId: 1, nombre: 1 }, background: true }
+    ]
+  },
+  {
+    collection: 'detallesComprobantes',
+    indices:
+    [
+      { key: { comprobanteId: 1 }, background: true }
+    ]
   }
 ]

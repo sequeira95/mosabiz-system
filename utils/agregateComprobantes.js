@@ -8,6 +8,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: { comprobanteId: new ObjectId(comprobanteId) } },
+        { $sort: { fechaCreacion: 1 } },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) }
       ]

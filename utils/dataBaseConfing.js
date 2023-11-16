@@ -128,3 +128,23 @@ export async function deleteCollection ({ enviromentClienteId }) {
     }
   }
 }
+export async function createCollectionClient ({ enviromentClienteId }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  const listCollections = collectionNameClient
+  for (const collection of listCollections) {
+    console.log(collection)
+    const nameCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection: collection })
+    console.log(nameCollection)
+    try {
+      await db.createCollection(nameCollection)
+      console.log(`La coleccion ${collection} fue creada`)
+      continue
+    } catch (e) {
+      console.log({ error: e.message })
+      continue
+    }
+  }
+  createIndexCollectionClient({ enviromentClienteId })
+}
+async function createIndexCollectionClient ({ enviromentClienteId }) {
+}

@@ -5,6 +5,7 @@ import { encryptPassword } from '../../utils/hashPassword.js'
 import { senEmail } from '../../utils/nodemailsConfing.js'
 import { ObjectId } from 'mongodb'
 import crypto from 'node:crypto'
+import { createPlanCuenta } from '../../utils/planCuentaDefecto.js'
 
 export const getClientes = async (req, res) => {
   const { clientesId } = req.body
@@ -105,7 +106,7 @@ export const createCliente = async (req, res) => {
     // creamos el primer periodo activo segun los datos del periodo actual
     if (periodoActual) {
       const [periodoActualFrom, periodoActualto] = periodoActual.split('/')
-      await createItemSD({
+      createItemSD({
         nameCollection: 'periodos',
         enviromentClienteId: clienteCol.insertedId,
         item: {
@@ -116,6 +117,8 @@ export const createCliente = async (req, res) => {
         }
       })
     }
+    // creamos un plan de cuenta por defecto con las cuentas de grupo basicas (cuando creemos todas las colecciones mover la logia)
+    createPlanCuenta({ clienteId: clienteCol.insertedId })
     // creamos el usuario asociado a este nuevo cliente
     const randomPassword = crypto.randomBytes(3).toString('hex')
     // encriptamos el password
@@ -132,7 +135,7 @@ export const createCliente = async (req, res) => {
         fechaCreacion: moment().toDate()
       }
     })
-    await createItemSD({
+    createItemSD({
       nameCollection: 'personas',
       item: {
         nombre: razonSocial,

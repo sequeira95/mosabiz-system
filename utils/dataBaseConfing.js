@@ -90,6 +90,13 @@ export async function createItemSD ({ enviromentClienteId, nameCollection, item 
   const collection = await db.collection(collecionName)
   return await collection.insertOne(item)
 }
+export async function createManyItemsSD ({ enviromentClienteId, nameCollection, items = [] }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
+  if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
+  const collection = await db.collection(collecionName)
+  return await collection.insertMany(items)
+}
 export async function deleteItemSD ({ enviromentClienteId, nameCollection, filters = {} }) {
   const db = await accessToDataBase(dataBaseSecundaria)
   let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })

@@ -59,6 +59,6 @@ POST  http://localhost:5000/v1/sub-dominio/clientes/deleteCliente
 content-type: application/json
 
 {
-  "_id": "65528de7b8ac3b70bf1f649e"
+  "_id": "65529c5ee72a77dbbc55195f"
 }
 ###

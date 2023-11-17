@@ -20,6 +20,7 @@ import ajustesSDRouter from './routes/subDominios/ajustes.js'
 import planCuentaSDRouter from './routes/subDominios/planCuenta.js'
 import periodosSDRouter from './routes/subDominios/periodos.js'
 import comprobantesSDRouter from './routes/subDominios/comprobantes.js'
+import tercerosSDRouter from './routes/subDominios/terceros.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
 const app = express()
@@ -53,5 +54,6 @@ app.use('/v1/sub-dominio/ajustes', ajustesSDRouter)
 app.use('/v1/sub-dominio/planCuenta', planCuentaSDRouter)
 app.use('/v1/sub-dominio/periodos', periodosSDRouter)
 app.use('/v1/sub-dominio/comprobantes', comprobantesSDRouter)
+app.use('/v1/sub-dominio/terceros', tercerosSDRouter)
 
 app.listen(PORT, () => console.log('http://localhost:' + PORT))

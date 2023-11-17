@@ -6,19 +6,19 @@ export const lengthCodigoByNiveles = {
   1: 1,
   2: 2,
   3: 4,
-  4: 6,
-  5: 9,
-  6: 12
+  4: 7,
+  5: 10,
+  6: 13
 }
 export const nivelesCodigoByLength = {
   1: 1,
   2: 2,
   4: 3,
-  6: 4,
-  9: 5,
-  12: 6
+  7: 4,
+  10: 5,
+  13: 6
 }
-export const collectionNameClient = ['ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes']
+export const collectionNameClient = ['ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros']
 export const ListIndexesClient = [
   {
     collection: 'ajustes',

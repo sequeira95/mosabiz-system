@@ -12,9 +12,9 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
   if (search.descripcion) {
     configMatch.descripcion = { $regex: `/${search.descripcion}/`, $options: 'i' }
   }
-  /* if (search.documento) {
-    configMatch.documento = { docReferencia: { $regex: `/${search.documento}/`, $options: 'i' } }
-  } */
+  if (search.documento) {
+    configMatch.docReferenciaAux = { $regex: `/${search.documento}/`, $options: 'i' }
+  }
   if (search.fecha) {
     configMatch.fecha = { $gte: moment(search.fecha).startOf('day').toDate(), $lte: moment(search.fecha).endOf('day').toDate() }
   }

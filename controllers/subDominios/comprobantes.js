@@ -108,6 +108,7 @@ export const saveDetalleComprobante = async (req, res) => {
       cCosto,
       terceroId: terceroId ? new ObjectId(terceroId) : '',
       fechaCreacion: moment().toDate(),
+      docReferenciaAux: req.body.docReferencia,
       documento: {
         docReferencia: req.body.docReferencia,
         docFecha: req.body.docFecha ? moment(req.body.docFecha, 'YYYY/MM/DD').toDate() : null,
@@ -175,6 +176,7 @@ export const updateDetalleComprobante = async (req, res) => {
       haber: haber ? parseFloat(haber) : 0,
       cCosto,
       terceroId: terceroId ? new ObjectId(terceroId) : '',
+      docReferenciaAux: req.body.docReferencia,
       documento: {
         docReferencia: req.body.docReferencia,
         docFecha: req.body.docFecha ? moment(req.body.docFecha, 'YYYY/MM/DD').toDate() : null,

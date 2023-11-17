@@ -1,5 +1,6 @@
 import moment from 'moment'
 import { getCollectionSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { ObjectId } from 'mongodb'
 
 export const getAjustesCliente = async (req, res) => {
   const { clienteId } = req.body
@@ -31,6 +32,9 @@ export const getTipoAjustesCliente = async (req, res) => {
 export const upsertAjusteCliente = async (req, res) => {
   const ajuste = req.body.ajuste
   const clienteId = req.body.clienteId
+  if (ajuste.cuentaSuperAvitAcum && ajuste.cuentaSuperAvitAcum._id) ajuste.cuentaSuperAvitAcum = new ObjectId(ajuste.cuentaSuperAvitAcum._id)
+  if (ajuste.cuentaPerdidaAcum && ajuste.cuentaPerdidaAcum._id) ajuste.cuentaPerdidaAcum = new ObjectId(ajuste.cuentaPerdidaAcum._id)
+  if (ajuste.cuentaSuperAvitOperdidaActual && ajuste.cuentaSuperAvitOperdidaActual._id) ajuste.cuentaSuperAvitOperdidaActual = new ObjectId(ajuste.cuentaSuperAvitOperdidaActual._id)
   if (ajuste._id) delete ajuste._id
   if (!clienteId) return res.status(400).json({ error: 'Falta el cliente' })
   try {

@@ -213,7 +213,7 @@ export const deleteDetalleComprobante = async (req, res) => {
   const { clienteId, comprobanteId, pagina, itemsPorPagina, detalle } = req.body
   if (!clienteId) return res.status(400).json({ error: 'Debe seleccionar un cliente' })
   try {
-    await deleteImg(detalle?.documento?.documento?.fileId)
+    if (detalle?.documento?.documento?.fileId) await deleteImg(detalle?.documento?.documento?.fileId)
     await deleteItemSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,

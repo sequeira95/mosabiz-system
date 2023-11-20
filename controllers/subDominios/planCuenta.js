@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { nivelesCodigoByLength } from '../../constants.js'
 import { ObjectId } from 'mongodb'
 
@@ -93,5 +93,23 @@ export const saveCuentaToExcel = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de cargar datos del plan de cuenta' + e.message })
+  }
+}
+
+export const addTerceroToCuenta = async (req, res) => {
+  const { clienteId, cuenta, terceros } = req.body
+  if (!clienteId) return res.status(400).json({ error: 'Seleccione un cliente' })
+  try {
+    const tercerosId = terceros.map(e => new ObjectId(e._id))
+    const planCuenta = await updateItemSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(cuenta._id) },
+      update: { $set: { terceros: tercerosId } }
+    })
+    return res.status(200).json({ status: 'Cuentas guardada exitosamente', cuenta: planCuenta })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de agregar terceros en esta cuenta' + e.message })
   }
 }

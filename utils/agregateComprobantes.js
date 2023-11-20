@@ -4,16 +4,15 @@ import moment from 'moment'
 
 export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, itemsPorPagina, pagina, search = {} }) => {
   const configMatch = comprobanteId ? { comprobanteId: new ObjectId(comprobanteId) } : {}
-  const searchFor = search.documento ? { 'documento.docReferencia': { $regex: `/${search.documento}/`, $options: 'i' } } : {}
   console.log(search)
   if (search.cuenta?._id) {
     configMatch.cuentaId = new ObjectId(search.cuenta._id)
   }
   if (search.descripcion) {
-    configMatch.descripcion = { $regex: `/${search.descripcion}/`, $options: 'i' }
+    configMatch.descripcion = { $regex: `${search.descripcion}`, $options: 'si' }
   }
   if (search.documento) {
-    configMatch.docReferenciaAux = { $regex: `/${search.documento}/`, $options: 'i' }
+    configMatch.docReferenciaAux = { $regex: `${search.documento}`, $options: 'si' }
   }
   if (search.fecha) {
     configMatch.fecha = { $gte: moment(search.fecha).startOf('day').toDate(), $lte: moment(search.fecha).endOf('day').toDate() }
@@ -25,18 +24,18 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
     configMatch.haber = { $gte: Number(search.haber) }
   }
   console.log({ configMatch })
-  console.log({ searchFor })
   try {
     const detallesComprobantes = await agreggateCollectionsSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { ...configMatch, ...searchFor } },
+        { $match: configMatch },
         { $sort: { fechaCreacion: 1 } },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) }
       ]
     })
+    console.log({ detallesComprobantes })
     const datosExtras = comprobanteId
       ? await agreggateCollectionsSD(
         {

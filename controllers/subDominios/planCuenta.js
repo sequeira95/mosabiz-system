@@ -52,11 +52,13 @@ export const getPlanCuenta = async (req, res) => {
 } */
 export const saveCuentaToArray = async (req, res) => {
   const { clienteId, planCuenta } = req.body
+  console.log({ paso: 'body', planCuenta })
   const planCuentaBulkWrite = []
   const planCuentaErrors = []
   const planCuentaValid = planCuenta.filter(cuenta => cuenta.codigo && cuenta.descripcion && cuenta.tipo).map(e => {
     const nivelCuenta = nivelesCodigoByLength[String(e.codigo).length]
     return {
+      _id: e._id,
       codigo: String(e.codigo),
       descripcion: e.descripcion,
       conciliacion: e.conciliacion,

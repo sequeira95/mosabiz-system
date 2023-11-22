@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, deleteItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 
 export const getTerceros = async (req, res) => {
   const { clienteId } = req.body
@@ -14,7 +14,7 @@ export const getTerceros = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar los terceros' + e.message })
   }
 }
-export const createTerceros = async (req, res) => {
+export const saveTerceros = async (req, res) => {
   const { nombre, clienteId, _id } = req.body
   try {
     const tercero = await upsertItemSD({
@@ -27,9 +27,20 @@ export const createTerceros = async (req, res) => {
         }
       }
     })
-    return res.status(200).json({ status: 'cliente creado exitosamente', tercero })
+    console.log(tercero)
+    return res.status(200).json({ status: 'Tercero creado exitosamente', tercero })
   } catch (e) {
     console.log(e.message)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar un tercero' + e.message })
+  }
+}
+export const deleteTercero = async (req, res) => {
+  const { clienteId, _id } = req.body
+  try {
+    await deleteItemSD({ nameCollection: 'terceros', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
+    return res.status(200).json({ status: 'Tercero eliminado exitosamente' })
+  } catch (e) {
+    console.log(e.message)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar un tercero' + e.message })
   }
 }

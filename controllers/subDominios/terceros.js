@@ -2,11 +2,14 @@ import { ObjectId } from 'mongodb'
 import { agreggateCollectionsSD, deleteItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 
 export const getTerceros = async (req, res) => {
-  const { clienteId } = req.body
+  const { clienteId, cuentaId } = req.body
   try {
     const terceros = await agreggateCollectionsSD({
       nameCollection: 'terceros',
-      enviromentClienteId: clienteId
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { cuentaId: new ObjectId(cuentaId) } }
+      ]
     })
     return res.status(200).json({ terceros })
   } catch (e) {
@@ -15,7 +18,7 @@ export const getTerceros = async (req, res) => {
   }
 }
 export const saveTerceros = async (req, res) => {
-  const { nombre, clienteId, _id } = req.body
+  const { nombre, clienteId, _id, cuentaId } = req.body
   try {
     const tercero = await upsertItemSD({
       nameCollection: 'terceros',
@@ -23,11 +26,11 @@ export const saveTerceros = async (req, res) => {
       filters: { _id: new ObjectId(_id) },
       update: {
         $set: {
-          nombre
+          nombre,
+          cuentaId: new ObjectId(cuentaId)
         }
       }
     })
-    console.log(tercero)
     return res.status(200).json({ status: 'Tercero creado exitosamente', tercero })
   } catch (e) {
     console.log(e.message)

@@ -2,7 +2,7 @@ import moment from 'moment'
 import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, getCollectionSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import { nivelesCodigoByLength } from '../../constants.js'
 import { ObjectId } from 'mongodb'
-import { updateManyDetalleComprobante } from '../../utils/updateComprobanteForChangeCuenta.js'
+import { deleteCuentasForChangeLevel, updateManyDetalleComprobante } from '../../utils/updateComprobanteForChangeCuenta.js'
 
 export const getPlanCuenta = async (req, res) => {
   const { clienteId } = req.body
@@ -178,6 +178,13 @@ export const saveCuentaToExcel = async (req, res) => {
 export const saveCuentatoExcelNewNivel = async (req, res) => {
   const { cuentas, clienteId } = req.body
   try {
+    const cuentasDelete = cuentas.filter(e => !e.nuevoCodigo)
+    if (cuentasDelete[0]) await deleteCuentasForChangeLevel({ clienteId, plancuentas: cuentasDelete })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: e.message })
+  }
+  try {
     const cuentasErros = []
     const planActual = await getCollectionSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId })
     for (const c of cuentas) {
@@ -187,6 +194,7 @@ export const saveCuentatoExcelNewNivel = async (req, res) => {
         cuentasErros.push(`El codigo de cuenta ${c.codigoActual} no se encuentra registrado`)
       }
     }
+    if (cuentasErros[0]) throw new Error(cuentasErros.join(', '))
     const bulkWrite = []
     const planCuentaUpdate = cuentas.filter(cuenta => cuenta.nuevoCodigo && cuenta.descripcion && cuenta.codigoActual /* && cuenta.tipo */).map(e => {
       const nivelCuenta = nivelesCodigoByLength[String(e.nuevoCodigo).replace(/[.|,]/g, '').length]

@@ -31,14 +31,14 @@ const planCuentaDefecto = [
   },
   {
     codigo: '5',
-    descripcion: 'COSTOS OPERACIONALES',
+    descripcion: 'COSTOS',
     tipo: 'Grupo',
     nivelCuenta: 1,
     fechaCreacion: moment().toDate()
   },
   {
     codigo: '6',
-    descripcion: 'EGRESOS',
+    descripcion: 'GASTOS',
     tipo: 'Grupo',
     nivelCuenta: 1,
     fechaCreacion: moment().toDate()
@@ -52,14 +52,14 @@ const planCuentaDefecto = [
   },
   {
     codigo: '8',
-    descripcion: 'IMPUESTOS Y OTROS',
+    descripcion: 'PLAN DE CODIGO 8',
     tipo: 'Grupo',
     nivelCuenta: 1,
     fechaCreacion: moment().toDate()
   },
   {
     codigo: '9',
-    descripcion: 'PREGUNTAR',
+    descripcion: 'PLAN DE CODIGO 9',
     tipo: 'Grupo',
     nivelCuenta: 1,
     fechaCreacion: moment().toDate()

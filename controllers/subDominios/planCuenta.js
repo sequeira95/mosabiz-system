@@ -165,6 +165,7 @@ export const deleteCuenta = async (req, res) => {
   try {
     const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
     const deleteCuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(cuentaId) } })
+    if (deleteCuenta.codigo.length === 1) return res.status(500).json({ error: 'No puede eliminar la cuenta con codigo ' + deleteCuenta.codigo })
     const detallesComprobantes = await getCollectionSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,
@@ -293,6 +294,7 @@ export const saveCuentatoExcelNewNivel = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de cargar datos del plan de cuenta' + e.message })
   }
 }
+// Eliminar funcion cuando se compruebe que no se utilizará mas
 export const addTerceroToCuenta = async (req, res) => {
   const { clienteId, cuenta, terceros } = req.body
   if (!clienteId) return res.status(400).json({ error: 'Seleccione un cliente' })

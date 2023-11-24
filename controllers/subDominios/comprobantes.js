@@ -148,7 +148,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
   if (!comprobanteId) return res.status(400).json({ error: 'Debe seleccionar un comprobante' })
   if (!periodoId) return res.status(400).json({ error: 'Debe seleccionar un periodo' })
   try {
-    const datosDetalle = detalles.map(e => {
+    const datosDetalle = detalles.filter(i => i.cuentaId).map(e => {
       return {
         updateOne: {
           filter: { _id: new ObjectId(e._id) },

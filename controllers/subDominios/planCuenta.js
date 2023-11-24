@@ -1,16 +1,50 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, getCollectionSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
-import { nivelesCodigoByLength } from '../../constants.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { nivelesCodigoByLength, subDominioName } from '../../constants.js'
 import { ObjectId } from 'mongodb'
 import { deleteCuentasForChangeLevel, updateManyDetalleComprobante } from '../../utils/updateComprobanteForChangeCuenta.js'
 
 export const getPlanCuenta = async (req, res) => {
   const { clienteId } = req.body
+  const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
+  const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
   try {
     const planCuenta = await agreggateCollectionsSD({
       nameCollection: 'planCuenta',
       enviromentClienteId: clienteId,
       pipeline: [
+        {
+          $lookup:
+            {
+              from: `${detalleComprobantesCollectionName}`,
+              localField: '_id',
+              foreignField: 'cuentaId',
+              let:
+                { periodosActivos: '$periodos' },
+              pipeline: [
+                { $match: { periodoId: { $in: periodosActivos } } },
+                { $limit: 1 },
+                {
+                  $project:
+                  {
+                    hasDetalle: { $cond: { if: { $eq: ['$detalle', null] }, then: false, else: true } }
+                  }
+                }
+              ],
+              as: 'detalle'
+            }
+        },
+        { $unwind: { path: '$detalle', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            codigo: '$codigo',
+            descripcion: '$descripcion',
+            tipo: '$tipo',
+            nivelCuenta: '$nivelCuenta',
+            fechaCreacion: '$fechaCreacion',
+            hasComprobantes: '$detalle.hasDetalle'
+          }
+        },
         { $sort: { codigo: 1 } }
       ]
     })
@@ -52,7 +86,7 @@ export const getPlanCuenta = async (req, res) => {
 } */
 export const saveCuentaToArray = async (req, res) => {
   const { clienteId, planCuenta } = req.body
-  console.log({ paso: 'body', planCuenta })
+  // console.log({ paso: 'body', planCuenta })
   const planCuentaBulkWrite = []
   const planCuentaErrors = []
   const planCuentaValid = planCuenta.filter(cuenta => cuenta.codigo && cuenta.descripcion && cuenta.tipo).map(e => {
@@ -66,7 +100,7 @@ export const saveCuentaToArray = async (req, res) => {
       tipo: e.tipo.toLowerCase() !== 'grupo' ? 'Movimiento' : 'Grupo'
     }
   })
-  console.log({ paso: 'filtrando y ordenando data', planCuentaValid })
+  // console.log({ paso: 'filtrando y ordenando data', planCuentaValid })
   try {
     const cuentasToVerification = planCuentaValid.filter(e => !e._id).map(i => String(i.codigo))
     const verifyCuentas = await getCollectionSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { codigo: { $in: cuentasToVerification } } })
@@ -74,9 +108,9 @@ export const saveCuentaToArray = async (req, res) => {
       for (const c of verifyCuentas) {
         planCuentaErrors.push(`El codigo de cuenta ${c.codigo} - ${c.descripcion} ya se encuentra registrado`)
       }
-      return res.status(400).json({ error: planCuentaErrors })
+      return res.status(400).json({ error: planCuentaErrors.join(', ') })
     }
-    console.log({ paso: 'verificando cuentas', verifyCuentas })
+    // console.log({ paso: 'verificando cuentas', verifyCuentas })
   } catch (e) {
     console.log(e.message)
   }
@@ -109,7 +143,7 @@ export const saveCuentaToArray = async (req, res) => {
         })
       }
     }
-    console.log({ paso: 'preparando bulkWrite', planCuentaBulkWrite })
+    // console.log({ paso: 'preparando bulkWrite', planCuentaBulkWrite })
     await bulkWriteSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, pipeline: planCuentaBulkWrite })
     const planCuentaActualizado = await agreggateCollectionsSD({
       nameCollection: 'planCuenta',
@@ -128,15 +162,24 @@ export const saveCuentaToArray = async (req, res) => {
 
 export const deleteCuenta = async (req, res) => {
   const { cuentaId, clienteId } = req.body
-  console.log(req.body)
   try {
+    const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
     const deleteCuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(cuentaId) } })
-    await deleteItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(cuentaId) } })
+    const detallesComprobantes = await getCollectionSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      filters: {
+        periodoId: { $in: periodosActivos },
+        codigo: { $regex: `^${deleteCuenta.codigo}` }
+      }
+    })
+    if (detallesComprobantes[0]) throw new Error('Existen cuentas con movimientos dentro de periodos activos')
+    // await deleteItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(cuentaId) } })
     await deleteManyItemsSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { codigo: { $regex: `^${deleteCuenta.codigo}` } } })
     return res.status(200).json({ status: 'Cuenta eliminada exitosamente' })
   } catch (e) {
     console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de eliminar esta cuenta' + e.message })
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar esta cuenta ' + e.message })
   }
 }
 export const saveCuentaToExcel = async (req, res) => {
@@ -178,6 +221,25 @@ export const saveCuentaToExcel = async (req, res) => {
 export const saveCuentatoExcelNewNivel = async (req, res) => {
   const { cuentas, clienteId } = req.body
   try {
+    const cuentasErros = []
+    const planActual = await getCollectionSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId })
+    console.log({ planActual })
+    for (const c of cuentas) {
+      if (!c.codigoActual) continue
+      const codigoActual = String(c.codigoActual).replace(/[.|,]/g, '')
+      console.log({ codigoActual })
+      const verifyCuenta = planActual.some(e => String(e.codigo) === codigoActual)
+      console.log({ verifyCuenta, c })
+      if (!verifyCuenta) {
+        cuentasErros.push(`El codigo de cuenta ${c.codigoActual} no se encuentra registrado`)
+      }
+    }
+    if (cuentasErros[0]) throw new Error(cuentasErros.join(', '))
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: e.message })
+  }
+  try {
     const cuentasDelete = cuentas.filter(e => !e.nuevoCodigo)
     if (cuentasDelete[0]) await deleteCuentasForChangeLevel({ clienteId, plancuentas: cuentasDelete })
   } catch (e) {
@@ -185,16 +247,6 @@ export const saveCuentatoExcelNewNivel = async (req, res) => {
     return res.status(500).json({ error: e.message })
   }
   try {
-    const cuentasErros = []
-    const planActual = await getCollectionSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId })
-    for (const c of cuentas) {
-      if (!c.codigoActual) continue
-      const verifyCuenta = planActual.some(e => String(e.codigo) === String(c.codigoActual).replace(/[.|,]/g, ''))
-      if (!verifyCuenta) {
-        cuentasErros.push(`El codigo de cuenta ${c.codigoActual} no se encuentra registrado`)
-      }
-    }
-    if (cuentasErros[0]) throw new Error(cuentasErros.join(', '))
     const bulkWrite = []
     const planCuentaUpdate = cuentas.filter(cuenta => cuenta.nuevoCodigo && cuenta.descripcion && cuenta.codigoActual /* && cuenta.tipo */).map(e => {
       const nivelCuenta = nivelesCodigoByLength[String(e.nuevoCodigo).replace(/[.|,]/g, '').length]

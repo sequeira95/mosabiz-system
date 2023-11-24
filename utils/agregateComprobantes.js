@@ -4,7 +4,7 @@ import moment from 'moment'
 
 export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, itemsPorPagina, pagina, search = {} }) => {
   const configMatch = comprobanteId ? { comprobanteId: new ObjectId(comprobanteId) } : {}
-  console.log(search)
+  // console.log(search)
   if (search.cuenta?._id) {
     configMatch.cuentaId = new ObjectId(search.cuenta._id)
   }
@@ -23,7 +23,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
   if (search.haber) {
     configMatch.haber = { $gte: Number(search.haber) }
   }
-  console.log({ configMatch })
+  // console.log({ configMatch })
   try {
     const detallesComprobantes = await agreggateCollectionsSD({
       nameCollection: 'detallesComprobantes',
@@ -35,7 +35,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
         { $limit: Number(itemsPorPagina) }
       ]
     })
-    console.log({ detallesComprobantes })
+    // console.log({ detallesComprobantes })
     const datosExtras = comprobanteId
       ? await agreggateCollectionsSD(
         {

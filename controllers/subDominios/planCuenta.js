@@ -171,7 +171,7 @@ export const deleteCuenta = async (req, res) => {
       enviromentClienteId: clienteId,
       filters: {
         periodoId: { $in: periodosActivos },
-        codigo: { $regex: `^${deleteCuenta.codigo}` }
+        cuentaCodigo: { $regex: `^${deleteCuenta.codigo}` }
       }
     })
     if (detallesComprobantes[0]) throw new Error('Existen cuentas con movimientos dentro de periodos activos')

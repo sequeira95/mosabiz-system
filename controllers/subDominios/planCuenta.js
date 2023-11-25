@@ -227,7 +227,7 @@ export const saveCuentatoExcelNewNivel = async (req, res) => {
     console.log({ planActual })
     for (const c of cuentas) {
       if (!c.codigoActual) continue
-      const codigoActual = String(c.codigoActual).match(/([0-9])/g)
+      const codigoActual = String(c.codigoActual).match(/([0-9])/g).join('')
       console.log({ codigoActual })
       const verifyCuenta = planActual.some(e => String(e.codigo) === codigoActual)
       console.log({ verifyCuenta, c })
@@ -250,14 +250,14 @@ export const saveCuentatoExcelNewNivel = async (req, res) => {
   try {
     const bulkWrite = []
     const planCuentaUpdate = cuentas.filter(cuenta => cuenta.nuevoCodigo && cuenta.descripcion && cuenta.codigoActual /* && cuenta.tipo */).map(e => {
-      const nivelCuenta = nivelesCodigoByLength[String(e.nuevoCodigo).match(/([0-9])/g).length]
-      const filterCodigo = String(e.codigoActual).match(/([0-9])/g)
+      const nivelCuenta = nivelesCodigoByLength[String(e.nuevoCodigo).match(/([0-9])/g).join('').length]
+      const filterCodigo = String(e.codigoActual).match(/([0-9])/g).join('')
       const itemUpdate = {
         updateOne: {
           filter: { codigo: filterCodigo },
           update: {
             $set: {
-              codigo: String(e.nuevoCodigo).match(/([0-9])/g),
+              codigo: String(e.nuevoCodigo).match(/([0-9])/g).join(''),
               descripcion: e.descripcion,
               tipo: e.tipo.toLowerCase() !== 'grupo' ? 'Movimiento' : 'Grupo',
               nivelCuenta,
@@ -271,11 +271,11 @@ export const saveCuentatoExcelNewNivel = async (req, res) => {
     })
     bulkWrite.push(...planCuentaUpdate)
     const planCuentaCreate = cuentas.filter(cuenta => cuenta.nuevoCodigo && cuenta.descripcion && !cuenta.codigoActual /* && cuenta.tipo */).map(e => {
-      const nivelCuenta = nivelesCodigoByLength[String(e.nuevoCodigo).match(/([0-9])/g).length]
+      const nivelCuenta = nivelesCodigoByLength[String(e.nuevoCodigo).match(/([0-9])/g).join('').length]
       const itemCreate = {
         insertOne: {
           document: {
-            codigo: String(e.nuevoCodigo).match(/([0-9])/g),
+            codigo: String(e.nuevoCodigo).match(/([0-9])/g).join(''),
             descripcion: e.descripcion,
             tipo: e.tipo.toLowerCase() !== 'grupo' ? 'Movimiento' : 'Grupo',
             nivelCuenta,

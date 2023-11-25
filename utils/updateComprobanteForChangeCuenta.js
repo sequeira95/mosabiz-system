@@ -22,8 +22,8 @@ export const updateManyDetalleComprobante = async ({ clienteId, plancuentas = []
         },
         update: {
           $set: {
-            cuentaCodigo: e.cuentaCodigo,
-            cuentaNombre: e.cuentaNombre
+            cuentaCodigo: e.codigo,
+            cuentaNombre: e.descripcion
           }
         }
       }
@@ -37,13 +37,13 @@ export const deleteCuentasForChangeLevel = async ({ clienteId, plancuentas = [] 
   try {
     const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
     for (const cuenta of plancuentas) {
-      if (String(cuenta.codigoActual).replace(/[.|,]/g, '').length === 1) cuentasErrors.push(`No se puede eliminar la cuenta ${cuenta.codigoActual}-${cuenta.descripcion}`)
+      if (String(cuenta.codigoActual).match(/([0-9])/g).length === 1) cuentasErrors.push(`No se puede eliminar la cuenta ${cuenta.codigoActual}-${cuenta.descripcion}`)
       const detallesComprobantes = await getCollectionSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { cuentaId: new ObjectId(cuenta._id), periodoId: { $in: periodosActivos } } })
       if (detallesComprobantes[0]) cuentasErrors.push(`La cuenta ${cuenta.codigoActual}-${cuenta.descripcion} posee movimientos en periodos activos`)
     }
     console.log(cuentasErrors)
     if (cuentasErrors[0]) throw new Error(cuentasErrors.join(', '))
-    await deleteManyItemsSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { codigo: { $in: plancuentas.map(e => String(e.codigoActual).replace(/[.|,]/g, '')) } } })
+    await deleteManyItemsSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { codigo: { $in: plancuentas.map(e => String(e.codigoActual).match(/([0-9])/g)) } } })
   } catch (e) {
     console.log(e)
     throw e

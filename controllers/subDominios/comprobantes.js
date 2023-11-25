@@ -207,7 +207,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
       }
     }
     )
-    await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: datosDetallesWithId })
+    if (datosDetallesWithId[0]) await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: datosDetallesWithId })
     return res.status(200).json({ status: 'detalle de comprobante  guardado exitosamente' })
   } catch (e) {
     console.log(e)

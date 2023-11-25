@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, deleteItemSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { agregateDetalleComprobante } from '../../utils/agregateComprobantes.js'
 import { deleteImg, uploadImg } from '../../utils/cloudImage.js'
@@ -148,7 +148,32 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
   if (!comprobanteId) return res.status(400).json({ error: 'Debe seleccionar un comprobante' })
   if (!periodoId) return res.status(400).json({ error: 'Debe seleccionar un periodo' })
   try {
-    const datosDetalle = detalles.filter(i => i.cuentaId).map(e => {
+    const datosDetallesSinId = detalles.filter(i => !i._id).map(e => {
+      return {
+        cuentaId: new ObjectId(e.cuentaId),
+        cuentaCodigo: e.cuentaCodigo,
+        cuentaNombre: e.cuentaNombre,
+        comprobanteId: new ObjectId(comprobanteId),
+        periodoId: new ObjectId(periodoId),
+        descripcion: e.descripcion,
+        fecha: moment(e.fecha, 'YYYY/MM/DD').toDate(),
+        debe: e.debe ? parseFloat(e.debe) : 0,
+        haber: e.haber ? parseFloat(e.haber) : 0,
+        cCosto: e.cCosto,
+        terceroId: e.terceroId ? new ObjectId(e.terceroId) : '',
+        fechaCreacion: moment().toDate(),
+        docReferenciaAux: e.documento.docReferencia,
+        documento: {
+          docReferencia: e.documento.docReferencia,
+          docFecha: e.documento.docFecha ? moment(e.documento.docFecha, 'YYYY/MM/DD').toDate() : null,
+          docTipo: e.documento.docTipo,
+          docObservacion: e.documento.docObservacion,
+          documento: e.documento.documento
+        }
+      }
+    })
+    await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: datosDetallesSinId })
+    const datosDetallesWithId = detalles.filter(i => i.cuentaId && i._id).map(e => {
       return {
         updateOne: {
           filter: { _id: new ObjectId(e._id) },
@@ -182,8 +207,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
       }
     }
     )
-    console.log(datosDetalle)
-    await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: datosDetalle })
+    await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: datosDetallesWithId })
     return res.status(200).json({ status: 'detalle de comprobante  guardado exitosamente' })
   } catch (e) {
     console.log(e)

@@ -143,7 +143,7 @@ export const saveDetalleComprobante = async (req, res) => {
   }
 }
 export const saveDetalleComprobanteToArray = async (req, res) => {
-  const { clienteId, comprobanteId, periodoId, detalles, itemsPorPagina, pagina } = req.body
+  const { clienteId, comprobanteId, periodoId, detalles } = req.body
   if (!clienteId) return res.status(400).json({ error: 'Debe seleccionar un cliente' })
   if (!comprobanteId) return res.status(400).json({ error: 'Debe seleccionar un comprobante' })
   if (!periodoId) return res.status(400).json({ error: 'Debe seleccionar un periodo' })
@@ -184,8 +184,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
     )
     console.log(datosDetalle)
     await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: datosDetalle })
-    const { detallesComprobantes, cantidad, totalDebe, totalHaber } = await agregateDetalleComprobante({ clienteId, comprobanteId, itemsPorPagina, pagina })
-    return res.status(200).json({ status: 'detalle de comprobante  guardado exitosamente', detallesComprobantes, cantidad, totalDebe, totalHaber })
+    return res.status(200).json({ status: 'detalle de comprobante  guardado exitosamente' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar el detalle del comprobante' + e.message })

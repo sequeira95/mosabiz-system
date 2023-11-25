@@ -167,7 +167,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
               cCosto: e.cCosto,
               terceroId: e.terceroId ? new ObjectId(e.terceroId) : '',
               fechaCreacion: e.fechaCreacion ? moment(e.fechaCreacion).toDate() : moment().toDate(),
-              docReferenciaAux: e.docReferencia,
+              docReferenciaAux: e.documento.docReferencia,
               documento: {
                 docReferencia: e.documento.docReferencia,
                 docFecha: e.documento.docFecha ? moment(e.documento.docFecha, 'YYYY/MM/DD').toDate() : null,

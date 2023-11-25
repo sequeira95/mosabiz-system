@@ -39,6 +39,7 @@ export const deleteCuentasForChangeLevel = async ({ clienteId, plancuentas = [] 
     for (const cuenta of plancuentas) {
       if (String(cuenta.codigoActual).match(/([0-9])/g).join('').length === 1) cuentasErrors.push(`No se puede eliminar la cuenta ${cuenta.codigoActual}-${cuenta.descripcion}`)
       const detallesComprobantes = await getCollectionSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { cuentaCodigo: String(cuenta.codigoActual).match(/([0-9])/g).join(''), periodoId: { $in: periodosActivos } } })
+      console.log({ detallesComprobantes, periodosActivos, cuenta })
       if (detallesComprobantes[0]) cuentasErrors.push(`La cuenta ${cuenta.codigoActual}-${cuenta.descripcion} posee movimientos en periodos activos`)
     }
     console.log(cuentasErrors)

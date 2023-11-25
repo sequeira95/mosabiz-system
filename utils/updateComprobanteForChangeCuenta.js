@@ -38,7 +38,7 @@ export const deleteCuentasForChangeLevel = async ({ clienteId, plancuentas = [] 
     const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
     for (const cuenta of plancuentas) {
       if (String(cuenta.codigoActual).match(/([0-9])/g).join('').length === 1) cuentasErrors.push(`No se puede eliminar la cuenta ${cuenta.codigoActual}-${cuenta.descripcion}`)
-      const detallesComprobantes = await getCollectionSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { cuentaId: new ObjectId(cuenta._id), periodoId: { $in: periodosActivos } } })
+      const detallesComprobantes = await getCollectionSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { codigo: String(cuenta.codigoActual).match(/([0-9])/g).join(''), periodoId: { $in: periodosActivos } } })
       if (detallesComprobantes[0]) cuentasErrors.push(`La cuenta ${cuenta.codigoActual}-${cuenta.descripcion} posee movimientos en periodos activos`)
     }
     console.log(cuentasErrors)

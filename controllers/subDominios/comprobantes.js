@@ -149,6 +149,13 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
   if (!comprobanteId) return res.status(400).json({ error: 'Debe seleccionar un comprobante' })
   if (!periodoId) return res.status(400).json({ error: 'Debe seleccionar un periodo' })
   try {
+    const comprobante = await getItemSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { _id: new ObjectId(comprobanteId) } })
+    if (!comprobante) return res.status(400).json({ error: 'No se encontro el comprobante' })
+    if (comprobante.isBloqueado) return res.status(400).json({ error: 'El comprobante se encuentra bloqueado' })
+  } catch (e) {
+    console.log(e)
+  }
+  try {
     const datosDetallesSinId = detalles.filter(i => !i._id).map(e => {
       return {
         cuentaId: new ObjectId(e.cuentaId),

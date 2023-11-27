@@ -46,6 +46,7 @@ export const createComprobante = async (req, res) => {
 }
 export const updateComprobante = async (req, res) => {
   const { nombre, periodoId, clienteId, _id, isBloqueado } = req.body
+  console.log(req.body)
   if (!(nombre || !periodoId || clienteId)) return res.status(400).json({ error: 'Datos incompletos' })
   try {
     const comprobante = await updateItemSD({

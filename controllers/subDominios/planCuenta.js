@@ -222,7 +222,7 @@ export const saveCuentaToExcel = async (req, res) => {
 export const saveCuentatoExcelNewNivel = async (req, res) => {
   const { cuentas, clienteId } = req.body
   try {
-    const cuentasErros = []
+    // const cuentasErros = []
     const planActual = await getCollectionSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId })
     console.log({ planActual })
     for (const c of cuentas) {
@@ -232,10 +232,11 @@ export const saveCuentatoExcelNewNivel = async (req, res) => {
       const verifyCuenta = planActual.some(e => String(e.codigo) === codigoActual)
       console.log({ verifyCuenta, c })
       if (!verifyCuenta) {
-        cuentasErros.push(`El codigo de cuenta ${c.codigoActual} no se encuentra registrado`)
+        // cuentasErros.push(`El codigo de cuenta ${c.codigoActual} no se encuentra registrado`)
+        throw new Error(`El codigo de cuenta ${c.codigoActual} no se encuentra registrado`)
       }
     }
-    if (cuentasErros[0]) throw new Error(cuentasErros.join(', '))
+    // if (cuentasErros[0]) throw new Error(cuentasErros.join(', '))
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: e.message })

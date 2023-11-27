@@ -33,17 +33,19 @@ export const updateManyDetalleComprobante = async ({ clienteId, plancuentas = []
 }
 
 export const deleteCuentasForChangeLevel = async ({ clienteId, plancuentas = [] }) => {
-  const cuentasErrors = []
+  // const cuentasErrors = []
   try {
     const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
     for (const cuenta of plancuentas) {
-      if (String(cuenta.codigoActual).match(/([0-9])/g).join('').length === 1) cuentasErrors.push(`No se puede eliminar la cuenta ${cuenta.codigoActual}-${cuenta.descripcion}`)
+      // if (String(cuenta.codigoActual).match(/([0-9])/g).join('').length === 1) cuentasErrors.push(`No se puede eliminar la cuenta ${cuenta.codigoActual}-${cuenta.descripcion}`)
+      if (String(cuenta.codigoActual).match(/([0-9])/g).join('').length === 1) throw new Error(`No se puede eliminar la cuenta ${cuenta.codigoActual}-${cuenta.descripcion}`)
       const detallesComprobantes = await getCollectionSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { cuentaCodigo: String(cuenta.codigoActual).match(/([0-9])/g).join(''), periodoId: { $in: periodosActivos } } })
       console.log({ detallesComprobantes, periodosActivos, cuenta })
-      if (detallesComprobantes[0]) cuentasErrors.push(`La cuenta ${cuenta.codigoActual}-${cuenta.descripcion} posee movimientos en periodos activos`)
+      // if (detallesComprobantes[0]) cuentasErrors.push(`La cuenta ${cuenta.codigoActual}-${cuenta.descripcion} posee movimientos en periodos activos`)
+      if (detallesComprobantes[0]) throw new Error(`La cuenta ${cuenta.codigoActual}-${cuenta.descripcion} posee movimientos en periodos activos`)
     }
-    console.log(cuentasErrors)
-    if (cuentasErrors[0]) throw new Error(cuentasErrors.join(', '))
+    // console.log(cuentasErrors)
+    // if (cuentasErrors[0]) throw new Error(cuentasErrors.join(', '))
     await deleteManyItemsSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { codigo: { $in: plancuentas.map(e => String(e.codigoActual).match(/([0-9])/g).join('')) } } })
   } catch (e) {
     console.log(e)

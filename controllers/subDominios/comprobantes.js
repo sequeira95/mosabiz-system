@@ -53,7 +53,7 @@ export const updateComprobante = async (req, res) => {
       nameCollection: 'comprobantes',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) },
-      update: { nombre, periodoId: new ObjectId(periodoId), isBloqueado }
+      update: { $set: { nombre, periodoId: new ObjectId(periodoId), isBloqueado } }
     })
     return res.status(200).json({ status: 'Comprobante guardado exitosamente', comprobante })
   } catch (e) {

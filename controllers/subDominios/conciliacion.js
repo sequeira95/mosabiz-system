@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 
 export const getListCuentas = async (req, res) => {
@@ -101,7 +101,8 @@ export const saveToExcelMocimientosBancarios = async (req, res) => {
               monto: Number(e.monto),
               fecha: moment(e.fecha, 'YYYY/MM/DD').toDate()
             }
-          }
+          },
+          upsert: true
         }
       }
     })

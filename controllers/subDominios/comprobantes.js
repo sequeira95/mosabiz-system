@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { agregateDetalleComprobante } from '../../utils/agregateComprobantes.js'
 import { deleteImg, uploadImg } from '../../utils/cloudImage.js'
@@ -32,12 +32,14 @@ export const createComprobante = async (req, res) => {
   const { comprobante, periodoId, clienteId } = req.body
   if (!(comprobante || !periodoId || clienteId)) return res.status(400).json({ error: 'Datos incompletos' })
   try {
-    const newComprobante = await upsertItemSD({
+    console.log(req.body)
+    const newComprobante = await createItemSD({
       nameCollection: 'comprobantes',
       enviromentClienteId: clienteId,
-      update: { $set: { ...comprobante, periodoId: new ObjectId(periodoId), isBloqueado: false, fechaCreacion: moment().toDate() } }
+      item: { ...comprobante, periodoId: new ObjectId(periodoId), isBloqueado: false, fechaCreacion: moment().toDate() }
     })
-    return res.status(200).json({ status: 'Comprobante guardado exitosamente', comprobante: newComprobante })
+    const comprobanteSearch = await getItemSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { _id: newComprobante.insertedId } })
+    return res.status(200).json({ status: 'Comprobante guardado exitosamente', comprobante: comprobanteSearch })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar el comprobante' + e.message })

@@ -18,7 +18,7 @@ export const nivelesCodigoByLength = {
   10: 5,
   13: 6
 }
-export const collectionNameClient = ['ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros']
+export const collectionNameClient = ['ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios']
 export const ListIndexesClient = [
   {
     collection: 'ajustes',

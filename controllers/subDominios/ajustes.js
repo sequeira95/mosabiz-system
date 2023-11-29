@@ -39,7 +39,7 @@ export const upsertAjusteCliente = async (req, res) => {
   if (!clienteId) return res.status(400).json({ error: 'Falta el cliente' })
   try {
     if (!ajuste.fechaCreacion) ajuste.fechaCreacion = moment().toDate()
-    ajuste.nivelCuenta = parseInt(ajuste.nivelCuenta)
+    if (ajuste.nivelCuenta) ajuste.nivelCuenta = parseInt(ajuste.nivelCuenta)
     const ajusteActualizado = await upsertItemSD({
       enviromentClienteId: clienteId,
       nameCollection: 'ajustes',

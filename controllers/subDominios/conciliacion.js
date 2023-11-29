@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, createManyItemsSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 
 export const getListCuentas = async (req, res) => {
@@ -84,15 +84,29 @@ export const saveToExcelMocimientosBancarios = async (req, res) => {
   const { clienteId, movimientos } = req.body
   try {
     const movimientosFormat = movimientos.map(e => {
-      return {
+      /* return {
         monto: Number(e.monto),
         descripcion: String(e.descripcion),
         fecha: moment(e.fecha, 'YYYY/MM/DD').toDate(),
         ref: String(e.ref),
-        cuentaId: new ObjectId(e.cuentaId)
+        cuentaId: new ObjectId(e.cuentaId),
+        periodoMensual: e.periodoMensual
+      } */
+      return {
+        updateOne: {
+          filter: { periodoMensual: e.periodoMensual, ref: String(e.ref), descripcion: String(e.descripcion) },
+          update: {
+            $set: {
+              cuentaId: new ObjectId(e.cuentaId),
+              monto: Number(e.monto),
+              fecha: moment(e.fecha, 'YYYY/MM/DD').toDate()
+            }
+          }
+        }
       }
     })
-    await createManyItemsSD({ nameCollection: 'estadoBancarios', enviromentClienteId: clienteId, items: movimientosFormat })
+    await bulkWriteSD({ nameCollection: 'estadoBancarios', enviromentClienteId: clienteId, pipeline: movimientosFormat })
+    // await createManyItemsSD({ nameCollection: 'estadoBancarios', enviromentClienteId: clienteId, items: movimientosFormat })
     return res.status(200).json({ message: 'Lista de movimientos bancarios guardada correctamente' })
   } catch (e) {
     console.log(e)

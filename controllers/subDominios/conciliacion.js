@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 
 export const getListCuentas = async (req, res) => {
@@ -112,5 +112,16 @@ export const saveToExcelMocimientosBancarios = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: `Error de servidor al momento de guardar la lista de movimientos bancarios ${e.message}` })
+  }
+}
+
+export const deleteMovimientoBancario = async (req, res) => {
+  const { periodoMensual, cuentaId, clienteId } = req.body
+  try {
+    await deleteManyItemsSD({ nameCollection: 'estadoBancarios', enviromentClienteId: clienteId, filters: { periodoMensual, cuentaId: new ObjectId(cuentaId) } })
+    return res.status(200).json({ message: 'Lista de movimientos bancarios eliminada correctamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: `Error de servidor al momento de eliminar la lista de movimientos bancarios ${e.message}` })
   }
 }

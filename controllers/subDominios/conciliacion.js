@@ -65,7 +65,7 @@ export const movimientosBancos = async (req, res) => {
     const movimientosNoConciliados = []
     if (movimientosBancarios[0] && movimientosEstado[0]) {
       for (const movimiento of movimientosBancarios) {
-        const movimientoBancario = movimientosEstado.find(e => e.ref === movimiento.ref && e.monto === movimiento.monto)
+        const movimientoBancario = movimientosEstado.find(e => e.ref === movimiento.ref && e.monto === movimiento.monto && e.descripcion === movimiento.descripcion)
         if (movimientoBancario) {
           movimientosConciliados.push(movimiento)
         } else {

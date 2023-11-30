@@ -144,7 +144,7 @@ export const saveDetalleComprobante = async (req, res) => {
   }
 }
 export const saveDetalleComprobanteToArray = async (req, res) => {
-  const { clienteId, comprobanteId, periodoId, detalles } = req.body
+  const { clienteId, comprobanteId, periodoId, detalles, formatFecha } = req.body
   if (!clienteId) return res.status(400).json({ error: 'Debe seleccionar un cliente' })
   if (!comprobanteId) return res.status(400).json({ error: 'Debe seleccionar un comprobante' })
   if (!periodoId) return res.status(400).json({ error: 'Debe seleccionar un periodo' })
@@ -164,20 +164,26 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
         comprobanteId: new ObjectId(comprobanteId),
         periodoId: new ObjectId(periodoId),
         descripcion: e.descripcion,
-        fecha: moment(e.fecha, 'YYYY/MM/DD').toDate(),
+        fecha: moment(e.fecha, formatFecha).toDate(),
         debe: e.debe ? parseFloat(e.debe) : 0,
         haber: e.haber ? parseFloat(e.haber) : 0,
         cCosto: e.cCosto,
         terceroId: e.terceroId ? new ObjectId(e.terceroId) : '',
+        terceroNombre: e?.terceroNombre,
         fechaCreacion: moment().toDate(),
         docReferenciaAux: e.documento.docReferencia,
         documento: {
           docReferencia: e.documento.docReferencia,
-          docFecha: e.documento.docFecha ? moment(e.documento.docFecha, 'YYYY/MM/DD').toDate() : null,
+          docFecha: e.documento.docFecha ? moment(e.documento.docFecha, formatFecha).toDate() : null,
           docTipo: e.documento.docTipo,
           docObservacion: e.documento.docObservacion,
           documento: e.documento.documento
-        }
+        },
+        fechaDolar: e?.fechaDolar,
+        cantidad: e?.cantidad,
+        monedasUsar: e?.monedasUsar,
+        tasa: e?.tasa,
+        monedaPrincipal: e?.monedaPrincipal
       }
     })
     await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: datosDetallesSinId })
@@ -194,20 +200,26 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
               comprobanteId: new ObjectId(comprobanteId),
               periodoId: new ObjectId(periodoId),
               descripcion: e.descripcion,
-              fecha: moment(e.fecha, 'YYYY/MM/DD').toDate(),
+              fecha: moment(e.fecha, formatFecha).toDate(),
               debe: e.debe ? parseFloat(e.debe) : 0,
               haber: e.haber ? parseFloat(e.haber) : 0,
               cCosto: e.cCosto,
               terceroId: e.terceroId ? new ObjectId(e.terceroId) : '',
+              terceroNombre: e?.terceroNombre,
               fechaCreacion: e.fechaCreacion ? moment(e.fechaCreacion).toDate() : moment().toDate(),
               docReferenciaAux: e.documento.docReferencia,
               documento: {
                 docReferencia: e.documento.docReferencia,
-                docFecha: e.documento.docFecha ? moment(e.documento.docFecha, 'YYYY/MM/DD').toDate() : null,
+                docFecha: e.documento.docFecha ? moment(e.documento.docFecha, formatFecha).toDate() : null,
                 docTipo: e.documento.docTipo,
                 docObservacion: e.documento.docObservacion,
                 documento: e.documento.documento
-              }
+              },
+              fechaDolar: e?.fechaDolar,
+              cantidad: e?.cantidad,
+              monedasUsar: e?.monedasUsar,
+              tasa: e?.tasa,
+              monedaPrincipal: e?.monedaPrincipal
             }
           },
           upsert: true

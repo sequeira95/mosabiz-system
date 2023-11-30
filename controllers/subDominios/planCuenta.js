@@ -54,6 +54,46 @@ export const getPlanCuenta = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar el plan de cuenta' + e.message })
   }
 }
+export const getCuentasMovimientos = async (req, res) => {
+  const { clienteId } = req.body
+  const tercerosCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'terceros' })
+  try {
+    const planCuenta = await agreggateCollectionsSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipo: 'Movimiento'
+          }
+        },
+        {
+          $lookup:
+            {
+              from: `${tercerosCollectionName}`,
+              localField: '_id',
+              foreignField: 'cuentaId',
+              as: 'terceros'
+            }
+        },
+        {
+          $project: {
+            codigo: '$codigo',
+            descripcion: '$descripcion',
+            tipo: '$tipo',
+            nivelCuenta: '$nivelCuenta',
+            terceros: '$terceros'
+          }
+        },
+        { $sort: { codigo: 1 } }
+      ]
+    })
+    // console.log(planCuenta)
+    return res.status(200).json({ planCuenta })
+  } catch (e) {
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar el plan de cuenta' + e.message })
+  }
+}
 /* export const saveCuenta = async (req, res) => {
   const { codigo, descripcion, conciliacion, tipo, _id } = req.body.cuenta
   const clienteId = req.body.clienteId

@@ -79,7 +79,41 @@ export const movimientosBancos = async (req, res) => {
     return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
   }
 }
-
+export const movimientosCP = async (req, res) => {
+  const { clienteId, cuentaId, fecha } = req.body
+  try {
+    const fechaInit = moment(fecha, 'MM/YYYY').startOf('month').toDate()
+    const fechaEnd = moment(fecha, 'MM/YYYY').endOf('month').toDate()
+    const movimientosEstado = await agreggateCollectionsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            cuentaId: new ObjectId(cuentaId),
+            fecha: { $gte: fechaInit, $lte: fechaEnd }
+          }
+        },
+        {
+          $project:
+          {
+            ref: '$docReferenciaAux',
+            descripcion: '$descripcion',
+            fecha: '$fecha',
+            terceroId: '$terceroId',
+            terceroNombre: '$terceroNombre',
+            monto: { $cond: { if: { $gt: ['$debe', 0] }, then: '$debe', else: '$haber' } },
+            cuentaId: '$cuentaId'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ movimientosEstado })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
+  }
+}
 export const saveToExcelMocimientosBancarios = async (req, res) => {
   const { clienteId, movimientos } = req.body
   try {

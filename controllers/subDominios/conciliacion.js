@@ -1,9 +1,11 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD, formatCollectionName } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
+import { subDominioName } from '../../constants.js'
 
 export const getListCuentas = async (req, res) => {
   const { clienteId, tipoCuenta } = req.body
+  const tercerosCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'terceros' })
   try {
     const cuentas = await agreggateCollectionsSD({
       nameCollection: 'planCuenta',
@@ -13,6 +15,15 @@ export const getListCuentas = async (req, res) => {
           $match: {
             conciliacion: tipoCuenta
           }
+        },
+        {
+          $lookup:
+            {
+              from: `${tercerosCollectionName}`,
+              localField: '_id',
+              foreignField: 'cuentaId',
+              as: 'terceros'
+            }
         }
       ]
     })
@@ -109,6 +120,91 @@ export const movimientosCP = async (req, res) => {
       ]
     })
     return res.status(200).json({ movimientosEstado })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
+  }
+}
+export const gastosBancariosSinConciliar = async (req, res) => {
+  const { clienteId, cuentaId, fecha } = req.body
+  const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
+  try {
+    const movimientosSinConciliar = await agreggateCollectionsSD({
+      nameCollection: 'estadoBancarios',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            cuentaId: new ObjectId(cuentaId),
+            fecha: { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
+          }
+        },
+        {
+          $lookup:
+            {
+              from: `${detalleComprobantesCollectionName}`,
+              localField: 'cuentaId',
+              foreignField: 'cuentaId',
+              let:
+                { ref: '$ref', descripcion: '$descripcion', monto: '$monto' },
+              pipeline: [
+                {
+                  $match:
+                    {
+                      $expr:
+                      {
+                        $and:
+                          [
+                            { $eq: ['$descripcion', '$$descripcion'] },
+                            { $eq: ['$docReferenciaAux', '$$ref'] }
+                          ]
+                      }
+                    }
+                },
+                {
+                  $project: {
+                    ref: '$docReferenciaAux',
+                    descripcion: '$descripcion',
+                    fecha: '$fecha',
+                    monto: { $cond: { if: { $gt: ['$debe', 0] }, then: '$debe', else: '$haber' } },
+                    cuentaId: '$cuentaId'
+                  }
+                },
+                {
+                  $match:
+                    {
+                      $expr:
+                      {
+                        $and:
+                          [
+                            { $eq: ['$monto', '$$monto'] }
+                          ]
+                      }
+                    }
+                }
+              ],
+              as: 'movimientosEstado'
+            }
+        },
+        {
+          $project: {
+            cuentaId: '$cuentaId',
+            ref: '$ref',
+            descripcion: '$descripcion',
+            periodoMensual: '$periodoMensual',
+            fecha: '$fecha',
+            monto: '$monto',
+            movimientosEstado: { $size: '$movimientosEstado' }
+          }
+        },
+        {
+          $match: {
+            movimientosEstado: { $lte: 0 }
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ movimientosSinConciliar })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })

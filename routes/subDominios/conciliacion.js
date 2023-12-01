@@ -1,6 +1,6 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { deleteMovimientoBancario, gastosBancariosSinConciliar, getListCuentas, movimientosBancos, movimientosCP, saveToExcelMocimientosBancarios } from '../../controllers/subDominios/conciliacion.js'
+import { deleteMovimientoBancario, detalleMovimientos, gastosBancariosSinConciliar, getListCuentas, movimientosBancos, movimientosCP, saveToExcelMocimientosBancarios } from '../../controllers/subDominios/conciliacion.js'
 
 const router = express.Router()
 
@@ -10,4 +10,5 @@ router.post('/bancos/getNoConciliados', requireSubDominioToken, gastosBancariosS
 router.post('/bancos/saveExcel', requireSubDominioToken, saveToExcelMocimientosBancarios)
 router.post('/bancos/delete', requireSubDominioToken, deleteMovimientoBancario)
 router.post('/cp/get', requireSubDominioToken, movimientosCP)
+router.post('/movimientos', requireSubDominioToken, detalleMovimientos)
 export default router

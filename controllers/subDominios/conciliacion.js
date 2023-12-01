@@ -36,100 +36,80 @@ export const getListCuentas = async (req, res) => {
 export const movimientosBancos = async (req, res) => {
   const { clienteId, cuentaId, fecha } = req.body
   try {
-    const fechaInit = moment(fecha, 'MM/YYYY').startOf('month').toDate()
-    const fechaEnd = moment(fecha, 'MM/YYYY').endOf('month').toDate()
-    const movimientosEstado = await agreggateCollectionsSD({
+    const movimientosBancariosCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'estadoBancarios' })
+    const movimientoEstadosSinConciliar = await agreggateCollectionsSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,
       pipeline: [
         {
           $match: {
             cuentaId: new ObjectId(cuentaId),
-            fecha: { $gte: fechaInit, $lte: fechaEnd }
+            fecha: { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
           }
         },
         {
-          $project:
-          {
-            ref: '$docReferenciaAux',
+          $project: {
+            cuentaId: '$cuentaId',
+            docReferenciaAux: '$docReferenciaAux',
             descripcion: '$descripcion',
             fecha: '$fecha',
-            monto: { $cond: { if: { $gt: ['$debe', 0] }, then: '$debe', else: '$haber' } },
-            cuentaId: '$cuentaId'
-          }
-        }
-      ]
-    })
-    const movimientosBancarios = await agreggateCollectionsSD({
-      nameCollection: 'estadoBancarios',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        {
-          $match: {
-            cuentaId: new ObjectId(cuentaId),
-            fecha: { $gte: fechaInit, $lte: fechaEnd }
-          }
-        }
-      ]
-    })
-    const movimientosConciliados = []
-    const movimientosNoConciliados = []
-    if (movimientosBancarios[0] && movimientosEstado[0]) {
-      for (const movimiento of movimientosBancarios) {
-        const movimientoBancario = movimientosEstado.find(e => e.ref === movimiento.ref && e.monto === movimiento.monto && e.descripcion === movimiento.descripcion)
-        if (movimientoBancario) {
-          movimientosConciliados.push(movimiento)
-        } else {
-          movimientosNoConciliados.push(movimiento)
-        }
-      }
-    }
-    return res.status(200).json({ movimientosEstado, movimientosBancarios, movimientosConciliados, movimientosNoConciliados })
-  } catch (e) {
-    console.log(e)
-    return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
-  }
-}
-export const movimientosCP = async (req, res) => {
-  const { clienteId, cuentaId, fecha } = req.body
-  try {
-    const fechaInit = moment(fecha, 'MM/YYYY').startOf('month').toDate()
-    const fechaEnd = moment(fecha, 'MM/YYYY').endOf('month').toDate()
-    const movimientosEstado = await agreggateCollectionsSD({
-      nameCollection: 'detallesComprobantes',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        {
-          $match: {
-            cuentaId: new ObjectId(cuentaId),
-            fecha: { $gte: fechaInit, $lte: fechaEnd }
+            monto: { $cond: { if: { $gt: ['$debe', 0] }, then: '$debe', else: '$haber' } }
           }
         },
         {
-          $project:
-          {
+          $lookup:
+            {
+              from: `${movimientosBancariosCollectionName}`,
+              localField: 'cuentaId',
+              foreignField: 'cuentaId',
+              let:
+                { ref: '$docReferenciaAux', descripcion: '$descripcion', monto: '$monto' },
+              pipeline: [
+                {
+                  $match:
+                    {
+                      $expr:
+                      {
+                        $and:
+                          [
+                            { $eq: ['$ref', '$$ref'] },
+                            { $eq: ['$monto', '$$monto'] }
+                          ]
+                      }
+                    }
+                },
+                {
+                  $project: {
+                    ref: '$ref',
+                    descripcion: '$descripcion',
+                    fecha: '$fecha',
+                    monto: '$monto',
+                    cuentaId: '$cuentaId'
+                  }
+                }
+              ],
+              as: 'movimientosBancarios'
+            }
+        },
+        {
+          $project: {
+            cuentaId: '$cuentaId',
             ref: '$docReferenciaAux',
             descripcion: '$descripcion',
             fecha: '$fecha',
-            terceroId: '$terceroId',
-            terceroNombre: '$terceroNombre',
-            monto: { $cond: { if: { $gt: ['$debe', 0] }, then: '$debe', else: '$haber' } },
-            cuentaId: '$cuentaId'
+            monto: '$monto',
+            movimientosBancarios: { $size: '$movimientosBancarios' }
+          }
+        },
+        {
+          $match: {
+            movimientosBancarios: { $lte: 0 }
           }
         }
       ]
     })
-    return res.status(200).json({ movimientosEstado })
-  } catch (e) {
-    console.log(e)
-    return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
-  }
-}
-export const gastosBancariosSinConciliar = async (req, res) => {
-  const { clienteId, cuentaId, fecha } = req.body
-  const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
-  try {
-    const movimientosSinConciliar = await agreggateCollectionsSD({
+    const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
+    const movimientosBancariosSinConciliar = await agreggateCollectionsSD({
       nameCollection: 'estadoBancarios',
       enviromentClienteId: clienteId,
       pipeline: [
@@ -204,6 +184,206 @@ export const gastosBancariosSinConciliar = async (req, res) => {
         }
       ]
     })
+    return res.status(200).json({ movimientosBancariosSinConciliar, movimientoEstadosSinConciliar })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
+  }
+}
+export const movimientosCP = async (req, res) => {
+  const { clienteId, cuentaId, fecha, tercero } = req.body
+  console.log({ tercero })
+  if (tercero) {
+    try {
+      const fechaInit = moment(fecha, 'MM/YYYY').startOf('month').toDate()
+      const fechaEnd = moment(fecha, 'MM/YYYY').endOf('month').toDate()
+      const movimientosEstado = await agreggateCollectionsSD({
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          {
+            $match: {
+              cuentaId: new ObjectId(cuentaId),
+              fecha: { $gte: fechaInit, $lte: fechaEnd },
+              terceroId: { $in: tercero.map(e => new ObjectId(e._id)) }
+            }
+          },
+          {
+            $group: {
+              _id: {
+                cuentaId: '$cuentaId',
+                terceroId: '$terceroId'
+              },
+              debe: { $sum: '$debe' },
+              haber: { $sum: '$haber' },
+              ultimoMovimiento: { $last: '$fecha' },
+              tercero: { $first: '$terceroNombre' }
+            }
+          },
+          {
+            $project:
+            {
+              monto: { $subtract: ['$debe', '$haber'] },
+              ultimoMovimiento: '$ultimoMovimiento',
+              tercero: '$tercero',
+              debe: '$debe',
+              haber: '$haber'
+            }
+          },
+          {
+            $match: { monto: { $lt: 0 } }
+          }
+        ]
+      })
+      return res.status(200).json({ movimientosEstado })
+    } catch (e) {
+      console.log(e)
+      return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
+    }
+  }
+  try {
+    const fechaInit = moment(fecha, 'MM/YYYY').startOf('month').toDate()
+    const fechaEnd = moment(fecha, 'MM/YYYY').endOf('month').toDate()
+    const movimientosEstado = await agreggateCollectionsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            cuentaId: new ObjectId(cuentaId),
+            fecha: { $gte: fechaInit, $lte: fechaEnd }
+          }
+        },
+        {
+          $group: {
+            _id: { cuentaId: '$cuentaId' },
+            debe: { $sum: '$debe' },
+            haber: { $sum: '$haber' },
+            ultimoMovimiento: { $last: '$fecha' },
+            cantTerceros: {
+              $sum:
+              {
+                $cond:
+                {
+                  if:
+                  {
+                    $and:
+                    [
+                      { $ne: ['$terceroId', null] },
+                      { $ne: ['$terceroId', ''] },
+                      { $ne: ['$terceroId', undefined] }
+                    ]
+                  },
+                  then: 1,
+                  else: 0
+                }
+              }
+            },
+            tercero: { $first: '$terceroNombre' }
+          }
+        },
+        {
+          $project:
+          {
+            monto: { $subtract: ['$debe', '$haber'] },
+            ultimoMovimiento: '$ultimoMovimiento',
+            cantTerceros: '$cantTerceros',
+            tercero: '$tercero',
+            debe: '$debe',
+            haber: '$haber'
+          }
+        },
+        {
+          $match: { monto: { $lt: 0 } }
+        }
+      ]
+    })
+    return res.status(200).json({ movimientosEstado })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
+  }
+}
+export const gastosBancariosSinConciliar = async (req, res) => {
+  const { clienteId, cuentas, fecha } = req.body
+  const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
+  try {
+    const movimientosSinConciliar = await agreggateCollectionsSD({
+      nameCollection: 'estadoBancarios',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            cuentaId: { $in: cuentas.map(e => new ObjectId(e._id)) },
+            fecha: { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
+          }
+        },
+        {
+          $lookup:
+            {
+              from: `${detalleComprobantesCollectionName}`,
+              localField: 'cuentaId',
+              foreignField: 'cuentaId',
+              let:
+                { ref: '$ref', descripcion: '$descripcion', monto: '$monto' },
+              pipeline: [
+                {
+                  $match:
+                    {
+                      $expr:
+                      {
+                        $and:
+                          [
+                            { $eq: ['$descripcion', '$$descripcion'] },
+                            { $eq: ['$docReferenciaAux', '$$ref'] }
+                          ]
+                      }
+                    }
+                },
+                {
+                  $project: {
+                    ref: '$docReferenciaAux',
+                    descripcion: '$descripcion',
+                    fecha: '$fecha',
+                    monto: { $cond: { if: { $gt: ['$debe', 0] }, then: '$debe', else: '$haber' } },
+                    cuentaId: '$cuentaId'
+                  }
+                },
+                {
+                  $match:
+                    {
+                      $expr:
+                      {
+                        $and:
+                          [
+                            { $eq: ['$monto', '$$monto'] }
+                          ]
+                      }
+                    }
+                }
+              ],
+              as: 'movimientosEstado'
+            }
+        },
+        {
+          $project: {
+            cuentaId: '$cuentaId',
+            cuentaNombre: '$cuentaNombre',
+            ref: '$ref',
+            descripcion: '$descripcion',
+            periodoMensual: '$periodoMensual',
+            fecha: '$fecha',
+            monto: '$monto',
+            movimientosEstado: { $size: '$movimientosEstado' }
+          }
+        },
+        {
+          $match: {
+            movimientosEstado: { $lte: 0 }
+          }
+        }
+      ]
+    })
     return res.status(200).json({ movimientosSinConciliar })
   } catch (e) {
     console.log(e)
@@ -228,6 +408,7 @@ export const saveToExcelMocimientosBancarios = async (req, res) => {
           update: {
             $set: {
               cuentaId: new ObjectId(e.cuentaId),
+              cuentaNombre: e.cuentaNombre,
               monto: Number(e.monto),
               fecha: moment(e.fecha, 'YYYY/MM/DD').toDate()
             }
@@ -253,5 +434,62 @@ export const deleteMovimientoBancario = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: `Error de servidor al momento de eliminar la lista de movimientos bancarios ${e.message}` })
+  }
+}
+export const detalleMovimientos = async (req, res) => {
+  const { clienteId, detalleMovimiento } = req.body
+  const match = detalleMovimiento._id?.terceroId ? { terceroId: new ObjectId(detalleMovimiento._id.terceroId) } : { cuentaId: new ObjectId(detalleMovimiento._id) }
+  try {
+    const comprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'comprobantes' })
+    const movimientos = await agreggateCollectionsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: match },
+        {
+          $lookup:
+            {
+              from: `${comprobantesCollectionName}`,
+              localField: 'comprobanteId',
+              foreignField: '_id',
+              pipeline: [
+                {
+                  $project: {
+                    nombreComprobante: { $concat: ['$mesPeriodo', '-', '$codigo', ' ', '$nombre'] }
+                  }
+                }
+              ],
+              as: 'comprobante'
+            }
+        },
+        { $unwind: { path: '$comprobante', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            cantidad: '$cantidad',
+            comprobanteId: '$comprobanteId',
+            cuentaCodigo: '$cuentaCodigo',
+            cuentaId: '$cuentaId',
+            cuentaNombre: '$cuentaNombre',
+            debe: '$debe',
+            descripcion: '$descripcion',
+            docReferenciaAux: '$docReferenciaAux',
+            fecha: '$fecha',
+            fechaDolar: '$fechaDolar',
+            haber: '$haber',
+            monedaPrincipal: '$monedaPrincipal',
+            monedasUsar: '$monedasUsar',
+            periodoId: '$periodoId',
+            tasa: '$tasa',
+            terceroId: '$terceroId',
+            terceroNombre: '$terceroNombre',
+            nombreComprobante: '$comprobante.nombreComprobante'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ movimientos })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos del estado financiero${e.message}` })
   }
 }

@@ -438,7 +438,7 @@ export const deleteMovimientoBancario = async (req, res) => {
 }
 export const detalleMovimientos = async (req, res) => {
   const { clienteId, detalleMovimiento } = req.body
-  const match = detalleMovimiento._id?.terceroId ? { terceroId: new ObjectId(detalleMovimiento._id.terceroId) } : { cuentaId: new ObjectId(detalleMovimiento._id) }
+  const match = detalleMovimiento._id?.terceroId ? { terceroId: new ObjectId(detalleMovimiento._id.terceroId) } : { cuentaId: new ObjectId(detalleMovimiento._id.cuentaId) }
   try {
     const comprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'comprobantes' })
     const movimientos = await agreggateCollectionsSD({

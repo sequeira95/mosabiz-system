@@ -193,7 +193,7 @@ export const movimientosBancos = async (req, res) => {
 export const movimientosCP = async (req, res) => {
   const { clienteId, cuentaId, fecha, tercero } = req.body
   console.log({ tercero })
-  if (tercero) {
+  if (tercero && tercero[0]) {
     try {
       const fechaInit = moment(fecha, 'MM/YYYY').startOf('month').toDate()
       const fechaEnd = moment(fecha, 'MM/YYYY').endOf('month').toDate()

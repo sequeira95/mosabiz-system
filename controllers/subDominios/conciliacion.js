@@ -191,22 +191,44 @@ export const movimientosBancos = async (req, res) => {
   }
 }
 export const movimientosCP = async (req, res) => {
-  const { clienteId, cuentaId, fecha, tercero } = req.body
-  console.log({ tercero })
+  const { clienteId, cuentaId, periodo, tercero } = req.body
+  let match = {}
+  if (tercero && tercero[0]?._id === 'todos') {
+    match = {
+      cuentaId: new ObjectId(cuentaId),
+      periodoId: new ObjectId(periodo)
+    }
+  } else if (tercero && tercero[0]?._id === 'sinAsignar' && !tercero[1]) {
+    match = {
+      cuentaId: new ObjectId(cuentaId),
+      periodoId: new ObjectId(periodo),
+      terceroId: { $in: ['', null, undefined] }
+    }
+  } else {
+    const indexSinAsignar = tercero.findIndex(e => e._id === 'sinAsignar')
+    const matchTerceros =
+    indexSinAsignar >= 0 ? { $or: [{ terceroId: { $in: tercero.filter(i => i._id !== 'sinAsignar').map(e => new ObjectId(e._id)) } }, { terceroId: { $in: ['', null, undefined] } }] } : { terceroId: { $in: tercero.filter(i => i._id !== 'sinAsignar').map(e => new ObjectId(e._id)) } }
+    match = {
+      cuentaId: new ObjectId(cuentaId),
+      periodoId: new ObjectId(periodo),
+      ...matchTerceros
+      // terceroId: { $in: tercero.filter(i => i._id !== 'sinAsignar').map(e => new ObjectId(e._id)) }
+    }
+  }
   if (tercero && tercero[0]) {
     try {
-      const fechaInit = moment(fecha, 'MM/YYYY').startOf('month').toDate()
-      const fechaEnd = moment(fecha, 'MM/YYYY').endOf('month').toDate()
+      /* const fechaInit = moment(fecha, 'MM/YYYY').startOf('month').toDate()
+      const fechaEnd = moment(fecha, 'MM/YYYY').endOf('month').toDate() */
       const movimientosEstado = await agreggateCollectionsSD({
         nameCollection: 'detallesComprobantes',
         enviromentClienteId: clienteId,
         pipeline: [
           {
-            $match: {
+            $match: match /* {
               cuentaId: new ObjectId(cuentaId),
               fecha: { $gte: fechaInit, $lte: fechaEnd },
               terceroId: { $in: tercero.map(e => new ObjectId(e._id)) }
-            }
+            } */
           },
           {
             $group: {
@@ -223,9 +245,37 @@ export const movimientosCP = async (req, res) => {
           {
             $project:
             {
+              _id: {
+                cuentaId: '$_id.cuentaId',
+                terceroId: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $ne: ['$_id.terceroId', ''] },
+                        { $ne: ['$_id.terceroId', null] },
+                        { $ne: ['$_id.terceroId', undefined] }
+                      ]
+                    },
+                    then: '$_id.terceroId',
+                    else: 'sinAsignar'
+                  }
+                }
+              },
               monto: { $subtract: ['$debe', '$haber'] },
               ultimoMovimiento: '$ultimoMovimiento',
-              tercero: '$tercero',
+              tercero: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $ne: ['$_id.terceroId', ''] },
+                      { $ne: ['$_id.terceroId', null] },
+                      { $ne: ['$_id.terceroId', undefined] }
+                    ]
+                  },
+                  then: '$tercero',
+                  else: 'Sin asignar'
+                }
+              },
               debe: '$debe',
               haber: '$haber'
             }
@@ -241,7 +291,7 @@ export const movimientosCP = async (req, res) => {
       return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
     }
   }
-  try {
+  /* try {
     const fechaInit = moment(fecha, 'MM/YYYY').startOf('month').toDate()
     const fechaEnd = moment(fecha, 'MM/YYYY').endOf('month').toDate()
     const movimientosEstado = await agreggateCollectionsSD({
@@ -302,21 +352,116 @@ export const movimientosCP = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
+  } */
+}
+export const movimientosCC = async (req, res) => {
+  const { clienteId, cuentaId, periodo, tercero } = req.body
+  let match = {}
+  if (tercero && tercero[0]?._id === 'todos') {
+    match = {
+      cuentaId: new ObjectId(cuentaId),
+      periodoId: new ObjectId(periodo)
+    }
+  } else if (tercero && tercero[0]?._id === 'sinAsignar' && !tercero[1]) {
+    match = {
+      cuentaId: new ObjectId(cuentaId),
+      periodoId: new ObjectId(periodo),
+      terceroId: { $in: ['', null, undefined] }
+    }
+  } else {
+    const indexSinAsignar = tercero.findIndex(e => e._id === 'sinAsignar')
+    const matchTerceros =
+    indexSinAsignar >= 0 ? { $or: [{ terceroId: { $in: tercero.filter(i => i._id !== 'sinAsignar').map(e => new ObjectId(e._id)) } }, { terceroId: { $in: ['', null, undefined] } }] } : { terceroId: { $in: tercero.filter(i => i._id !== 'sinAsignar').map(e => new ObjectId(e._id)) } }
+    match = {
+      cuentaId: new ObjectId(cuentaId),
+      periodoId: new ObjectId(periodo),
+      ...matchTerceros
+    }
+  }
+  if (tercero && tercero[0]) {
+    try {
+      const movimientosEstado = await agreggateCollectionsSD({
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          {
+            $match: match
+          },
+          {
+            $group: {
+              _id: {
+                cuentaId: '$cuentaId',
+                terceroId: '$terceroId'
+              },
+              debe: { $sum: '$debe' },
+              haber: { $sum: '$haber' },
+              ultimoMovimiento: { $last: '$fecha' },
+              tercero: { $first: '$terceroNombre' }
+            }
+          },
+          {
+            $project:
+            {
+              _id: {
+                cuentaId: '$_id.cuentaId',
+                terceroId: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $ne: ['$_id.terceroId', ''] },
+                        { $ne: ['$_id.terceroId', null] },
+                        { $ne: ['$_id.terceroId', undefined] }
+                      ]
+                    },
+                    then: '$_id.terceroId',
+                    else: 'sinAsignar'
+                  }
+                }
+              },
+              monto: { $subtract: ['$debe', '$haber'] },
+              ultimoMovimiento: '$ultimoMovimiento',
+              tercero: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $ne: ['$_id.terceroId', ''] },
+                      { $ne: ['$_id.terceroId', null] },
+                      { $ne: ['$_id.terceroId', undefined] }
+                    ]
+                  },
+                  then: '$tercero',
+                  else: 'Sin asignar'
+                }
+              },
+              debe: '$debe',
+              haber: '$haber'
+            }
+          },
+          {
+            $match: { monto: { $gt: 0 } }
+          }
+        ]
+      })
+      return res.status(200).json({ movimientosEstado })
+    } catch (e) {
+      console.log(e)
+      return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero ${e.message}` })
+    }
   }
 }
+
 export const gastosBancariosSinConciliar = async (req, res) => {
-  const { clienteId, cuentas, fecha } = req.body
+  const { clienteId, cuentas, periodo } = req.body
+  console.log('banco', req.body)
   const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   try {
+    const match = cuentas && cuentas[0]?._id === 'todos' ? { periodoId: new ObjectId(periodo) } : { cuentaId: { $in: cuentas.map(e => new ObjectId(e._id)) }, periodoId: new ObjectId(periodo) }
     const movimientosSinConciliar = await agreggateCollectionsSD({
       nameCollection: 'estadoBancarios',
       enviromentClienteId: clienteId,
       pipeline: [
         {
-          $match: {
-            cuentaId: { $in: cuentas.map(e => new ObjectId(e._id)) },
-            fecha: { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
-          }
+          $match: match
         },
         {
           $lookup:
@@ -404,7 +549,7 @@ export const saveToExcelMocimientosBancarios = async (req, res) => {
       } */
       return {
         updateOne: {
-          filter: { periodoMensual: e.periodoMensual, ref: String(e.ref), descripcion: String(e.descripcion) },
+          filter: { periodoMensual: e.periodoMensual, ref: String(e.ref), descripcion: String(e.descripcion), periodoId: new ObjectId(e.periodoId) },
           update: {
             $set: {
               cuentaId: new ObjectId(e.cuentaId),
@@ -438,7 +583,7 @@ export const deleteMovimientoBancario = async (req, res) => {
 }
 export const detalleMovimientos = async (req, res) => {
   const { clienteId, detalleMovimiento } = req.body
-  const match = detalleMovimiento._id?.terceroId ? { terceroId: new ObjectId(detalleMovimiento._id.terceroId) } : { cuentaId: new ObjectId(detalleMovimiento._id.cuentaId) }
+  const match = detalleMovimiento._id?.terceroId !== 'sinAsignar' ? { terceroId: new ObjectId(detalleMovimiento._id.terceroId) } : { cuentaId: new ObjectId(detalleMovimiento._id.cuentaId), terceroId: { $in: ['', null, undefined] } }
   try {
     const comprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'comprobantes' })
     const movimientos = await agreggateCollectionsSD({

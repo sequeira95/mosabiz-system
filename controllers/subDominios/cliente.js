@@ -113,7 +113,8 @@ export const createCliente = async (req, res) => {
           periodo: periodoActual,
           fechaInicio: moment(periodoActualFrom, 'yyyy-MM').toDate(),
           fechaFin: moment(periodoActualto, 'yyyy-MM').toDate(),
-          activo: true
+          activo: true,
+          status: 'Activo'
         }
       })
     }

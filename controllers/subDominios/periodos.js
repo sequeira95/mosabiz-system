@@ -36,7 +36,7 @@ export const savePeriodo = async (req, res) => {
       }
     })
     console.log(newPeriodo)
-    return res.status(200).json({ periodo: newPeriodo })
+    return res.status(200).json({ status: 'Periodo guardado con exito', periodo: newPeriodo })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar este periodo ' + e.message })

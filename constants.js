@@ -18,6 +18,11 @@ export const nivelesCodigoByLength = {
   10: 5,
   13: 6
 }
+export const statusOptionsPeriodos = {
+  activo: 'Activo',
+  preCierre: 'Pre-cierre',
+  cerrado: 'Cerrado'
+}
 export const collectionNameClient = ['ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios']
 export const ListIndexesClient = [
   {

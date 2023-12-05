@@ -224,7 +224,7 @@ export const movimientosCP = async (req, res) => {
         enviromentClienteId: clienteId,
         pipeline: [
           {
-            $match: match /* {
+            $match: { ...match /* isPreCierre: { $ne: true } */ } /* {
               cuentaId: new ObjectId(cuentaId),
               fecha: { $gte: fechaInit, $lte: fechaEnd },
               terceroId: { $in: tercero.map(e => new ObjectId(e._id)) }
@@ -385,7 +385,7 @@ export const movimientosCC = async (req, res) => {
         enviromentClienteId: clienteId,
         pipeline: [
           {
-            $match: match
+            $match: { ...match /* isPreCierre: { $ne: true } */ }
           },
           {
             $group: {

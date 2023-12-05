@@ -30,7 +30,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: configMatch },
-        { $sort: { fechaCreacion: 1 } },
+        { $sort: { fechaCreacion: -1 } },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) }
       ]
@@ -61,7 +61,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
           ]
         })
       : []
-    return ({ detallesComprobantes, cantidad: datosExtras[0]?.count, totalDebe: datosExtras[0]?.debe, totalHaber: datosExtras[0]?.haber })
+    return ({ detallesComprobantes: detallesComprobantes.reverse(), cantidad: datosExtras[0]?.count, totalDebe: datosExtras[0]?.debe, totalHaber: datosExtras[0]?.haber })
   } catch (e) {
     console.log(e)
     return e

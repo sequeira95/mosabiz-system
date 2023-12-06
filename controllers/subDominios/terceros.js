@@ -32,22 +32,19 @@ export const saveTerceros = async (req, res) => {
       }
     })
     if (_id) {
-      const detallesComprobantes =
-      (await getCollectionSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { terceroId: new ObjectId(_id) } })).map(e => new ObjectId(e._id))
-      if (detallesComprobantes[0]) {
-        console.log('Actualizando detalle de comprobante')
-        await updateManyItemSD(
-          {
-            nameCollection: 'detallesComprobantes',
-            enviromentClienteId: clienteId,
-            filters: { _id: { $in: detallesComprobantes } },
-            update: {
-              $set: {
-                terceroNombre: nombre
-              }
+      console.log('Actualizando detalle de comprobante')
+      const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+      await updateManyItemSD(
+        {
+          nameCollection: 'detallesComprobantes',
+          enviromentClienteId: clienteId,
+          filters: { terceroId: new ObjectId(_id), periodoId: { $in: periodosActivos } },
+          update: {
+            $set: {
+              terceroNombre: nombre
             }
-          })
-      }
+          }
+        })
     }
     return res.status(200).json({ status: 'Tercero creado exitosamente', tercero })
   } catch (e) {

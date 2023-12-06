@@ -156,7 +156,9 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
     console.log(e)
   }
   try {
+    let addSeconds = 1
     const datosDetallesSinId = detalles.filter(i => !i._id).map(e => {
+      addSeconds += 2
       return {
         cuentaId: new ObjectId(e.cuentaId),
         cuentaCodigo: e.cuentaCodigo,
@@ -170,7 +172,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
         cCosto: e.cCosto,
         terceroId: e.terceroId ? new ObjectId(e.terceroId) : '',
         terceroNombre: e?.terceroNombre,
-        fechaCreacion: moment().toDate(),
+        fechaCreacion: moment().add(addSeconds, 'milliseconds').toDate(),
         docReferenciaAux: e.documento.docReferencia,
         documento: {
           docReferencia: e.documento.docReferencia,

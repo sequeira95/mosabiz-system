@@ -188,6 +188,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
         monedaPrincipal: e?.monedaPrincipal
       }
     })
+    console.log({ datosDetallesSinId })
     if (datosDetallesSinId[0]) await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: datosDetallesSinId })
     const datosDetallesWithId = detalles.filter(i => i.cuentaId && i._id).map(e => {
       return {

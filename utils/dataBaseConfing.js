@@ -69,6 +69,13 @@ export async function updateItemSD ({ enviromentClienteId, nameCollection, filte
   const collection = await db.collection(collecionName)
   return await collection.findOneAndUpdate(filters, update, { returnDocument: 'after' })
 }
+export async function updateManyItemSD ({ enviromentClienteId, nameCollection, filters = {}, update = {} }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })
+  if (enviromentClienteId) collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection })
+  const collection = await db.collection(collecionName)
+  return await collection.updateMany(filters, update)
+}
 export async function upsertItemSD ({ enviromentClienteId, nameCollection, filters = {}, update = {} }) {
   const db = await accessToDataBase(dataBaseSecundaria)
   let collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection })

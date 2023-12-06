@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, deleteItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, deleteItemSD, getCollectionSD, upsertItemSD, updateManyItemSD } from '../../utils/dataBaseConfing.js'
 
 export const getTerceros = async (req, res) => {
   const { clienteId, cuentaId } = req.body
@@ -31,6 +31,24 @@ export const saveTerceros = async (req, res) => {
         }
       }
     })
+    if (_id) {
+      const detallesComprobantes =
+      (await getCollectionSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { terceroId: new ObjectId(_id) } })).map(e => new ObjectId(e._id))
+      if (detallesComprobantes[0]) {
+        console.log('Actualizando detalle de comprobante')
+        await updateManyItemSD(
+          {
+            nameCollection: 'detallesComprobantes',
+            enviromentClienteId: clienteId,
+            filters: { _id: { $in: detallesComprobantes } },
+            update: {
+              $set: {
+                terceroNombre: nombre
+              }
+            }
+          })
+      }
+    }
     return res.status(200).json({ status: 'Tercero creado exitosamente', tercero })
   } catch (e) {
     console.log(e.message)

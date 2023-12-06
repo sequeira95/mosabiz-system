@@ -66,8 +66,8 @@ export const getDetallesComprobantes = async (req, res) => {
   const { clienteId, comprobanteId, itemsPorPagina, pagina, search } = req.body
   if (!(comprobanteId || clienteId)) return res.status(400).json({ error: 'Datos incompletos' })
   try {
-    const { detallesComprobantes, cantidad, totalDebe, totalHaber } = await agregateDetalleComprobante({ clienteId, comprobanteId, itemsPorPagina, pagina, search })
-    return res.status(200).json({ detallesComprobantes, cantidad, totalDebe, totalHaber })
+    const { detalleall, detallesComprobantes, cantidad, totalDebe, totalHaber, detalleIndex } = await agregateDetalleComprobante({ clienteId, comprobanteId, itemsPorPagina, pagina, search })
+    return res.status(200).json({ detalleall, detallesComprobantes, cantidad, totalDebe, totalHaber, detalleIndex })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar detalles del comprobante' + e.message })

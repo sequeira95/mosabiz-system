@@ -19,7 +19,6 @@ export const getListPeriodo = async (req, res) => {
 }
 export const savePeriodo = async (req, res) => {
   const { clienteId, periodo } = req.body
-  console.log(periodo)
   if (!clienteId) return res.status(400).json({ error: 'El clienteId es requerido' })
   if (periodo.status === statusOptionsPeriodos.preCierre && !periodo.periodoAnterior) return res.status(400).json({ error: 'El periodo anterior es requerido para efectuar un pre-cierre' })
   if (periodo.status === statusOptionsPeriodos.activo) {
@@ -44,7 +43,6 @@ export const savePeriodo = async (req, res) => {
         }
       }
     })
-    console.log({ newPeriodo })
     if (newPeriodo.status === statusOptionsPeriodos.preCierre && newPeriodo.periodoAnterior) {
       console.log('creear o actualizar el comprobante para el nuevo periodo de pre cierre')
       preCierrePeriodo({ clienteId, periodo: newPeriodo })

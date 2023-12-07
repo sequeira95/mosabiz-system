@@ -32,7 +32,6 @@ export const createComprobante = async (req, res) => {
   const { comprobante, periodoId, clienteId } = req.body
   if (!(comprobante || !periodoId || clienteId)) return res.status(400).json({ error: 'Datos incompletos' })
   try {
-    console.log(req.body)
     const newComprobante = await createItemSD({
       nameCollection: 'comprobantes',
       enviromentClienteId: clienteId,
@@ -188,7 +187,6 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
         monedaPrincipal: e?.monedaPrincipal
       }
     })
-    console.log({ datosDetallesSinId })
     if (datosDetallesSinId[0]) await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: datosDetallesSinId })
     const datosDetallesWithId = detalles.filter(i => i.cuentaId && i._id).map(e => {
       return {

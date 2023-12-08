@@ -11,10 +11,6 @@ jobs:
   pool:
     vmImage: ubuntu-latest
   steps:
-  - script: |
-      npm install
-    workingDirectory: '$(Build.SourcesDirectory)'
-    displayName: 'install app'
   - task: CopyFiles@2
     inputs:
       Contents: '/**'

@@ -290,16 +290,16 @@ export const movimientosCP = async (req, res) => {
       if (saldosIniciales) {
         const indexMovimientos = movimientosEstado.findIndex(e => e.tercero === 'Sin asignar')
         if (indexMovimientos >= 0) {
-          if (saldosIniciales.haber > 0) {
+          if (saldosIniciales.debe > 0) {
             movimientosEstado[indexMovimientos].debe += saldosIniciales.debe
             movimientosEstado[indexMovimientos].haber += saldosIniciales.haber
-            movimientosEstado[indexMovimientos].monto += saldosIniciales.haber > 0 ? saldosIniciales.haber * (-1) : saldosIniciales.debe
+            movimientosEstado[indexMovimientos].monto += saldosIniciales.debe > 0 ? saldosIniciales.debe * (-1) : saldosIniciales.haber
           }
         } else {
-          if (saldosIniciales.haber > 0) {
+          if (saldosIniciales.debe > 0) {
             movimientosEstado.push({
               _id: { cuentaId: saldosIniciales.cuentaId, terceroId: 'sinAsignar' },
-              monto: saldosIniciales.haber > 0 ? saldosIniciales.haber * (-1) : saldosIniciales.debe,
+              monto: saldosIniciales.debe > 0 ? saldosIniciales.debe * (-1) : saldosIniciales.haber,
               debe: saldosIniciales.debe,
               haber: saldosIniciales.haber,
               tercero: 'Sin asignar',

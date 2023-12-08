@@ -1,5 +1,5 @@
 ###
-POST  http://localhost:5000/v1/empresas
+POST  http://0.0.0.0:5000/v1/empresas
 content-type: application/json
 
 {
@@ -9,7 +9,7 @@ content-type: application/json
   "email":"ricardosequeira4@gmail.com"
 }
 ###
-POST  http://localhost:5000/v1/auth/login
+POST  http://0.0.0.0/v1/auth/login
 content-type: application/json
 
 {
@@ -18,7 +18,7 @@ content-type: application/json
 }
 
 ###
-POST  http://localhost:5000/v1/users/create/programador
+POST  http://0.0.0.0:5000/v1/users/create/programador
 content-type: application/json
 
 {
@@ -28,7 +28,7 @@ content-type: application/json
   "telefono":"04246870359"
 }
 ###
-POST  http://localhost:5000/v1/users/create/superAdmi
+POST  http://0.0.0.0:5000/v1/users/create/superAdmi
 content-type: application/json
 
 {
@@ -39,10 +39,10 @@ content-type: application/json
 }
 ###
 
-POST  http://localhost:5000/v1/modulos
+POST  http://0.0.0.0:5000/v1/modulos
 content-type: application/json
 ###
-POST  http://localhost:5000/v1/sub-dominio/perfil/updatePerfilEmpresa
+POST  http://0.0.0.0:5000/v1/sub-dominio/perfil/updatePerfilEmpresa
 content-type: application/json
 
 {
@@ -55,7 +55,7 @@ content-type: application/json
 }
 ###
 
-POST  http://localhost:5000/v1/sub-dominio/clientes/deleteCliente
+POST  http://0.0.0.0:5000/v1/sub-dominio/clientes/deleteCliente
 content-type: application/json
 
 {

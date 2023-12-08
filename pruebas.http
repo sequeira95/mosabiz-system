@@ -1,0 +1,64 @@
+###
+POST  http://localhost:5000/v1/empresas
+content-type: application/json
+
+{
+  "subDominio":"monasterio", 
+  "nombreEmpresa":"monasterio", 
+  "rif":"J-111111-1",
+  "email":"ricardosequeira4@gmail.com"
+}
+###
+POST  http://localhost:5000/v1/auth/login
+content-type: application/json
+
+{
+  "email":"ricardosequeira4@gmail.com", 
+  "password":"6ebd3415703f05fa2a43"
+}
+
+###
+POST  http://localhost:5000/v1/users/create/programador
+content-type: application/json
+
+{
+  "nombre": "Ricardo Sequeira",
+  "email":"ricardosequeira4@gmail.com", 
+  "password":"ricardo1",
+  "telefono":"04246870359"
+}
+###
+POST  http://localhost:5000/v1/users/create/superAdmi
+content-type: application/json
+
+{
+  "nombre": "Alfredo Oquendo",
+  "email":"monasteriosoquendo@gmail.com", 
+  "password":"alfredo123",
+  "telefono":""
+}
+###
+
+POST  http://localhost:5000/v1/modulos
+content-type: application/json
+###
+POST  http://localhost:5000/v1/sub-dominio/perfil/updatePerfilEmpresa
+content-type: application/json
+
+{
+  "_id": "65416fbdd6a0c687dd6c8bbd",
+  "razonSocial":"AngelMora", 
+  "documentoIdentidad":"J123456789",
+  "email":"angelmorab13@gmail.com",
+  "telefono":"123456789",
+  "direccion":"direccion"
+}
+###
+
+POST  http://localhost:5000/v1/sub-dominio/clientes/deleteCliente
+content-type: application/json
+
+{
+  "_id": "65529c5ee72a77dbbc55195f"
+}
+###

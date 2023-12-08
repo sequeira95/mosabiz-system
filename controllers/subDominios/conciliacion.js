@@ -409,7 +409,7 @@ export const movimientosCC = async (req, res) => {
         enviromentClienteId: clienteId,
         pipeline: [
           {
-            $match: { ...match /* isPreCierre: { $ne: true } */ }
+            $match: { ...match, isPreCierre: { $ne: true } }
           },
           {
             $group: {
@@ -466,6 +466,33 @@ export const movimientosCC = async (req, res) => {
           }
         ]
       })
+      const saldosIniciales = await getItemSD({
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        filters: { cuentaId: new ObjectId(cuentaId), isPreCierre: true, periodoId: new ObjectId(periodo) }
+      })
+      console.log({ saldosIniciales })
+      if (saldosIniciales) {
+        const indexMovimientos = movimientosEstado.findIndex(e => e.tercero === 'Sin asignar')
+        if (indexMovimientos >= 0) {
+          if (saldosIniciales.haber > 0) {
+            movimientosEstado[indexMovimientos].debe += saldosIniciales.debe
+            movimientosEstado[indexMovimientos].haber += saldosIniciales.haber
+            movimientosEstado[indexMovimientos].monto += saldosIniciales.haber > 0 ? saldosIniciales.haber : saldosIniciales.debe
+          }
+        } else {
+          if (saldosIniciales.haber > 0) {
+            movimientosEstado.push({
+              _id: { cuentaId: saldosIniciales.cuentaId, terceroId: 'sinAsignar' },
+              monto: saldosIniciales.haber > 0 ? saldosIniciales.haber : saldosIniciales.debe,
+              debe: saldosIniciales.debe,
+              haber: saldosIniciales.haber,
+              tercero: 'Sin asignar',
+              ultimoMovimiento: saldosIniciales.fecha
+            })
+          }
+        }
+      }
       return res.status(200).json({ movimientosEstado })
     } catch (e) {
       console.log(e)

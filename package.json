@@ -1,12 +1,12 @@
 {
   "name": "mosabiz-system",
-  "type": "module",
   "version": "1.0.0",
   "description": "server to mosabiz",
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "build": "webpack"
   },
   "author": "Ricardo Sequeira & Angel Mora",
   "license": "ISC",
@@ -25,7 +25,9 @@
   },
   "devDependencies": {
     "nodemon": "3.0.1",
-    "standard": "17.1.0"
+    "standard": "17.1.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
   },
   "eslintConfig": {
     "extends": "standard"

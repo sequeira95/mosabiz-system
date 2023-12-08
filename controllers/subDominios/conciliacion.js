@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD, formatCollectionName } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD, formatCollectionName, getItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { subDominioName } from '../../constants.js'
 
@@ -224,11 +224,7 @@ export const movimientosCP = async (req, res) => {
         enviromentClienteId: clienteId,
         pipeline: [
           {
-            $match: { ...match /* isPreCierre: { $ne: true } */ } /* {
-              cuentaId: new ObjectId(cuentaId),
-              fecha: { $gte: fechaInit, $lte: fechaEnd },
-              terceroId: { $in: tercero.map(e => new ObjectId(e._id)) }
-            } */
+            $match: { ...match, isPreCierre: { $ne: true } }
           },
           {
             $group: {
@@ -285,6 +281,34 @@ export const movimientosCP = async (req, res) => {
           }
         ]
       })
+      const saldosIniciales = await getItemSD({
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        filters: { cuentaId: new ObjectId(cuentaId), isPreCierre: true, periodoId: new ObjectId(periodo) }
+      })
+      console.log({ saldosIniciales })
+      if (saldosIniciales) {
+        const indexMovimientos = movimientosEstado.findIndex(e => e.tercero === 'Sin asignar')
+        if (indexMovimientos >= 0) {
+          if (saldosIniciales.haber > 0) {
+            movimientosEstado[indexMovimientos].debe += saldosIniciales.debe
+            movimientosEstado[indexMovimientos].haber += saldosIniciales.haber
+            movimientosEstado[indexMovimientos].monto += saldosIniciales.haber > 0 ? saldosIniciales.haber * (-1) : saldosIniciales.debe
+          }
+        } else {
+          if (saldosIniciales.haber > 0) {
+            movimientosEstado.push({
+              _id: { cuentaId: saldosIniciales.cuentaId, terceroId: 'sinAsignar' },
+              monto: saldosIniciales.haber > 0 ? saldosIniciales.haber * (-1) : saldosIniciales.debe,
+              debe: saldosIniciales.debe,
+              haber: saldosIniciales.haber,
+              tercero: 'Sin asignar',
+              ultimoMovimiento: saldosIniciales.fecha
+            })
+          }
+        }
+      }
+      console.log({ movimientosEstado })
       return res.status(200).json({ movimientosEstado })
     } catch (e) {
       console.log(e)

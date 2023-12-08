@@ -159,7 +159,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
         codigo: '600',
         nombre: 'Pre-cierre',
         isBloqueado: true,
-        isPreCierre: true,
+        isCierre: true,
         fechaCreacion: moment().toDate()
       }
     })).insertedId
@@ -214,7 +214,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
             fecha: moment().toDate(),
             debe: e.saldo < 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
             haber: e.saldo > 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
-            isPreCierre: true,
+            isCierre: true,
             fechaCreacion: moment().toDate()
           }
         },
@@ -240,7 +240,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
             fecha: moment().toDate(),
             debe: 0,
             haber: saldosAcumulados,
-            isPreCierre: true,
+            isCierre: true,
             fechaCreacion: moment().toDate()
           }
         },
@@ -265,7 +265,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
             fecha: moment().toDate(),
             debe: saldosAcumulados,
             haber: 0,
-            isPreCierre: true,
+            isCierre: true,
             fechaCreacion: moment().toDate()
           }
         },

@@ -1,0 +1,38 @@
+# Node.js
+# Build a general Node.js project with npm.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
+
+trigger:
+- master
+
+jobs:
+- job: buildandtest
+  pool:
+    vmImage: ubuntu-latest
+  steps:
+  - script: |
+      npm install -g @quasar/cli
+      npm install
+      quasar build
+    env:
+      VUE_API_ENDPOINT: 'https://aibiz-beta-dev-jath.1.us-1.fl0.io/v1'
+      VUE_ROUTER_MODE: 'history'
+    workingDirectory: '$(Build.SourcesDirectory)'
+    displayName: 'install Quasar CLI and build app'
+  - task: CopyFiles@2
+    inputs:
+      Contents: 'dist/spa/**'
+      TargetFolder: '$(Build.ArtifactStagingDirectory)'
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+      ArtifactName: 'drop'
+
+  - task: AzureStaticWebApp@0
+    inputs:
+      workingDirectory: '$(Build.ArtifactStagingDirectory)'
+      app_location: 'dist/spa/'
+      is_static_export: true
+      azure_static_web_apps_api_token: 'b23b675c3325bee47a2f3607438f39ffd176ed667c13adb6439d769534971d6f4-5b90555a-a18c-4a8b-b5ae-b79f3a9f204f00f131436'
+      production_branch: 'master'

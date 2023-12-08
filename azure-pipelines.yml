@@ -13,7 +13,7 @@ jobs:
   steps:
   - script: |
       npm install
-      npm build
+      npm run build
     workingDirectory: '$(Build.SourcesDirectory)'
     displayName: 'install Quasar CLI and build app'
   - task: CopyFiles@2

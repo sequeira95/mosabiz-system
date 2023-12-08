@@ -290,6 +290,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
     enviromentClienteId: clienteId,
     filters: { periodoId: new ObjectId(periodoPosterior._id), isPreCierre: true }
   })
+  if (!comprobantePreCierre) return
   let saldosAcumuladosCierre = 0
   const detalleSaldosIniciales = detallePeriodo.map(e => {
     saldosAcumuladosCierre += Number(e.cuentaCodigo[0]) >= 4 ? e.saldo : 0

@@ -1,0 +1,32 @@
+{
+  "name": "monasterio_backend",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "aplicacion contable monasterio",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "Ricardo Sequeira & Angel Mora",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "2.4.3",
+    "cookie-parser": "1.4.6",
+    "cors": "2.8.5",
+    "dotenv": "16.3.1",
+    "express": "4.18.2",
+    "jsonwebtoken": "9.0.2",
+    "moment": "2.29.4",
+    "mongodb": "6.1.0",
+    "nodemailer": "^6.9.5"
+  },
+  "devDependencies": {
+    "nodemon": "3.0.1",
+    "standard": "17.1.0"
+  },
+  "eslintConfig": {
+    "extends": "standard"
+  }
+}

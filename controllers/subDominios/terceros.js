@@ -19,6 +19,7 @@ export const getTerceros = async (req, res) => {
 }
 export const saveTerceros = async (req, res) => {
   const { nombre, clienteId, _id, cuentaId } = req.body
+  console.log(req.body)
   try {
     const tercero = await upsertItemSD({
       nameCollection: 'terceros',

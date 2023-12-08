@@ -452,7 +452,6 @@ export const movimientosCC = async (req, res) => {
 
 export const gastosBancariosSinConciliar = async (req, res) => {
   const { clienteId, cuentas, periodo } = req.body
-  console.log('banco', req.body)
   const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   try {
     const match = cuentas && cuentas[0]?._id === 'todos' ? { periodoId: new ObjectId(periodo) } : { cuentaId: { $in: cuentas.map(e => new ObjectId(e._id)) }, periodoId: new ObjectId(periodo) }

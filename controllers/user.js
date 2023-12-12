@@ -145,7 +145,7 @@ export const createUserProgramador = async (req, res) => {
     })
     return res.status(200).json({ status: 'usuario creado' })
   } catch (e) {
-    // console.log(e)
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }

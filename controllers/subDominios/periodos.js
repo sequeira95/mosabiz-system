@@ -2,7 +2,7 @@ import moment from 'moment'
 import { agreggateCollectionsSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { statusOptionsPeriodos } from '../../constants.js'
-import { preCierrePeriodo } from '../../utils/periodoFuctrions.js'
+import { cerrarPeriodo, preCierrePeriodo } from '../../utils/periodoFuctrions.js'
 
 export const getListPeriodo = async (req, res) => {
   const { clienteId } = req.body
@@ -46,6 +46,10 @@ export const savePeriodo = async (req, res) => {
     if (newPeriodo.status === statusOptionsPeriodos.preCierre && newPeriodo.periodoAnterior) {
       console.log('creear o actualizar el comprobante para el nuevo periodo de pre cierre')
       preCierrePeriodo({ clienteId, periodo: newPeriodo })
+    }
+    if (newPeriodo.status === statusOptionsPeriodos.cerrado) {
+      console.log('creear o actualizar el comprobante para el nuevo periodo de cierre y tambien pre cierre')
+      cerrarPeriodo({ clienteId, periodo: newPeriodo })
     }
 
     return res.status(200).json({ status: 'Periodo guardado con exito', periodo: newPeriodo })

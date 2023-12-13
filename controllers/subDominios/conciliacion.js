@@ -663,9 +663,9 @@ export const movimientosBancariosConciliados = async (req, res) => {
     })
     return res.status(200).json({ movimientoEstadosConciliados })
   } catch (e) {
-    
+    console.log(e)
+    return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
   }
-
 }
 export const saveToExcelMocimientosBancarios = async (req, res) => {
   const { clienteId, movimientos } = req.body

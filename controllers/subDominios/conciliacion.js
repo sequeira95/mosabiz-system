@@ -73,7 +73,7 @@ export const movimientosBancos = async (req, res) => {
                         $and:
                           [
                             { $eq: ['$ref', '$$ref'] },
-                            { $eq: ['$monto', '$$monto'] }
+                            { $eq: [{ $abs: '$monto' }, { $abs: '$$monto' }] }
                           ]
                       }
                     }
@@ -116,7 +116,7 @@ export const movimientosBancos = async (req, res) => {
         {
           $match: {
             cuentaId: new ObjectId(cuentaId),
-            fecha: { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
+            periodoMensual: fecha // { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
           }
         },
         {
@@ -157,7 +157,7 @@ export const movimientosBancos = async (req, res) => {
                       {
                         $and:
                           [
-                            { $eq: ['$monto', '$$monto'] }
+                            { $eq: [{ $abs: '$monto' }, { $abs: '$$monto' }] }
                           ]
                       }
                     }
@@ -587,6 +587,7 @@ export const gastosBancariosSinConciliar = async (req, res) => {
 }
 export const saveToExcelMocimientosBancarios = async (req, res) => {
   const { clienteId, movimientos } = req.body
+  if (!movimientos || (Array.isArray(movimientos) && !movimientos[0])) return res.status(500).json({ error: 'Error de servidor al momento de guardar la lista de movimientos bancarios' })
   try {
     const movimientosFormat = movimientos.map(e => {
       /* return {

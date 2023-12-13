@@ -83,8 +83,8 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
             // periodoId: new ObjectId(periodo._id),
             descripcion: `Saldo inicial ${e.cuentaNombre}`,
             fecha: moment().toDate(),
-            debe: e.saldo < 0 && Number(e.cuentaCodigo[0]) < 4 ? parseFloat(e.saldo) : 0,
-            haber: e.saldo > 0 && Number(e.cuentaCodigo[0]) < 4 ? parseFloat(e.saldo) : 0,
+            debe: e.saldo < 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
+            haber: e.saldo > 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
             isPreCierre: true,
             fechaCreacion: moment().toDate()
           }
@@ -111,7 +111,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
             fecha: moment().toDate(),
             debe: 0,
             haber: saldosAcumulados,
-            isCierre: true,
+            isPreCierre: true,
             fechaCreacion: moment().toDate()
           }
         },
@@ -136,7 +136,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
             fecha: moment().toDate(),
             debe: saldosAcumulados,
             haber: 0,
-            isCierre: true,
+            isPreCierre: true,
             fechaCreacion: moment().toDate()
           }
         },
@@ -156,8 +156,8 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
       item: {
         periodoId: new ObjectId(periodo._id),
         mesPeriodo: moment(periodo.fechaInicio).format('YYYY/MM'),
-        codigo: '999',
-        nombre: 'Cierre',
+        codigo: '600',
+        nombre: 'Pre-cierre',
         isBloqueado: true,
         isCierre: true,
         fechaCreacion: moment().toDate()
@@ -275,39 +275,6 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
   }
   if (detalleSaldosCierre[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosCierre })
   // actualizamos el periodo siguiente, le cambiamos el status por activo y actualizamos los saldos iniciales a los saldos de cierre
-  // const verifyPeriodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { periodoAnterior: new ObjectId(periodo._id) } })
-  // let periodoPosterior = null
-  // let comprobantePreCierre = null
-  /* if (!verifyPeriodo) {
-    const fechaInitNewPeriodo = moment(periodo.fechaFin).add(1, 'months').format('YYYY/MM')
-    const fechaFinNewPeriodo = moment(fechaInitNewPeriodo, 'YYYY/MM').add(11, 'months').format('YYYY/MM')
-    periodoPosterior = (await createItemSD({
-      nameCollection: 'periodos',
-      enviromentClienteId: clienteId,
-      item: {
-        activo: true,
-        fechaFin: moment(fechaFinNewPeriodo, 'YYYY/MM').toDate(),
-        fechaInicio: moment(fechaInitNewPeriodo, 'YYYY/MM').toDate(),
-        periodo: `${fechaInitNewPeriodo.replace('/', '-')}/${fechaFinNewPeriodo.replace('/', '-')}`,
-        periodoAnterior: periodo._id ? new ObjectId(periodo._id) : null,
-        periodoAnteriorNombre: periodo._id ? periodo.periodo : null,
-        status: statusOptionsPeriodos.activo
-      }
-    })).insertedId
-    comprobantePreCierre = await createItemSD({
-      nameCollection: 'comprobantes',
-      enviromentClienteId: clienteId,
-      item: {
-        periodoId: new ObjectId(periodoPosterior),
-        mesPeriodo: fechaInitNewPeriodo,
-        codigo: '600',
-        nombre: 'Pre-cierre',
-        isBloqueado: true,
-        isCierre: true,
-        fechaCreacion: moment().toDate()
-      }
-    })
-  } else { */
   const periodoPosterior = await updateItemSD({
     nameCollection: 'periodos',
     enviromentClienteId: clienteId,
@@ -323,14 +290,13 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
     enviromentClienteId: clienteId,
     filters: { periodoId: new ObjectId(periodoPosterior._id), isPreCierre: true }
   })
-  // }
   if (!comprobantePreCierre) return
   let saldosAcumuladosCierre = 0
   const detalleSaldosIniciales = detallePeriodo.map(e => {
     saldosAcumuladosCierre += Number(e.cuentaCodigo[0]) >= 4 ? e.saldo : 0
     return {
       updateOne: {
-        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodoPosterior._id), comprobanteId: new ObjectId(comprobantePreCierre._id) },
+        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobantePreCierre._id) },
         update: {
           $set:
           {
@@ -355,7 +321,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaSuperAvitAcum) } })
     detalleSaldosIniciales.push({
       updateOne: {
-        filter: { cuentaId: new ObjectId(cuenta.cuentaId), periodoId: new ObjectId(periodoPosterior._id), comprobanteId: new ObjectId(comprobantePreCierre._id) },
+        filter: { cuentaId: new ObjectId(cuenta.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobantePreCierre._id) },
         update: {
           $set:
           {
@@ -380,7 +346,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaPerdidaAcum) } })
     detalleSaldosIniciales.push({
       updateOne: {
-        filter: { cuentaId: new ObjectId(cuenta.cuentaId), periodoId: new ObjectId(periodoPosterior._id), comprobanteId: new ObjectId(comprobantePreCierre._id) },
+        filter: { cuentaId: new ObjectId(cuenta.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobantePreCierre._id) },
         update: {
           $set:
           {

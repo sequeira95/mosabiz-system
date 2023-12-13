@@ -552,7 +552,7 @@ export const gastosBancariosSinConciliar = async (req, res) => {
                       {
                         $and:
                           [
-                            { $eq: ['$monto', '$$monto'] }
+                            { $eq: [{ $abs: '$monto' }, { $abs: '$$monto' }] }
                           ]
                       }
                     }
@@ -585,6 +585,87 @@ export const gastosBancariosSinConciliar = async (req, res) => {
     console.log(e)
     return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
   }
+}
+export const movimientosBancariosConciliados = async (req, res) => {
+  const { clienteId, cuentaId, fecha } = req.body
+  try {
+    const movimientosBancariosCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'estadoBancarios' })
+    const movimientoEstadosConciliados = await agreggateCollectionsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            cuentaId: new ObjectId(cuentaId),
+            fecha: { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
+          }
+        },
+        {
+          $project: {
+            cuentaId: '$cuentaId',
+            docReferenciaAux: '$docReferenciaAux',
+            descripcion: '$descripcion',
+            fecha: '$fecha',
+            monto: { $cond: { if: { $gt: ['$debe', 0] }, then: '$debe', else: '$haber' } }
+          }
+        },
+        {
+          $lookup:
+            {
+              from: `${movimientosBancariosCollectionName}`,
+              localField: 'cuentaId',
+              foreignField: 'cuentaId',
+              let:
+                { ref: '$docReferenciaAux', descripcion: '$descripcion', monto: '$monto' },
+              pipeline: [
+                {
+                  $match:
+                    {
+                      $expr:
+                      {
+                        $and:
+                          [
+                            { $eq: ['$ref', '$$ref'] },
+                            { $eq: [{ $abs: '$monto' }, { $abs: '$$monto' }] }
+                          ]
+                      }
+                    }
+                },
+                {
+                  $project: {
+                    ref: '$ref',
+                    descripcion: '$descripcion',
+                    fecha: '$fecha',
+                    monto: '$monto',
+                    cuentaId: '$cuentaId'
+                  }
+                }
+              ],
+              as: 'movimientosBancarios'
+            }
+        },
+        {
+          $project: {
+            cuentaId: '$cuentaId',
+            ref: '$docReferenciaAux',
+            descripcion: '$descripcion',
+            fecha: '$fecha',
+            monto: '$monto',
+            movimientosBancarios: { $size: '$movimientosBancarios' }
+          }
+        },
+        {
+          $match: {
+            movimientosBancarios: { $gt: 0 }
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ movimientoEstadosConciliados })
+  } catch (e) {
+    
+  }
+
 }
 export const saveToExcelMocimientosBancarios = async (req, res) => {
   const { clienteId, movimientos } = req.body

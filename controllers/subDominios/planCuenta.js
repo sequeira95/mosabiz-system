@@ -40,6 +40,7 @@ export const getPlanCuenta = async (req, res) => {
             codigo: '$codigo',
             descripcion: '$descripcion',
             tipo: '$tipo',
+            conciliacion: '$conciliacion',
             nivelCuenta: '$nivelCuenta',
             fechaCreacion: '$fechaCreacion',
             hasComprobantes: '$detalle.hasDetalle'

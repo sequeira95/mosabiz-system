@@ -108,6 +108,7 @@ export const movimientosBancos = async (req, res) => {
         }
       ]
     })
+    console.log('cambiando')
     const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
     const movimientosBancariosSinConciliar = await agreggateCollectionsSD({
       nameCollection: 'estadoBancarios',

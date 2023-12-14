@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { statusOptionsPeriodos } from '../../constants.js'
 import { cerrarPeriodo, preCierrePeriodo } from '../../utils/periodoFuctrions.js'
@@ -26,7 +26,31 @@ export const savePeriodo = async (req, res) => {
     const periodoActivo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { status: statusOptionsPeriodos.activo } })
     if (periodoActivo && periodoActivo._id !== periodo?._id) return res.status(400).json({ error: 'Solo puede existir un periodo activo' })
   } */
+  console.log(req.body)
   try {
+    if (periodo.status === statusOptionsPeriodos.preCierre) {
+      const verifyPeriodoActivo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { status: statusOptionsPeriodos.activo } })
+      const newPeriodo = await upsertItemSD({
+        nameCollection: 'periodos',
+        enviromentClienteId: clienteId,
+        filters: { periodoAnterior: new ObjectId(periodo.periodoAnterior._id) },
+        update: {
+          $set: {
+            periodo: periodo.periodo ? periodo.periodo : `${periodo.fechaInicio.replace('/', '-')}/${periodo.fechaFin.replace('/', '-')}`,
+            fechaInicio: moment(periodo.fechaInicio, 'YYYY/MM').toDate(),
+            fechaFin: moment(periodo.fechaFin, 'YYYY/MM').toDate(),
+            status: !verifyPeriodoActivo ? statusOptionsPeriodos.activo : periodo.status,
+            activo: periodo.status === 'Activo' || periodo.status === 'Pre-cierre',
+            // periodoAnterior: periodo.periodoAnterior?._id ? new ObjectId(periodo.periodoAnterior._id) : null,
+            periodoAnteriorNombre: periodo.periodoAnterior?._id ? periodo.periodoAnterior.periodo : null
+          }
+        }
+      })
+      console.log({ newPeriodo })
+      console.log('creear o actualizar el comprobante para el nuevo periodo de pre cierre')
+      preCierrePeriodo({ clienteId, periodo: newPeriodo })
+      return res.status(200).json({ status: 'Periodo guardado con exito', periodo: newPeriodo })
+    }
     const newPeriodo = await upsertItemSD({
       nameCollection: 'periodos',
       enviromentClienteId: clienteId,
@@ -43,10 +67,6 @@ export const savePeriodo = async (req, res) => {
         }
       }
     })
-    if (newPeriodo.status === statusOptionsPeriodos.preCierre) {
-      console.log('creear o actualizar el comprobante para el nuevo periodo de pre cierre')
-      preCierrePeriodo({ clienteId, periodo: newPeriodo })
-    }
     if (newPeriodo.status === statusOptionsPeriodos.cerrado) {
       console.log('creear o actualizar el comprobante para el nuevo periodo de cierre y tambien pre cierre')
       cerrarPeriodo({ clienteId, periodo: newPeriodo })

@@ -108,7 +108,6 @@ export const movimientosBancos = async (req, res) => {
         }
       ]
     })
-    console.log('cambiando')
     const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
     const movimientosBancariosSinConciliar = await agreggateCollectionsSD({
       nameCollection: 'estadoBancarios',
@@ -193,6 +192,7 @@ export const movimientosBancos = async (req, res) => {
 }
 export const movimientosCP = async (req, res) => {
   const { clienteId, cuentaId, periodo, tercero } = req.body
+  console.log({ body: req.body })
   let match = {}
   if (tercero && tercero[0]?._id === 'todos') {
     match = {
@@ -503,16 +503,19 @@ export const movimientosCC = async (req, res) => {
 }
 
 export const gastosBancariosSinConciliar = async (req, res) => {
-  const { clienteId, cuentas, periodo } = req.body
+  const { clienteId, cuentas, periodo, tipoCuenta } = req.body
   const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   try {
     const match = cuentas && cuentas[0]?._id === 'todos' ? { periodoId: new ObjectId(periodo) } : { cuentaId: { $in: cuentas.map(e => new ObjectId(e._id)) }, periodoId: new ObjectId(periodo) }
+    let matchTipoCuenta = {}
+    if (tipoCuenta === 'cp') matchTipoCuenta = { monto: { $lt: 0 } }
+    if (tipoCuenta === 'cc') matchTipoCuenta = { monto: { $gt: 0 } }
     const movimientosSinConciliar = await agreggateCollectionsSD({
       nameCollection: 'estadoBancarios',
       enviromentClienteId: clienteId,
       pipeline: [
         {
-          $match: match
+          $match: { ...match, ...matchTipoCuenta }
         },
         {
           $lookup:
@@ -569,7 +572,7 @@ export const gastosBancariosSinConciliar = async (req, res) => {
             descripcion: '$descripcion',
             periodoMensual: '$periodoMensual',
             fecha: '$fecha',
-            monto: '$monto',
+            monto: { $abs: '$monto' },
             movimientosEstado: { $size: '$movimientosEstado' }
           }
         },

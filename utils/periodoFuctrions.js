@@ -13,8 +13,8 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
       isPreCierre: true
     }
   })
-  console.log({ comprobantePreCierre })
-  let comprobanteId = comprobantePreCierre && comprobantePreCierre._id ? comprobantePreCierre[0]._id : null
+  // console.log({ comprobantePreCierre })
+  let comprobanteId = comprobantePreCierre && comprobantePreCierre._id ? comprobantePreCierre._id : null
   // en caso de que el comprobante no exista lo creamos
   if (!comprobanteId) {
     comprobanteId = (await createItemSD(
@@ -32,7 +32,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
         }
       })).insertedId
   }
-  console.log({ comprobanteId })
+  // console.log({ comprobanteId })
   // actualizamos el detalle en caso de que ya exista detalle y si no lo creamos, verificaremos por codigo de cuenta dado a que tiene que ser una fila por codigo
   // buscamos en el periodo anterior todos los movimientos para sacar el total si el saldo queda positivo el valor se coloca en el haber
   // si el saldo queda negativo el valor se coloca en el debe
@@ -66,7 +66,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
       }
     ]
   })
-  console.log({ detallePeriodoAnterior })
+  // console.log({ detallePeriodoAnterior })
   let saldosAcumulados = 0
   const detalleSaldosIniciales = detallePeriodoAnterior.map(e => {
     saldosAcumulados += Number(e.cuentaCodigo[0]) >= 4 ? e.saldo : 0
@@ -144,8 +144,8 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
       }
     })
   }
-  if (detalleSaldosIniciales[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosIniciales })
-  console.log({ detalleSaldosIniciales })
+  if (detalleSaldosIniciales[0]) await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosIniciales })
+  // console.log({ detalleSaldosIniciales })
 }
 export async function cerrarPeriodo ({ clienteId, periodo }) {
   // creamos el comprobante de cierre

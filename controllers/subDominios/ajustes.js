@@ -3,7 +3,6 @@ import { getCollectionSD, getItemSD, upsertItemSD } from '../../utils/dataBaseCo
 import { ObjectId } from 'mongodb'
 
 export const getAjustesCliente = async (req, res) => {
-  console.log('probando')
   const { clienteId } = req.body
   if (!clienteId) return res.status(400).json({ error: 'Falta el cliente' })
   try {

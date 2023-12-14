@@ -32,6 +32,17 @@ export const createComprobante = async (req, res) => {
   const { comprobante, periodoId, clienteId } = req.body
   if (!(comprobante || !periodoId || clienteId)) return res.status(400).json({ error: 'Datos incompletos' })
   try {
+    const verifyComprobante = await getItemSD({
+      nameCollection: 'comprobantes',
+      enviromentClienteId: clienteId,
+      filters: {
+        periodoId: new ObjectId(periodoId),
+        nombre: comprobante.nombre,
+        codigo: comprobante.codigo,
+        mesPeriodo: comprobante.mesPeriodo
+      }
+    })
+    if (verifyComprobante) return res.status(400).json({ error: 'Ya existe un comprobante con los mismos datos' })
     const newComprobante = await createItemSD({
       nameCollection: 'comprobantes',
       enviromentClienteId: clienteId,

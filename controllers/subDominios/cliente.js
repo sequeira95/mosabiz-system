@@ -171,6 +171,7 @@ export const createCliente = async (req, res) => {
         primerPeriodoFiscal,
         limiteUsuarios: parseInt(limiteUsuarios),
         modulos,
+        periodoActual,
         fechaCreacion: moment().toDate(),
         activo: true
       }

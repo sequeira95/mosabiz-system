@@ -116,7 +116,7 @@ export const movimientosBancos = async (req, res) => {
         {
           $match: {
             cuentaId: new ObjectId(cuentaId),
-            periodoMensual: fecha // { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
+            fecha: { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
           }
         },
         {

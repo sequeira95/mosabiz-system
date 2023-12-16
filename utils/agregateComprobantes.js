@@ -55,6 +55,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
         { $sort: { fechaCreacion: -1 } },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) },
+        { $sort: { fechaCreacion: 1 } },
         ...lookups
       ]
     })
@@ -118,7 +119,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
       console.log({ detalleall })
       detalleIndex = detalle[0]?.index ?? -1
     }
-    return ({ detalleall, detallesComprobantes: detallesComprobantes.reverse(), cantidad: datosExtras[0]?.count, totalDebe: datosExtras[0]?.debe, totalHaber: datosExtras[0]?.haber, detalleIndex })
+    return ({ detalleall, detallesComprobantes, cantidad: datosExtras[0]?.count, totalDebe: datosExtras[0]?.debe, totalHaber: datosExtras[0]?.haber, detalleIndex })
   } catch (e) {
     console.log(e)
     return e

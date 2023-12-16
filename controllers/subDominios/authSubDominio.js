@@ -15,20 +15,20 @@ export const login = async (req, res) => {
       token = token.split(' ')[1]
       const { uid, fechaActPass, exp } = jwt.verify(token, process.env.JWT_SECRETSD)
       const isValidFechaExp = moment.unix(exp) < moment()
-      if (isValidFechaExp) throw new Error('Token expirado')
+      if (isValidFechaExp) res.status(500).json('Token expirado')
       const empresa = await getItemSD({ nameCollection: 'empresa' })
-      if (!empresa) throw new Error('No existe empresa')
-      if (empresa.activo === false) throw new Error('Empresa desactivada')
+      if (!empresa) res.status(500).json({ error: 'No existe empresa' })
+      if (empresa.activo === false) res.status(500).json({ error: 'Empresa desactivada' })
       const usuario = await getItemSD({ nameCollection: 'usuarios', filters: { _id: new ObjectId(uid) } })
-      if (!usuario) throw new Error('No existe usuario')
-      if (usuario.activo === false) throw new Error('Usuario desactivado')
-      if (moment(fechaActPass).valueOf() !== moment(usuario.fechaActPass).valueOf()) throw new Error('Contraseña no coinciden')
+      if (!usuario) res.status(500).json({ error: 'No existe usuario' })
+      if (usuario.activo === false) res.status(500).json({ error: 'Usuario desactivado' })
+      if (moment(fechaActPass).valueOf() !== moment(usuario.fechaActPass).valueOf()) res.status(500).json('Contraseña no coinciden')
       const persona = await getItemSD({ nameCollection: 'personas', filters: { usuarioId: new ObjectId(usuario._id) } })
       let cliente = {}
       if (persona.clienteId) {
         cliente = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(persona.clienteId) } })
-        if (!cliente) throw new Error('No existe cliente')
-        if (cliente.activo === false) throw new Error('El cliente se encuentra inactivo')
+        if (!cliente) res.status(500).json({ error: 'No existe cliente' })
+        if (cliente.activo === false) res.status(500).json({ error: 'El cliente se encuentra inactivo' })
       }
       return res.status(200).json({ persona, empresa, cliente })
     } catch (e) {
@@ -39,8 +39,8 @@ export const login = async (req, res) => {
 
   try {
     const empresa = await getItemSD({ nameCollection: 'empresa' })
-    if (!empresa) throw new Error('No existe empresa')
-    if (empresa.activo === false) throw new Error('Empresa desactivada')
+    if (!empresa) res.status(500).json({ error: 'No existe empresa' })
+    if (empresa.activo === false) res.status(500).json({ error: 'Empresa desactivada' })
     const usuario = await getItemSD({ nameCollection: 'usuarios', filters: { email: email.toLowerCase() } })
     // en caso de que no exista el email , retornamos un error
     if (!usuario) return res.status(403).json({ error: 'Usuario o contraseña incorrecto' })

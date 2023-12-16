@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD, formatCollectionName } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD, formatCollectionName, getItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { subDominioName } from '../../constants.js'
 
@@ -73,7 +73,7 @@ export const movimientosBancos = async (req, res) => {
                         $and:
                           [
                             { $eq: ['$ref', '$$ref'] },
-                            { $eq: ['$monto', '$$monto'] }
+                            { $eq: [{ $abs: '$monto' }, { $abs: '$$monto' }] }
                           ]
                       }
                     }
@@ -157,7 +157,7 @@ export const movimientosBancos = async (req, res) => {
                       {
                         $and:
                           [
-                            { $eq: ['$monto', '$$monto'] }
+                            { $eq: [{ $abs: '$monto' }, { $abs: '$$monto' }] }
                           ]
                       }
                     }
@@ -192,6 +192,7 @@ export const movimientosBancos = async (req, res) => {
 }
 export const movimientosCP = async (req, res) => {
   const { clienteId, cuentaId, periodo, tercero } = req.body
+  console.log({ body: req.body })
   let match = {}
   if (tercero && tercero[0]?._id === 'todos') {
     match = {
@@ -224,11 +225,7 @@ export const movimientosCP = async (req, res) => {
         enviromentClienteId: clienteId,
         pipeline: [
           {
-            $match: { ...match /* isPreCierre: { $ne: true } */ } /* {
-              cuentaId: new ObjectId(cuentaId),
-              fecha: { $gte: fechaInit, $lte: fechaEnd },
-              terceroId: { $in: tercero.map(e => new ObjectId(e._id)) }
-            } */
+            $match: { ...match, isPreCierre: { $ne: true } }
           },
           {
             $group: {
@@ -285,6 +282,34 @@ export const movimientosCP = async (req, res) => {
           }
         ]
       })
+      const saldosIniciales = await getItemSD({
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        filters: { cuentaId: new ObjectId(cuentaId), isPreCierre: true, periodoId: new ObjectId(periodo) }
+      })
+      console.log({ saldosIniciales })
+      if (saldosIniciales) {
+        const indexMovimientos = movimientosEstado.findIndex(e => e.tercero === 'Sin asignar')
+        if (indexMovimientos >= 0) {
+          if (saldosIniciales.debe > 0) {
+            movimientosEstado[indexMovimientos].debe += saldosIniciales.debe
+            movimientosEstado[indexMovimientos].haber += saldosIniciales.haber
+            movimientosEstado[indexMovimientos].monto += saldosIniciales.debe > 0 ? saldosIniciales.debe * (-1) : saldosIniciales.haber
+          }
+        } else {
+          if (saldosIniciales.debe > 0) {
+            movimientosEstado.push({
+              _id: { cuentaId: saldosIniciales.cuentaId, terceroId: 'sinAsignar' },
+              monto: saldosIniciales.debe > 0 ? saldosIniciales.debe * (-1) : saldosIniciales.haber,
+              debe: saldosIniciales.debe,
+              haber: saldosIniciales.haber,
+              tercero: 'Sin asignar',
+              ultimoMovimiento: saldosIniciales.fecha
+            })
+          }
+        }
+      }
+      console.log({ movimientosEstado })
       return res.status(200).json({ movimientosEstado })
     } catch (e) {
       console.log(e)
@@ -385,7 +410,7 @@ export const movimientosCC = async (req, res) => {
         enviromentClienteId: clienteId,
         pipeline: [
           {
-            $match: { ...match /* isPreCierre: { $ne: true } */ }
+            $match: { ...match, isPreCierre: { $ne: true } }
           },
           {
             $group: {
@@ -442,6 +467,33 @@ export const movimientosCC = async (req, res) => {
           }
         ]
       })
+      const saldosIniciales = await getItemSD({
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        filters: { cuentaId: new ObjectId(cuentaId), isPreCierre: true, periodoId: new ObjectId(periodo) }
+      })
+      console.log({ saldosIniciales })
+      if (saldosIniciales) {
+        const indexMovimientos = movimientosEstado.findIndex(e => e.tercero === 'Sin asignar')
+        if (indexMovimientos >= 0) {
+          if (saldosIniciales.haber > 0) {
+            movimientosEstado[indexMovimientos].debe += saldosIniciales.debe
+            movimientosEstado[indexMovimientos].haber += saldosIniciales.haber
+            movimientosEstado[indexMovimientos].monto += saldosIniciales.haber > 0 ? saldosIniciales.haber : saldosIniciales.debe
+          }
+        } else {
+          if (saldosIniciales.haber > 0) {
+            movimientosEstado.push({
+              _id: { cuentaId: saldosIniciales.cuentaId, terceroId: 'sinAsignar' },
+              monto: saldosIniciales.haber > 0 ? saldosIniciales.haber : saldosIniciales.debe,
+              debe: saldosIniciales.debe,
+              haber: saldosIniciales.haber,
+              tercero: 'Sin asignar',
+              ultimoMovimiento: saldosIniciales.fecha
+            })
+          }
+        }
+      }
       return res.status(200).json({ movimientosEstado })
     } catch (e) {
       console.log(e)
@@ -451,16 +503,19 @@ export const movimientosCC = async (req, res) => {
 }
 
 export const gastosBancariosSinConciliar = async (req, res) => {
-  const { clienteId, cuentas, periodo } = req.body
+  const { clienteId, cuentas, periodo, tipoCuenta } = req.body
   const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   try {
     const match = cuentas && cuentas[0]?._id === 'todos' ? { periodoId: new ObjectId(periodo) } : { cuentaId: { $in: cuentas.map(e => new ObjectId(e._id)) }, periodoId: new ObjectId(periodo) }
+    let matchTipoCuenta = {}
+    if (tipoCuenta === 'cp') matchTipoCuenta = { monto: { $lt: 0 } }
+    if (tipoCuenta === 'cc') matchTipoCuenta = { monto: { $gt: 0 } }
     const movimientosSinConciliar = await agreggateCollectionsSD({
       nameCollection: 'estadoBancarios',
       enviromentClienteId: clienteId,
       pipeline: [
         {
-          $match: match
+          $match: { ...match, ...matchTipoCuenta }
         },
         {
           $lookup:
@@ -500,7 +555,7 @@ export const gastosBancariosSinConciliar = async (req, res) => {
                       {
                         $and:
                           [
-                            { $eq: ['$monto', '$$monto'] }
+                            { $eq: [{ $abs: '$monto' }, { $abs: '$$monto' }] }
                           ]
                       }
                     }
@@ -517,7 +572,7 @@ export const gastosBancariosSinConciliar = async (req, res) => {
             descripcion: '$descripcion',
             periodoMensual: '$periodoMensual',
             fecha: '$fecha',
-            monto: '$monto',
+            monto: { $abs: '$monto' },
             movimientosEstado: { $size: '$movimientosEstado' }
           }
         },
@@ -534,8 +589,90 @@ export const gastosBancariosSinConciliar = async (req, res) => {
     return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
   }
 }
+export const movimientosBancariosConciliados = async (req, res) => {
+  const { clienteId, cuentaId, fecha } = req.body
+  try {
+    const movimientosBancariosCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'estadoBancarios' })
+    const movimientoEstadosConciliados = await agreggateCollectionsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            cuentaId: new ObjectId(cuentaId),
+            fecha: { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
+          }
+        },
+        {
+          $project: {
+            cuentaId: '$cuentaId',
+            docReferenciaAux: '$docReferenciaAux',
+            descripcion: '$descripcion',
+            fecha: '$fecha',
+            monto: { $cond: { if: { $gt: ['$debe', 0] }, then: '$debe', else: '$haber' } }
+          }
+        },
+        {
+          $lookup:
+            {
+              from: `${movimientosBancariosCollectionName}`,
+              localField: 'cuentaId',
+              foreignField: 'cuentaId',
+              let:
+                { ref: '$docReferenciaAux', descripcion: '$descripcion', monto: '$monto' },
+              pipeline: [
+                {
+                  $match:
+                    {
+                      $expr:
+                      {
+                        $and:
+                          [
+                            { $eq: ['$ref', '$$ref'] },
+                            { $eq: [{ $abs: '$monto' }, { $abs: '$$monto' }] }
+                          ]
+                      }
+                    }
+                },
+                {
+                  $project: {
+                    ref: '$ref',
+                    descripcion: '$descripcion',
+                    fecha: '$fecha',
+                    monto: '$monto',
+                    cuentaId: '$cuentaId'
+                  }
+                }
+              ],
+              as: 'movimientosBancarios'
+            }
+        },
+        {
+          $project: {
+            cuentaId: '$cuentaId',
+            ref: '$docReferenciaAux',
+            descripcion: '$descripcion',
+            fecha: '$fecha',
+            monto: '$monto',
+            movimientosBancarios: { $size: '$movimientosBancarios' }
+          }
+        },
+        {
+          $match: {
+            movimientosBancarios: { $gt: 0 }
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ movimientoEstadosConciliados })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: `Error de servidor al momento de buscar los movimientos bancarios y del estado financiero${e.message}` })
+  }
+}
 export const saveToExcelMocimientosBancarios = async (req, res) => {
   const { clienteId, movimientos } = req.body
+  if (!movimientos || (Array.isArray(movimientos) && !movimientos[0])) return res.status(500).json({ error: 'Error de servidor al momento de guardar la lista de movimientos bancarios' })
   try {
     const movimientosFormat = movimientos.map(e => {
       /* return {

@@ -40,6 +40,7 @@ export const getPlanCuenta = async (req, res) => {
             codigo: '$codigo',
             descripcion: '$descripcion',
             tipo: '$tipo',
+            conciliacion: '$conciliacion',
             nivelCuenta: '$nivelCuenta',
             fechaCreacion: '$fechaCreacion',
             hasComprobantes: '$detalle.hasDetalle'
@@ -135,7 +136,7 @@ export const saveCuentaToArray = async (req, res) => {
       _id: e._id,
       codigo: String(e.codigo),
       descripcion: e.descripcion,
-      conciliacion: e.conciliacion,
+      conciliacion: e.tipo.toLowerCase() !== 'grupo' ? e.conciliacion : '',
       nivelCuenta,
       tipo: e.tipo.toLowerCase() !== 'grupo' ? 'Movimiento' : 'Grupo'
     }

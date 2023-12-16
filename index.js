@@ -36,7 +36,7 @@ app.use(fileUpload({
   tempFileDir: './uploads' */
 }))
 
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 8080
 // midelware
 app.use(express.json({ limit: '50mb' }))
 app.use(cookieParser())
@@ -60,4 +60,4 @@ app.use('/v1/sub-dominio/terceros', tercerosSDRouter)
 app.use('/v1/sub-dominio/documentos', documentosSDRouter)
 app.use('/v1/sub-dominio/conciliacion', conciliacionSDRouter)
 
-app.listen(PORT, () => console.log('http://localhost:' + PORT))
+app.listen(PORT, () => console.log('0.0.0.0' + PORT))

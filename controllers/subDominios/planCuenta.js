@@ -3,6 +3,7 @@ import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD, formatCollectio
 import { nivelesCodigoByLength, subDominioName } from '../../constants.js'
 import { ObjectId } from 'mongodb'
 import { deleteCuentasForChangeLevel, updateManyDetalleComprobante } from '../../utils/updateComprobanteForChangeCuenta.js'
+import { createPlanCuenta } from '../../utils/planCuentaDefecto.js'
 
 export const getPlanCuenta = async (req, res) => {
   const { clienteId } = req.body
@@ -352,5 +353,21 @@ export const addTerceroToCuenta = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de agregar terceros en esta cuenta' + e.message })
+  }
+}
+export const deletePlanCuenta = async (req, res) => {
+  const { clienteId } = req.body
+  if (!clienteId) return res.status(400).json({ error: 'Seleccione un cliente' })
+  try {
+    const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+    await deleteManyItemsSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId })
+    await deleteManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { periodoId: { $in: periodosActivos } } })
+    deleteManyItemsSD({ nameCollection: 'estadoBancarios', enviromentClienteId: clienteId })
+    deleteManyItemsSD({ nameCollection: 'terceros', enviromentClienteId: clienteId })
+    createPlanCuenta({ clienteId })
+    return res.status(200).json({ status: 'Plan de cuenta eliminado  exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar el plan de cuentas' + e.message })
   }
 }

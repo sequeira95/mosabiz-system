@@ -40,6 +40,7 @@ export const getClientes = async (req, res) => {
         pais: 1,
         primerPeriodoFiscal: 1,
         primerPeriodoFiscalFechas: 1,
+        periodoActual: 1,
         razonSocial: 1,
         telefono: 1,
         tipoDocumento: 1,
@@ -168,9 +169,10 @@ export const createCliente = async (req, res) => {
         tipoEmpresa,
         primerPeriodoFiscalFechas,
         clasificacionContribuyente,
-        primerPeriodoFiscal,
+        primerPeriodoFiscal: moment(primerPeriodoFiscal).toDate(),
         limiteUsuarios: parseInt(limiteUsuarios),
         modulos,
+        periodoActual,
         fechaCreacion: moment().toDate(),
         activo: true
       }
@@ -280,7 +282,7 @@ export const updateCliente = async (req, res) => {
           tipoDocumento,
           documentoIdentidad,
           clasificacionContribuyente,
-          primerPeriodoFiscal,
+          primerPeriodoFiscal: moment(primerPeriodoFiscal).toDate(),
           limiteUsuarios: parseInt(limiteUsuarios),
           modulos
         }

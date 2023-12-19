@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { agregateDetalleComprobante } from '../../utils/agregateComprobantes.js'
 import { deleteImg, uploadImg } from '../../utils/cloudImage.js'
@@ -37,12 +37,11 @@ export const createComprobante = async (req, res) => {
       enviromentClienteId: clienteId,
       filters: {
         periodoId: new ObjectId(periodoId),
-        nombre: comprobante.nombre,
         codigo: comprobante.codigo,
         mesPeriodo: comprobante.mesPeriodo
       }
     })
-    if (verifyComprobante) return res.status(400).json({ error: 'Ya existe un comprobante con los mismos datos' })
+    if (verifyComprobante) return res.status(400).json({ error: 'Ya existe un comprobante con el mismo periodo y codigo' })
     const newComprobante = await createItemSD({
       nameCollection: 'comprobantes',
       enviromentClienteId: clienteId,
@@ -55,6 +54,27 @@ export const createComprobante = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de guardar el comprobante' + e.message })
   }
 }
+export const deleteComprobante = async (req, res) => {
+  const { comprobanteId, periodoId, clienteId } = req.body
+  if (!(periodoId && comprobanteId && clienteId)) return res.status(400).json({ error: 'Datos incompletos' })
+  try {
+    await deleteItemSD({
+      nameCollection: 'comprobantes',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(comprobanteId), periodoId: new ObjectId(periodoId) }
+    })
+    await deleteManyItemsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      filters: { comprobanteId: new ObjectId(comprobanteId) }
+    })
+    return res.status(200).json({ status: 'Comprobante eliminado exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar el comprobante' + e.message })
+  }
+}
+
 export const updateComprobante = async (req, res) => {
   const { nombre, periodoId, clienteId, _id, isBloqueado } = req.body
   if (!(nombre || !periodoId || clienteId)) return res.status(400).json({ error: 'Datos incompletos' })

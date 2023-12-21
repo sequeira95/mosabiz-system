@@ -44,7 +44,7 @@ export const movimientosBancos = async (req, res) => {
         {
           $match: {
             cuentaId: new ObjectId(cuentaId),
-            fecha: { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
+            fecha: { $gte: moment(fecha, 'YYYY/MM').startOf('month').toDate(), $lte: moment(fecha, 'YYYY/MM').endOf('month').toDate() }
           }
         },
         {
@@ -116,7 +116,7 @@ export const movimientosBancos = async (req, res) => {
         {
           $match: {
             cuentaId: new ObjectId(cuentaId),
-            fecha: { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
+            fecha: { $gte: moment(fecha, 'YYYY/MM').startOf('month').toDate(), $lte: moment(fecha, 'YYYY/MM').endOf('month').toDate() }
           }
         },
         {
@@ -218,8 +218,6 @@ export const movimientosCP = async (req, res) => {
   }
   if (tercero && tercero[0]) {
     try {
-      /* const fechaInit = moment(fecha, 'MM/YYYY').startOf('month').toDate()
-      const fechaEnd = moment(fecha, 'MM/YYYY').endOf('month').toDate() */
       const movimientosEstado = await agreggateCollectionsSD({
         nameCollection: 'detallesComprobantes',
         enviromentClienteId: clienteId,
@@ -317,8 +315,8 @@ export const movimientosCP = async (req, res) => {
     }
   }
   /* try {
-    const fechaInit = moment(fecha, 'MM/YYYY').startOf('month').toDate()
-    const fechaEnd = moment(fecha, 'MM/YYYY').endOf('month').toDate()
+    const fechaInit = moment(fecha, 'YYYY/MM').startOf('month').toDate()
+    const fechaEnd = moment(fecha, 'YYYY/MM').endOf('month').toDate()
     const movimientosEstado = await agreggateCollectionsSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,
@@ -600,7 +598,7 @@ export const movimientosBancariosConciliados = async (req, res) => {
         {
           $match: {
             cuentaId: new ObjectId(cuentaId),
-            fecha: { $gte: moment(fecha, 'MM/YYYY').startOf('month').toDate(), $lte: moment(fecha, 'MM/YYYY').endOf('month').toDate() }
+            fecha: { $gte: moment(fecha, 'YYYY/MM').startOf('month').toDate(), $lte: moment(fecha, 'YYYY/MM').endOf('month').toDate() }
           }
         },
         {

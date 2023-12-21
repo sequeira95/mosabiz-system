@@ -24,7 +24,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
         item: {
           periodoId: new ObjectId(periodo._id),
           mesPeriodo: moment(periodo.fechaInicio).format('YYYY/MM'),
-          codigo: '600',
+          codigo: '99998',
           nombre: 'Pre-cierre',
           isBloqueado: true,
           isPreCierre: true,
@@ -68,6 +68,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
   })
   // console.log({ detallePeriodoAnterior })
   let saldosAcumulados = 0
+  console.log({ detallePeriodoSinMonto: detallePeriodoAnterior.filter(e => !e.monto), detallePeriodoAnterior })
   const detalleSaldosIniciales = detallePeriodoAnterior.map(e => {
     saldosAcumulados += Number(e.cuentaCodigo[0]) >= 4 ? e.saldo : 0
     return {
@@ -96,53 +97,58 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
   const ajustesContables = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
   if (saldosAcumulados > 0) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaSuperAvitAcum) } })
-    detalleSaldosIniciales.push({
-      updateOne: {
-        filter: { cuentaId: new ObjectId(cuenta.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobanteId) },
-        update: {
-          $set:
-          {
-            cuentaId: new ObjectId(cuenta.cuentaId),
-            cuentaCodigo: cuenta.cuentaCodigo,
-            cuentaNombre: cuenta.cuentaNombre,
-            //  comprobanteId: new ObjectId(comprobanteId),
-            // periodoId: new ObjectId(periodo._id),
-            descripcion: `Saldo inicial ${cuenta.cuentaNombre}`,
-            fecha: moment().toDate(),
-            debe: 0,
-            haber: saldosAcumulados,
-            isPreCierre: true,
-            fechaCreacion: moment().toDate()
-          }
-        },
-        upsert: true
-      }
-    })
+    if (cuenta && cuenta._id) {
+      detalleSaldosIniciales.push({
+        updateOne: {
+          filter: { cuentaId: new ObjectId(cuenta._id), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobanteId) },
+          update: {
+            $set:
+            {
+              // cuentaId: new ObjectId(cuenta.cuentaId),
+              cuentaCodigo: cuenta.codigo,
+              cuentaNombre: cuenta.descripcion,
+              //  comprobanteId: new ObjectId(comprobanteId),
+              // periodoId: new ObjectId(periodo._id),
+              descripcion: `Saldo inicial ${cuenta.descripcion}`,
+              fecha: moment().toDate(),
+              debe: 0,
+              haber: Math.abs(parseFloat(saldosAcumulados)),
+              isPreCierre: true,
+              fechaCreacion: moment().toDate()
+            }
+          },
+          upsert: true
+        }
+      })
+    }
   }
   if (saldosAcumulados < 0) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaPerdidaAcum) } })
-    detalleSaldosIniciales.push({
-      updateOne: {
-        filter: { cuentaId: new ObjectId(cuenta.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobanteId) },
-        update: {
-          $set:
-          {
-            cuentaId: new ObjectId(cuenta.cuentaId),
-            cuentaCodigo: cuenta.cuentaCodigo,
-            cuentaNombre: cuenta.cuentaNombre,
-            //  comprobanteId: new ObjectId(comprobanteId),
-            // periodoId: new ObjectId(periodo._id),
-            descripcion: `Saldo inicial ${cuenta.cuentaNombre}`,
-            fecha: moment().toDate(),
-            debe: saldosAcumulados,
-            haber: 0,
-            isPreCierre: true,
-            fechaCreacion: moment().toDate()
-          }
-        },
-        upsert: true
-      }
-    })
+    console.log({ cuenta })
+    if (cuenta && cuenta._id) {
+      detalleSaldosIniciales.push({
+        updateOne: {
+          filter: { cuentaId: new ObjectId(cuenta._id), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobanteId) },
+          update: {
+            $set:
+            {
+              // cuentaId: new ObjectId(cuenta.cuentaId),
+              cuentaCodigo: cuenta.codigo,
+              cuentaNombre: cuenta.descripcion,
+              //  comprobanteId: new ObjectId(comprobanteId),
+              // periodoId: new ObjectId(periodo._id),
+              descripcion: `Saldo inicial ${cuenta.descripcion}`,
+              fecha: moment().toDate(),
+              debe: Math.abs(parseFloat(saldosAcumulados)),
+              haber: 0,
+              isPreCierre: true,
+              fechaCreacion: moment().toDate()
+            }
+          },
+          upsert: true
+        }
+      })
+    }
   }
   if (detalleSaldosIniciales[0]) await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosIniciales })
   // console.log({ detalleSaldosIniciales })
@@ -225,53 +231,57 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
   const ajustesContables = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
   if (saldosAcumulados > 0) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaSuperAvitAcum) } })
-    detalleSaldosCierre.push({
-      updateOne: {
-        filter: { cuentaId: new ObjectId(cuenta.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobante) },
-        update: {
-          $set:
-          {
-            cuentaId: new ObjectId(cuenta.cuentaId),
-            cuentaCodigo: cuenta.cuentaCodigo,
-            cuentaNombre: cuenta.cuentaNombre,
-            //  comprobanteId: new ObjectId(comprobanteId),
-            // periodoId: new ObjectId(periodo._id),
-            descripcion: `Saldo de cierre ${cuenta.cuentaNombre}`,
-            fecha: moment().toDate(),
-            debe: 0,
-            haber: saldosAcumulados,
-            isCierre: true,
-            fechaCreacion: moment().toDate()
-          }
-        },
-        upsert: true
-      }
-    })
+    if (cuenta && cuenta._id) {
+      detalleSaldosCierre.push({
+        updateOne: {
+          filter: { cuentaId: new ObjectId(cuenta._id), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobante) },
+          update: {
+            $set:
+            {
+              // cuentaId: new ObjectId(cuenta._id),
+              cuentaCodigo: cuenta.codigo,
+              cuentaNombre: cuenta.descripcion,
+              //  comprobanteId: new ObjectId(comprobanteId),
+              // periodoId: new ObjectId(periodo._id),
+              descripcion: `Saldo de cierre ${cuenta.descripcion}`,
+              fecha: moment().toDate(),
+              debe: 0,
+              haber: Math.abs(parseFloat(saldosAcumulados)),
+              isCierre: true,
+              fechaCreacion: moment().toDate()
+            }
+          },
+          upsert: true
+        }
+      })
+    }
   }
   if (saldosAcumulados < 0) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaPerdidaAcum) } })
-    detalleSaldosCierre.push({
-      updateOne: {
-        filter: { cuentaId: new ObjectId(cuenta.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobante) },
-        update: {
-          $set:
-          {
-            cuentaId: new ObjectId(cuenta.cuentaId),
-            cuentaCodigo: cuenta.cuentaCodigo,
-            cuentaNombre: cuenta.cuentaNombre,
-            //  comprobanteId: new ObjectId(comprobanteId),
-            // periodoId: new ObjectId(periodo._id),
-            descripcion: `Saldo de cierre ${cuenta.cuentaNombre}`,
-            fecha: moment().toDate(),
-            debe: saldosAcumulados,
-            haber: 0,
-            isCierre: true,
-            fechaCreacion: moment().toDate()
-          }
-        },
-        upsert: true
-      }
-    })
+    if (cuenta && cuenta._id) {
+      detalleSaldosCierre.push({
+        updateOne: {
+          filter: { cuentaId: new ObjectId(cuenta._id), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobante) },
+          update: {
+            $set:
+            {
+              // cuentaId: new ObjectId(cuenta.cuentaId),
+              cuentaCodigo: cuenta.codigo,
+              cuentaNombre: cuenta.descripcion,
+              //  comprobanteId: new ObjectId(comprobanteId),
+              // periodoId: new ObjectId(periodo._id),
+              descripcion: `Saldo de cierre ${cuenta.descripcion}`,
+              fecha: moment().toDate(),
+              debe: Math.abs(parseFloat(saldosAcumulados)),
+              haber: 0,
+              isCierre: true,
+              fechaCreacion: moment().toDate()
+            }
+          },
+          upsert: true
+        }
+      })
+    }
   }
   if (detalleSaldosCierre[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosCierre })
   // actualizamos el periodo siguiente, le cambiamos el status por activo y actualizamos los saldos iniciales a los saldos de cierre
@@ -319,53 +329,57 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
   })
   if (saldosAcumuladosCierre > 0) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaSuperAvitAcum) } })
-    detalleSaldosIniciales.push({
-      updateOne: {
-        filter: { cuentaId: new ObjectId(cuenta.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobantePreCierre._id) },
-        update: {
-          $set:
-          {
-            cuentaId: new ObjectId(cuenta.cuentaId),
-            cuentaCodigo: cuenta.cuentaCodigo,
-            cuentaNombre: cuenta.cuentaNombre,
-            //  comprobanteId: new ObjectId(comprobanteId),
-            // periodoId: new ObjectId(periodo._id),
-            descripcion: `Saldo inicial ${cuenta.cuentaNombre}`,
-            fecha: moment().toDate(),
-            debe: 0,
-            haber: saldosAcumuladosCierre,
-            isPreCierre: true,
-            fechaCreacion: moment().toDate()
-          }
-        },
-        upsert: true
-      }
-    })
+    if (cuenta && cuenta._id) {
+      detalleSaldosIniciales.push({
+        updateOne: {
+          filter: { cuentaId: new ObjectId(cuenta._id), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobantePreCierre._id) },
+          update: {
+            $set:
+            {
+              // cuentaId: new ObjectId(cuenta.cuentaId),
+              cuentaCodigo: cuenta.codigo,
+              cuentaNombre: cuenta.descripcion,
+              //  comprobanteId: new ObjectId(comprobanteId),
+              // periodoId: new ObjectId(periodo._id),
+              descripcion: `Saldo inicial ${cuenta.descripcion}`,
+              fecha: moment().toDate(),
+              debe: 0,
+              haber: Math.abs(parseFloat(saldosAcumuladosCierre)),
+              isPreCierre: true,
+              fechaCreacion: moment().toDate()
+            }
+          },
+          upsert: true
+        }
+      })
+    }
   }
   if (saldosAcumuladosCierre < 0) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaPerdidaAcum) } })
-    detalleSaldosIniciales.push({
-      updateOne: {
-        filter: { cuentaId: new ObjectId(cuenta.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobantePreCierre._id) },
-        update: {
-          $set:
-          {
-            cuentaId: new ObjectId(cuenta.cuentaId),
-            cuentaCodigo: cuenta.cuentaCodigo,
-            cuentaNombre: cuenta.cuentaNombre,
-            //  comprobanteId: new ObjectId(comprobanteId),
-            // periodoId: new ObjectId(periodo._id),
-            descripcion: `Saldo inicial ${cuenta.cuentaNombre}`,
-            fecha: moment().toDate(),
-            debe: saldosAcumuladosCierre,
-            haber: 0,
-            isPreCierre: true,
-            fechaCreacion: moment().toDate()
-          }
-        },
-        upsert: true
-      }
-    })
+    if (cuenta && cuenta._id) {
+      detalleSaldosIniciales.push({
+        updateOne: {
+          filter: { cuentaId: new ObjectId(cuenta._id), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobantePreCierre._id) },
+          update: {
+            $set:
+            {
+              // cuentaId: new ObjectId(cuenta.cuentaId),
+              cuentaCodigo: cuenta.codigo,
+              cuentaNombre: cuenta.descripcion,
+              //  comprobanteId: new ObjectId(comprobanteId),
+              // periodoId: new ObjectId(periodo._id),
+              descripcion: `Saldo inicial ${cuenta.descripcion}`,
+              fecha: moment().toDate(),
+              debe: Math.abs(parseFloat(saldosAcumuladosCierre)),
+              haber: 0,
+              isPreCierre: true,
+              fechaCreacion: moment().toDate()
+            }
+          },
+          upsert: true
+        }
+      })
+    }
   }
   if (detalleSaldosIniciales[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosIniciales })
 }

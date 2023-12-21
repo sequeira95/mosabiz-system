@@ -35,6 +35,7 @@ export const getListCuentas = async (req, res) => {
 }
 export const movimientosBancos = async (req, res) => {
   const { clienteId, cuentaId, fecha } = req.body
+  console.log(req.body)
   try {
     const movimientosBancariosCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'estadoBancarios' })
     const movimientoEstadosSinConciliar = await agreggateCollectionsSD({
@@ -53,6 +54,8 @@ export const movimientosBancos = async (req, res) => {
             docReferenciaAux: '$docReferenciaAux',
             descripcion: '$descripcion',
             fecha: '$fecha',
+            debe: '$debe',
+            haber: '$haber',
             monto: { $cond: { if: { $gt: ['$debe', 0] }, then: '$debe', else: '$haber' } }
           }
         },
@@ -84,7 +87,9 @@ export const movimientosBancos = async (req, res) => {
                     descripcion: '$descripcion',
                     fecha: '$fecha',
                     monto: '$monto',
-                    cuentaId: '$cuentaId'
+                    cuentaId: '$cuentaId',
+                    debe: '$debe',
+                    haber: '$haber'
                   }
                 }
               ],
@@ -99,6 +104,12 @@ export const movimientosBancos = async (req, res) => {
             fecha: '$fecha',
             monto: '$monto',
             movimientosBancarios: { $size: '$movimientosBancarios' }
+          }
+        },
+        {
+          $sort:
+          {
+            fecha: 1
           }
         },
         {
@@ -175,6 +186,12 @@ export const movimientosBancos = async (req, res) => {
             fecha: '$fecha',
             monto: '$monto',
             movimientosEstado: { $size: '$movimientosEstado' }
+          }
+        },
+        {
+          $sort:
+          {
+            fecha: 1
           }
         },
         {
@@ -707,6 +724,7 @@ export const saveToExcelMocimientosBancarios = async (req, res) => {
 
 export const deleteMovimientoBancario = async (req, res) => {
   const { periodoMensual, cuentaId, clienteId } = req.body
+  console.log(req.body)
   try {
     await deleteManyItemsSD({ nameCollection: 'estadoBancarios', enviromentClienteId: clienteId, filters: { periodoMensual, cuentaId: new ObjectId(cuentaId) } })
     return res.status(200).json({ message: 'Lista de movimientos bancarios eliminada correctamente' })

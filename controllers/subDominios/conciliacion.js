@@ -87,9 +87,7 @@ export const movimientosBancos = async (req, res) => {
                     descripcion: '$descripcion',
                     fecha: '$fecha',
                     monto: '$monto',
-                    cuentaId: '$cuentaId',
-                    debe: '$debe',
-                    haber: '$haber'
+                    cuentaId: '$cuentaId'
                   }
                 }
               ],
@@ -103,6 +101,8 @@ export const movimientosBancos = async (req, res) => {
             descripcion: '$descripcion',
             fecha: '$fecha',
             monto: '$monto',
+            debe: '$debe',
+            haber: '$haber',
             movimientosBancarios: { $size: '$movimientosBancarios' }
           }
         },
@@ -293,7 +293,7 @@ export const movimientosCP = async (req, res) => {
             }
           },
           {
-            $match: { monto: { $lt: 0 } }
+            $match: { monto: { $ne: 0 } }
           }
         ]
       })
@@ -428,6 +428,9 @@ export const movimientosCC = async (req, res) => {
             $match: { ...match, isPreCierre: { $ne: true } }
           },
           {
+            $sort: { fecha: 1 }
+          },
+          {
             $group: {
               _id: {
                 cuentaId: '$cuentaId',
@@ -478,7 +481,7 @@ export const movimientosCC = async (req, res) => {
             }
           },
           {
-            $match: { monto: { $gt: 0 } }
+            $match: { monto: { $ne: 0 } }
           }
         ]
       })

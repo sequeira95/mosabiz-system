@@ -47,33 +47,37 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
       },
       {
         $group: {
-          _id: '$cuentaId',
+          _id: {
+            cuentaId: '$cuentaId',
+            terceroId: '$terceroId'
+          },
           debe: { $sum: '$debe' },
           haber: { $sum: '$haber' },
           cuentaCodigo: { $first: '$cuentaCodigo' },
-          cuentaNombre: { $first: '$cuentaNombre' }
+          cuentaNombre: { $first: '$cuentaNombre' },
+          terceroNombre: { $first: '$terceroNombre' }
         }
       },
       {
         $project: {
-          cuentaId: '$_id',
+          cuentaId: '$_id.cuentaId',
+          terceroId: '$_id.terceroId',
           cuentaCodigo: '$cuentaCodigo',
           cuentaNombre: '$cuentaNombre',
           debe: '$debe',
           haber: '$haber',
-          saldo: { $subtract: ['$debe', '$haber'] }
+          saldo: { $subtract: ['$debe', '$haber'] },
+          terceroNombre: '$terceroNombre'
         }
       }
     ]
   })
-  // console.log({ detallePeriodoAnterior })
   let saldosAcumulados = 0
-  console.log({ detallePeriodoSinMonto: detallePeriodoAnterior.filter(e => !e.monto), detallePeriodoAnterior })
   const detalleSaldosIniciales = detallePeriodoAnterior.map(e => {
     saldosAcumulados += Number(e.cuentaCodigo[0]) >= 4 ? e.saldo : 0
     return {
       updateOne: {
-        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobanteId) },
+        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobanteId), terceroId: e.terceroId ? new ObjectId(e.terceroId) : '' },
         update: {
           $set:
           {
@@ -86,6 +90,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
             fecha: moment().toDate(),
             debe: e.saldo < 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
             haber: e.saldo > 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
+            terceroNombre: Number(e.cuentaCodigo[0]) < 4 ? e.terceroNombre : null,
             isPreCierre: true,
             fechaCreacion: moment().toDate()
           }
@@ -94,6 +99,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
       }
     }
   })
+  // console.log({ detallePeriodoAnterior })
   const ajustesContables = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
   if (saldosAcumulados > 0) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaSuperAvitAcum) } })
@@ -124,7 +130,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
   }
   if (saldosAcumulados < 0) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaPerdidaAcum) } })
-    console.log({ cuenta })
+    // console.log({ cuenta })
     if (cuenta && cuenta._id) {
       detalleSaldosIniciales.push({
         updateOne: {
@@ -162,8 +168,8 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
       item: {
         periodoId: new ObjectId(periodo._id),
         mesPeriodo: moment(periodo.fechaInicio).format('YYYY/MM'),
-        codigo: '600',
-        nombre: 'Pre-cierre',
+        codigo: '99999',
+        nombre: 'Cierre',
         isBloqueado: true,
         isCierre: true,
         fechaCreacion: moment().toDate()
@@ -183,18 +189,24 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
       },
       {
         $group: {
-          _id: '$cuentaId',
+          _id: {
+            cuentaId: '$cuentaId',
+            terceroId: '$terceroId'
+          },
           debe: { $sum: '$debe' },
           haber: { $sum: '$haber' },
           cuentaCodigo: { $first: '$cuentaCodigo' },
-          cuentaNombre: { $first: '$cuentaNombre' }
+          cuentaNombre: { $first: '$cuentaNombre' },
+          terceroNombre: { $first: '$terceroNombre' }
         }
       },
       {
         $project: {
-          cuentaId: '$_id',
+          cuentaId: '$_id.cuentaId',
+          terceroId: '$_id.terceroId',
           cuentaCodigo: '$cuentaCodigo',
           cuentaNombre: '$cuentaNombre',
+          terceroNombre: '$terceroNombre',
           debe: '$debe',
           haber: '$haber',
           saldo: { $subtract: ['$debe', '$haber'] }
@@ -207,7 +219,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
     saldosAcumulados += Number(e.cuentaCodigo[0]) >= 4 ? e.saldo : 0
     return {
       updateOne: {
-        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobante) },
+        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobante), terceroId: e.terceroId ? new ObjectId(e.terceroId) : '' },
         update: {
           $set:
           {
@@ -220,6 +232,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
             fecha: moment().toDate(),
             debe: e.saldo < 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
             haber: e.saldo > 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
+            terceroNombre: Number(e.cuentaCodigo[0]) < 4 ? e.terceroNombre : null,
             isCierre: true,
             fechaCreacion: moment().toDate()
           }
@@ -306,7 +319,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
     saldosAcumuladosCierre += Number(e.cuentaCodigo[0]) >= 4 ? e.saldo : 0
     return {
       updateOne: {
-        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobantePreCierre._id) },
+        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobantePreCierre._id), terceroId: e.terceroId ? new ObjectId(e.terceroId) : '' },
         update: {
           $set:
           {
@@ -319,6 +332,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
             fecha: moment().toDate(),
             debe: e.saldo < 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
             haber: e.saldo > 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
+            terceroNombre: Number(e.cuentaCodigo[0]) < 4 ? e.terceroNombre : null,
             isPreCierre: true,
             fechaCreacion: moment().toDate()
           }

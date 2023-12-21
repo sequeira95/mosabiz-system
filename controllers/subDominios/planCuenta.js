@@ -364,6 +364,12 @@ export const deletePlanCuenta = async (req, res) => {
     await deleteManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { periodoId: { $in: periodosActivos } } })
     deleteManyItemsSD({ nameCollection: 'estadoBancarios', enviromentClienteId: clienteId })
     deleteManyItemsSD({ nameCollection: 'terceros', enviromentClienteId: clienteId })
+    await updateItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'ajustes',
+      filters: { tipo: 'contable' },
+      update: { $set: { cuentaPerdidaAcum: '', cuentaSuperAvitAcum: '', cuentaSuperAvitOperdidaActual: '' } }
+    })
     createPlanCuenta({ clienteId })
     return res.status(200).json({ status: 'Plan de cuenta eliminado  exitosamente' })
   } catch (e) {

@@ -53,7 +53,14 @@ export const getTasas = async (req, res) => {
         { $limit: Number(itemsPorPagina) }
       ]
     })
-    return res.status(200).json({ tasas })
+    const datosExtras = await agreggateCollections(
+      {
+        nameCollection: 'tasas',
+        pipeline: [
+          { $count: 'cantidad' }
+        ]
+      })
+    return res.status(200).json({ tasas, cantidad: datosExtras[0]?.cantidad })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar tasas monetarias' + e.message })

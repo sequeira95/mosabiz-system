@@ -156,7 +156,8 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
       })
     }
   }
-  if (detalleSaldosIniciales[0]) await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosIniciales })
+  const detalleSaldosInicialesFilter = detalleSaldosIniciales.filter(e => e.updateOne.update.$set.debe || e.updateOne.update.$set.haber)
+  if (detalleSaldosInicialesFilter[0]) await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosInicialesFilter })
   // console.log({ detalleSaldosIniciales })
 }
 export async function cerrarPeriodo ({ clienteId, periodo }) {
@@ -296,7 +297,8 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
       })
     }
   }
-  if (detalleSaldosCierre[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosCierre })
+  const detalleSaldosCierreFilter = detalleSaldosCierre.filter(e => e.updateOne.update.$set.debe || e.updateOne.update.$set.haber)
+  if (detalleSaldosCierreFilter[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosCierreFilter })
   // actualizamos el periodo siguiente, le cambiamos el status por activo y actualizamos los saldos iniciales a los saldos de cierre
   const periodoPosterior = await updateItemSD({
     nameCollection: 'periodos',
@@ -395,5 +397,6 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
       })
     }
   }
-  if (detalleSaldosIniciales[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosIniciales })
+  const detalleSaldosInicialesFilter = detalleSaldosIniciales.filter(e => e.updateOne.update.$set.debe || e.updateOne.update.$set.haber)
+  if (detalleSaldosInicialesFilter[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosInicialesFilter })
 }

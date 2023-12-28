@@ -3,6 +3,7 @@ import { chromium } from 'playwright'
 import { getItem, upsertItem } from './dataBaseConfing.js'
 
 export async function getValoresBcv () {
+  console.log('Iniciando tarea de buscar las tasas diarias')
   // iniciamos el navegador
   const browser = await chromium.launch()
 
@@ -86,4 +87,5 @@ export async function getValoresBcv () {
       }
     })
   }
+  console.log('Finalizando tarea de buscar las tasas diarias')
 }

@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import cron from 'node-cron'
 import database from './database/connectdb.js'
 import express from 'express'
 import cookieParser from 'cookie-parser'
@@ -6,6 +7,7 @@ import cors from 'cors'
 import SubDominiosRouter from './routes/subDominios.js'
 import authRouter from './routes/auth.js'
 import rolsRouter from './routes/rols.js'
+import monedasRouters from './routes/moneda.js'
 import mantenedorModulosRouter from './routes/mantenedorModulos.js'
 import userRouter from './routes/user.js'
 import fileUpload from 'express-fileupload'
@@ -23,8 +25,10 @@ import comprobantesSDRouter from './routes/subDominios/comprobantes.js'
 import tercerosSDRouter from './routes/subDominios/terceros.js'
 import documentosSDRouter from './routes/subDominios/documentos.js'
 import conciliacionSDRouter from './routes/subDominios/conciliacion.js'
+import { getValoresBcv } from './utils/tareas.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
+
 const app = express()
 app.disable('x-powered-by')
 app.use(cors({
@@ -35,7 +39,13 @@ app.use(fileUpload({
   /* useTempFiles: true,
   tempFileDir: './uploads' */
 }))
-
+// tareas segundo plano
+cron.schedule('30 8 * * *', () => {
+  getValoresBcv()
+}, {
+  scheduled: true,
+  timezone: 'America/Caracas'
+})
 const PORT = process.env.PORT || 8080
 // midelware
 app.use(express.json({ limit: '50mb' }))
@@ -45,6 +55,7 @@ app.use('/v1/auth', authRouter)
 app.use('/v1/rols', rolsRouter)
 app.use('/v1/modulos', mantenedorModulosRouter)
 app.use('/v1/users', userRouter)
+app.use('/v1/monedas', monedasRouters)
 
 // endPoints SD
 

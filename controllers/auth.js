@@ -43,13 +43,13 @@ export const login = async (req, res) => {
       uid: usuario._id,
       fechaActPass: usuario.fechaActPass,
       email: usuario.email,
-      isSuperAdmin: usuario.isSuperAdmin,
-      isAdmin: usuario.isAdmin,
-      isProgramador: usuario.isProgramador
+      isSuperAdmin: persona.isSuperAdmin,
+      isAdmin: persona.isAdmin,
+      isProgramador: persona.isProgramador
     }, res)
     return res.status(200).json(({ token, expiresIn, persona }))
   } catch (e) {
-    // console.log(e)
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor' })
   }
 }

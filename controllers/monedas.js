@@ -49,6 +49,22 @@ export const getTasas = async (req, res) => {
       nameCollection: 'tasas',
       pipeline: [
         { $sort: { fecha: 1 } },
+        {
+          $lookup: {
+            from: 'monedas',
+            localField: 'monedaPrincipal',
+            foreignField: '_id',
+            pipeline: [
+              {
+                $project: {
+                  monedaNombre: '$nombreCorto'
+                }
+              }
+            ],
+            as: 'moneda'
+          }
+        },
+        { $unwind: '$moneda' },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) }
       ]

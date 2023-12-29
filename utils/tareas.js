@@ -70,15 +70,16 @@ export async function getValoresBcv () {
           diciembre: '12'
         }
         const fecha = `${fechaSplit[1]}/${month[fechaSplit[2].toLowerCase()]}/${fechaSplit[3]}`
-        valorTasas.fecha = moment(fecha, 'DD/MM/YYYY')
+        valorTasas.fecha = moment(fecha, 'DD/MM/YYYY').toDate()
       } else {
         valorTasas[d.nombre] = Number(d.valor.replace(',', '.'))
       }
     }
+    console.log({ valorTasas })
     const monedaPrincipal = await getItem({ nameCollection: 'monedas', filters: { nombre: { $regex: 'bolivar', $options: 'si' } } })
     await upsertItem({
       nameCollection: 'tasas',
-      filters: { fecha: moment(valorTasas.fecha).toDate() },
+      filters: { fecha: moment(valorTasas.fecha) },
       update: {
         $set: {
           ...valorTasas,

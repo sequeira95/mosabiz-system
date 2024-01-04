@@ -20,7 +20,7 @@ export async function getCollection ({ nameCollection, filters = {} }) {
 export async function getItem ({ nameCollection, filters = {} }) {
   const db = await accessToDataBase(dataBasePrincipal)
   const collection = await db.collection(nameCollection)
-  return await collection.findOne(filters).toArray()
+  return await collection.findOne(filters)
 }
 export async function updateItem ({ nameCollection, filters = {}, update = {} }) {
   const db = await accessToDataBase(dataBasePrincipal)

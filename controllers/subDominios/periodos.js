@@ -26,7 +26,7 @@ export const savePeriodo = async (req, res) => {
     const periodoActivo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { status: statusOptionsPeriodos.activo } })
     if (periodoActivo && periodoActivo._id !== periodo?._id) return res.status(400).json({ error: 'Solo puede existir un periodo activo' })
   } */
-  console.log(req.body)
+  console.log({ body: req.body })
   try {
     if (periodo.status === statusOptionsPeriodos.preCierre) {
       const verifyPeriodoActivo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { status: statusOptionsPeriodos.activo } })
@@ -58,8 +58,8 @@ export const savePeriodo = async (req, res) => {
       update: {
         $set: {
           periodo: periodo.periodo ? periodo.periodo : `${periodo.fechaInicio.replace('/', '-')}/${periodo.fechaFin.replace('/', '-')}`,
-          fechaInicio: moment(periodo.fechaInicio, 'YYYY/MM').toDate(),
-          fechaFin: moment(periodo.fechaFin, 'YYYY/MM').toDate(),
+          fechaInicio: moment(periodo.fechaInicio, 'YYYY/MM').startOf('month').toDate(),
+          fechaFin: moment(periodo.fechaFin, 'YYYY/MM').endOf('month').toDate(),
           status: periodo.status,
           activo: periodo.status === 'Activo' || periodo.status === 'Pre-cierre',
           periodoAnterior: periodo.periodoAnterior?._id ? new ObjectId(periodo.periodoAnterior._id) : null,

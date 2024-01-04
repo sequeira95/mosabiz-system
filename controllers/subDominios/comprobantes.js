@@ -220,6 +220,12 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
     })
     if (datosDetallesSinId[0]) await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: datosDetallesSinId })
     const datosDetallesWithId = detalles.filter(i => i.cuentaId && i._id).map(e => {
+      const fechaDetalle = moment(e.fecha, formatFecha)
+      let fechaDocumento = e.documento?.docFecha
+      if (fechaDocumento) {
+        const fecha = moment(fechaDocumento, formatFecha)
+        fechaDocumento = fecha.isValid() ? fecha.toDate() : moment(fechaDocumento).toDate()
+      }
       return {
         updateOne: {
           filter: { _id: new ObjectId(e._id) },
@@ -232,7 +238,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
               comprobanteId: new ObjectId(comprobanteId),
               periodoId: new ObjectId(periodoId),
               descripcion: e.descripcion,
-              fecha: moment(e.fecha, formatFecha).toDate(),
+              fecha: fechaDetalle.isValid() ? fechaDetalle.toDate() : moment(e.fecha).toDate(),
               debe: e.debe ? parseFloat(e.debe) : 0,
               haber: e.haber ? parseFloat(e.haber) : 0,
               cCosto: e.cCosto,
@@ -242,7 +248,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
               docReferenciaAux: e.documento.docReferencia,
               documento: {
                 docReferencia: e.documento.docReferencia,
-                docFecha: e.documento.docFecha ? moment(e.documento.docFecha, formatFecha).toDate() : null,
+                docFecha: fechaDocumento, // e.documento.docFecha ? moment(e.documento.docFecha, formatFecha).toDate() : null,
                 docTipo: e.documento.docTipo,
                 docObservacion: e.documento.docObservacion,
                 documento: e.documento.documento

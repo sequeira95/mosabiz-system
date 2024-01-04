@@ -25,6 +25,9 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
   if (search.haber) {
     configMatch.haber = { $gte: Number(search.haber) }
   }
+  if (search.terceros) {
+    configMatch.terceroNombre = { $regex: `${search.terceros}`, $options: 'si' }
+  }
   if (!comprobanteId) {
     const comprobanteColName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'comprobantes' })
     lookups.push({
@@ -45,7 +48,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
     { $unwind: '$comprobanteName' }
     )
   }
-  // console.log({ configMatch })
+  console.log({ configMatch })
   try {
     const detallesComprobantes = await agreggateCollectionsSD({
       nameCollection: 'detallesComprobantes',

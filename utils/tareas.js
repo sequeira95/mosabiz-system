@@ -79,7 +79,7 @@ export async function getValoresBcv () {
     const monedaPrincipal = await getItem({ nameCollection: 'monedas', filters: { nombre: { $regex: 'bolivar', $options: 'si' } } })
     await upsertItem({
       nameCollection: 'tasas',
-      filters: { fecha: moment(valorTasas.fecha) },
+      filters: { fecha: valorTasas.fecha },
       update: {
         $set: {
           ...valorTasas,

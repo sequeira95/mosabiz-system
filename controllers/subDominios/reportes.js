@@ -1,98 +1,29 @@
-import moment from 'moment'
-import { agreggateCollectionsSD, formatCollectionName } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
-import { subDominioName } from '../../constants.js'
+import { mayorAnaliticosAgrupado, mayorAnaliticosSinAgrupar } from '../../utils/reportes.js'
 
 export const mayorAnalitico = async (req, res) => {
-  const { fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos } = req.body
+  const { fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, agruparTerceros } = req.body
   try {
     console.log(req.body)
-    const fechaInit = moment(fechaDesde, 'YYYY/MM/').startOf('month').toDate()
-    const fechaEnd = moment(fechaHasta, 'YYYY/MM/').endOf('month').toDate()
-    const sort = order === 'documento' ? { $sort: { documento: 1 } } : { $sort: { fecha: 1 } }
-    const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
-    const dataCuentas = await agreggateCollectionsSD({
-      nameCollection: 'planCuenta',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        {
-          $match: {
-            tipo: 'Movimiento'
+    if (agruparTerceros) {
+      console.log('entrando')
+      const { dataCuentas } = await mayorAnaliticosAgrupado({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha })
+      console.log({ dataCuentas })
+      const listComprobante = await agreggateCollectionsSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          {
+            $match: {
+              periodoId: new ObjectId(periodoId)
+            }
           }
-        },
-        {
-          $lookup: {
-            from: detalleComprobanteCollectionName,
-            localField: '_id',
-            foreignField: 'cuentaId',
-            pipeline: [
-              {
-                $match: {
-                  periodoId: new ObjectId(periodoId),
-                  fecha: { $gte: fechaInit, $lte: fechaEnd }
-                }
-              },
-              sort,
-              {
-                $group: {
-                  _id: '$cuentaId',
-                  // cuentaNombre: { $first: '$cuentaNombre' },
-                  // cuentaCodigo: { $first: '$cuentaCodigo' },
-                  dataCuenta: {
-                    $push: {
-                      periodoId: '$periodoId',
-                      cuentaId: '$cuentaId',
-                      fecha: '$fecha',
-                      comprobanteId: '$comprobanteId',
-                      documento: '$docReferenciaAux',
-                      descripcion: '$descripcion',
-                      debe: '$debe',
-                      haber: '$haber'
-                    }
-                  }
-                }
-              }
-            ],
-            as: 'detalleComprobantes'
-          }
-        },
-        { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: cuentaSinMovimientos } },
-        {
-          $lookup: {
-            from: detalleComprobanteCollectionName,
-            localField: '_id',
-            foreignField: 'cuentaId',
-            pipeline: [
-              {
-                $match: {
-                  periodoId: new ObjectId(periodoId),
-                  fecha: { $lt: fechaInit }
-                }
-              },
-              {
-                $group: {
-                  _id: '$cuentaId',
-                  debe: { $sum: '$debe' },
-                  haber: { $sum: '$haber' },
-                  fecha: { $first: '$fecha' }
-                }
-              }
-            ],
-            as: 'detalle'
-          }
-        },
-        { $unwind: { path: '$detalle', preserveNullAndEmptyArrays: true } },
-        {
-          $project: {
-            cuentaNombre: '$descripcion',
-            cuentaCodigo: '$codigo',
-            saldo: { $subtract: ['$detalle.debe', '$detalle.haber'] },
-            dataCuenta: '$detalleComprobantes.dataCuenta'
-          }
-        },
-        { $sort: { cuentaCodigo: 1 } }
-      ]
-    })
+        ]
+      })
+      return res.status(200).json({ mayorAnalitico: dataCuentas, listComprobante })
+    }
+    const { dataCuentas } = await mayorAnaliticosSinAgrupar({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha })
     const listComprobante = await agreggateCollectionsSD({
       nameCollection: 'comprobantes',
       enviromentClienteId: clienteId,

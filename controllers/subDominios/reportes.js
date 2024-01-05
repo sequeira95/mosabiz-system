@@ -1,9 +1,48 @@
-import moment from 'moment'
-import { agreggateCollectionsSD, formatCollectionName } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
-import { subDominioName } from '../../constants.js'
+import { mayorAnaliticosAgrupado, mayorAnaliticosSinAgrupar } from '../../utils/reportes.js'
 
 export const mayorAnalitico = async (req, res) => {
+  const { fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, agruparTerceros } = req.body
+  try {
+    console.log(req.body)
+    if (agruparTerceros) {
+      console.log('entrando')
+      const { dataCuentas } = await mayorAnaliticosAgrupado({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha })
+      console.log({ dataCuentas })
+      const listComprobante = await agreggateCollectionsSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          {
+            $match: {
+              periodoId: new ObjectId(periodoId)
+            }
+          }
+        ]
+      })
+      return res.status(200).json({ mayorAnalitico: dataCuentas, listComprobante })
+    }
+    const { dataCuentas } = await mayorAnaliticosSinAgrupar({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha })
+    const listComprobante = await agreggateCollectionsSD({
+      nameCollection: 'comprobantes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            periodoId: new ObjectId(periodoId)
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ mayorAnalitico: dataCuentas, listComprobante })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar datos del mayor analitico' + e.message })
+  }
+}
+
+/* export const mayorAnalitico = async (req, res) => {
   const { fechaDesde, fechaHasta, order, clienteId, periodoId } = req.body
   try {
     console.log(req.body)
@@ -94,4 +133,4 @@ export const mayorAnalitico = async (req, res) => {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar datos del mayor analitico' + e.message })
   }
-}
+} */

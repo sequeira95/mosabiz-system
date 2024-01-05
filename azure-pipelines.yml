@@ -65,12 +65,16 @@ stages:
       runOnce:
         deploy:
           steps:
-          - task: AzureWebApp@1
-            displayName: 'Azure Web App Deploy: {{ webAppName }}'
+          - task: AzureRmWebAppDeployment@4
             inputs:
-              azureSubscription: $(azureSubscription)
-              appType: webAppLinux
-              appName: $(webAppName)
-              runtimeStack: 'NODE|18-lts'
-              package: $(Pipeline.Workspace)/drop/$(Build.BuildId).zip
-              startUpCommand: 'npm run start'
+              ConnectionType: 'AzureRM'
+              azureSubscription: 'Azure subscription 1 (8fe3a8ef-f474-4bc2-a35d-158de982642a)'
+              appType: 'webAppLinux'
+              WebAppName: 'aibiz-web'
+              deployToSlotOrASE: true
+              ResourceGroupName: 'AibizGrupo'
+              SlotName: 'production'
+              packageForLinux: '$(Pipeline.Workspace)/drop/$(Build.BuildId).zip'
+              RuntimeStack: 'NODE|18-lts'
+              StartupCommand: 'npm run start'
+              ConfigurationSettings: 'ENABLE_ORYX_BUILD=0'

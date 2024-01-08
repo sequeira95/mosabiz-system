@@ -185,8 +185,8 @@ export const createCliente = async (req, res) => {
         enviromentClienteId: clienteCol.insertedId,
         item: {
           periodo: periodoActual,
-          fechaInicio: moment(periodoActualFrom, 'yyyy-MM').toDate(),
-          fechaFin: moment(periodoActualto, 'yyyy-MM').toDate(),
+          fechaInicio: moment(periodoActualFrom, 'yyyy-MM').startOf('month').toDate(),
+          fechaFin: moment(periodoActualto, 'yyyy-MM').endOf('month').toDate(),
           activo: true,
           status: 'Activo'
         }

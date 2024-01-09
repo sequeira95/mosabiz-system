@@ -371,5 +371,244 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
     return e
   }
 }
-export async function dataComprobantes () {
+export async function dataComprobantes ({ clienteId, periodoId, order, comprobanteDesde, comprobanteHasta }) {
+  try {
+    let matchLimitComprobantes = []
+    const fechaInit = moment(comprobanteDesde?.mesPeriodo, 'YYYY/MM').startOf('month').toDate()
+    const fechaEnd = moment(comprobanteHasta?.mesPeriodo, 'YYYY/MM').endOf('month').toDate()
+    if (comprobanteDesde && !comprobanteHasta) {
+      console.log(1)
+      matchLimitComprobantes =
+        {
+          codigoToInt: { $gte: Number(comprobanteDesde.codigo) },
+          periodoMes: { $gte: fechaInit }
+        }
+    } else if (!comprobanteDesde && comprobanteHasta) {
+      console.log(2)
+      matchLimitComprobantes =
+        {
+          codigoToInt: { $lte: Number(comprobanteHasta.codigo) },
+          periodoMes: { $lte: fechaEnd }
+        }
+    } else if (comprobanteDesde && comprobanteHasta) {
+      console.log(3)
+      matchLimitComprobantes =
+        {
+          codigoToInt: { $gte: Number(comprobanteDesde.codigo), $lte: Number(comprobanteHasta.codigo) },
+          periodoMes: { $gte: fechaInit, $lte: fechaEnd }
+        }
+    }
+    const sort = order === 'documento' ? { $sort: { documento: 1 } } : { $sort: { fecha: 1 } }
+    const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
+    const comprobantes = await agreggateCollectionsSD({
+      nameCollection: 'comprobantes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match:
+          {
+            periodoId: new ObjectId(periodoId)
+          }
+        },
+        {
+          $addFields: {
+            codigoToInt: { $toInt: '$codigo' },
+            periodoMes: {
+              $dateFromString:
+              { dateString: { $concat: [{ $replaceAll: { input: '$mesPeriodo', find: '/', replacement: '-' } }, '-05'] } }
+            }
+
+          }
+        },
+        { $match: { ...matchLimitComprobantes } },
+        {
+          $lookup: {
+            from: detalleComprobanteCollectionName,
+            localField: '_id',
+            foreignField: 'comprobanteId',
+            pipeline: [
+              sort,
+              {
+                $group: {
+                  _id: '$comprobanteId',
+                  debe: { $sum: '$debe' },
+                  haber: { $sum: '$haber' },
+                  dataCuenta: {
+                    $push: {
+                      periodoId: '$periodoId',
+                      cuentaId: '$cuentaId',
+                      cuentaCodigo: '$cuentaCodigo',
+                      cuentaNombre: '$cuentaNombre',
+                      fecha: '$fecha',
+                      documento: '$docReferenciaAux',
+                      descripcion: '$descripcion',
+                      debe: '$debe',
+                      haber: '$haber'
+                    }
+                  }
+                }
+              }
+            ],
+            as: 'detalleComprobantes'
+          }
+        },
+        { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            codigo: 1,
+            codigoToInt: 1,
+            mesPeriodo: 1,
+            nombre: 1,
+            periodoMes: 1,
+            debe: '$detalleComprobantes.debe',
+            haber: '$detalleComprobantes.haber',
+            detalleComprobantes: '$detalleComprobantes.dataCuenta'
+          }
+        }
+      ]
+    })
+    return ({ comprobantes })
+  } catch (e) {
+    console.log(e)
+    return e
+  }
+}
+export async function dataLibroDiario ({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos }) {
+  const fechaInit = moment(fecha, 'YYYY/MM').startOf('month').toDate()
+  const fechaEnd = moment(fecha, 'YYYY/MM').endOf('month').toDate()
+  const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
+  // const matchSinMovimientos = cuentaSinMovimientos ? {} : { $match: { debe: { $gt: 0 }, haber: { $gt: 0 } } }
+  try {
+    const dataCuentas = await agreggateCollectionsSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { nivelCuenta: { $lte: nivel } } },
+        {
+          $lookup: {
+            from: detalleComprobanteCollectionName,
+            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*'] }, nivelCuenta: '$nivelCuenta' },
+            pipeline: [
+              {
+                $match: {
+                  // periodoId: new ObjectId(periodoId),
+                  // fecha: { $gte: fechaInit, $lte: fechaEnd },
+                  $expr:
+                    {
+                      $and:
+                      [
+                        { $eq: ['$periodoId', new ObjectId(periodoId)] },
+                        { $gte: ['$fecha', fechaInit] },
+                        { $lte: ['$fecha', fechaEnd] },
+                        {
+                          $regexMatch:
+                          {
+                            input: '$cuentaCodigo',
+                            regex: '$$cuentaCodigo',
+                            options: 'm'
+                          }
+                        }
+                      ]
+                    }
+                }
+              },
+              {
+                $group: {
+                  _id: '$cuentaId',
+                  debe: { $sum: '$debe' },
+                  haber: { $sum: '$haber' }
+                }
+              },
+              {
+                $project: {
+                  debe: '$debe',
+                  haber: '$haber',
+                  saldo: { $subtract: ['$debe', '$haber'] }
+                }
+              }
+            ],
+            as: 'detalleComprobantes'
+          }
+        },
+        { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: cuentaSinMovimientos } },
+        {
+          $lookup: {
+            from: detalleComprobanteCollectionName,
+            localField: '_id',
+            foreignField: 'cuentaId',
+            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*'] }, nivelCuenta: '$nivelCuenta' },
+            pipeline: [
+              {
+                $match: {
+                  // periodoId: new ObjectId(periodoId),
+                  // fecha: { $gte: fechaInit, $lte: fechaEnd },
+                  $expr:
+                    {
+                      $and:
+                      [
+                        { $eq: ['$periodoId', new ObjectId(periodoId)] },
+                        { $lte: ['$fecha', fechaInit] },
+                        {
+                          $regexMatch:
+                          {
+                            input: '$cuentaCodigo',
+                            regex: '$$cuentaCodigo',
+                            options: 'm'
+                          }
+                        }
+                      ]
+                    }
+                }
+              },
+              {
+                $group: {
+                  _id: '$cuentaId',
+                  debe: { $sum: '$debe' },
+                  haber: { $sum: '$haber' }
+                }
+              },
+              {
+                $project: {
+                  debe: '$debe',
+                  haber: '$haber',
+                  saldo: { $subtract: ['$debe', '$haber'] }
+                }
+              }
+            ],
+            as: 'saldoAnterior'
+          }
+        },
+        { $unwind: { path: '$saldoAnterior', preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: '$_id',
+            codigo: { $first: '$codigo' },
+            descripcion: { $first: '$descripcion' },
+            nivelCuenta: { $first: '$nivelCuenta' },
+            saldoAnterior: '$saldoAnterior.saldo',
+            debe: '$detalleComprobantes.debe',
+            haber: '$detalleComprobantes.haber',
+            saldo: '$detalleComprobantes.saldo'
+          }
+        },
+        {
+          $project: {
+            codigo: 1,
+            descripcion: 1,
+            nivelCuenta: 1,
+            saldoAnterior: 1,
+            debe: 1,
+            haber: 1,
+            saldo: { $subtract: ['$saldoAnterior', '$saldo'] },
+            preSaldo: '$saldo'
+          }
+        },
+        { $sort: { codigo: 1 } }
+      ]
+    })
+    return { dataCuentas }
+  } catch (e) {
+    console.log(e)
+    return e
+  }
 }

@@ -585,10 +585,10 @@ export async function dataLibroDiario ({ clienteId, periodoId, fecha, nivel, cue
             codigo: { $first: '$codigo' },
             descripcion: { $first: '$descripcion' },
             nivelCuenta: { $first: '$nivelCuenta' },
-            saldoAnterior: '$saldoAnterior.saldo',
-            debe: '$detalleComprobantes.debe',
-            haber: '$detalleComprobantes.haber',
-            saldo: '$detalleComprobantes.saldo'
+            saldoAnterior: { $sum: '$saldoAnterior.saldo' },
+            debe: { $sum: '$detalleComprobantes.debe' },
+            haber: { $sum: '$detalleComprobantes.haber' },
+            saldo: { $sum: '$detalleComprobantes.saldo' }
           }
         },
         {

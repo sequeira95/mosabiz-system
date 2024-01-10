@@ -1,6 +1,6 @@
 import { agreggateCollectionsSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
-import { mayorAnaliticosAgrupado, mayorAnaliticosSinAgrupar, dataBalanceComprobacion, dataComprobantes, dataLibroDiario } from '../../utils/reportes.js'
+import { mayorAnaliticosAgrupado, mayorAnaliticosSinAgrupar, dataBalanceComprobacion, dataComprobantes, dataLibroDiario, dataLibroMayor, datosESF, datosER } from '../../utils/reportes.js'
 
 export const mayorAnalitico = async (req, res) => {
   const { fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, agruparTerceros } = req.body
@@ -68,5 +68,35 @@ export const libroDiario = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar datos del libro diario ' + e.message })
+  }
+}
+export const libroMayor = async (req, res) => {
+  const { clienteId, periodoId, fecha, nivel, cuentaSinMovimientos } = req.body
+  try {
+    const { dataCuentas } = await dataLibroMayor({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos })
+    return res.status(200).json({ libroMayor: dataCuentas })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar datos del libro mayor ' + e.message })
+  }
+}
+export const estadoSituacionFinanciera = async (req, res) => {
+  const { clienteId, periodoId, fecha, nivel, cuentaSinMovimientos } = req.body
+  try {
+    const { dataCuentas } = await datosESF({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos })
+    return res.status(200).json({ ESF: dataCuentas })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar datos del estado de situación financiera ' + e.message })
+  }
+}
+export const estadoResultado = async (req, res) => {
+  const { clienteId, periodoId, fechaDesde, fechaHasta, nivel, cuentaSinMovimientos, ajusteFecha } = req.body
+  try {
+    const { dataCuentas } = await datosER({ clienteId, periodoId, fechaDesde, fechaHasta, nivel, cuentaSinMovimientos, ajusteFecha })
+    return res.status(200).json({ ER: dataCuentas })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar datos del estado de situación financiera ' + e.message })
   }
 }

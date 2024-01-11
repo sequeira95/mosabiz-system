@@ -3,11 +3,11 @@ import { ObjectId } from 'mongodb'
 import { mayorAnaliticosAgrupado, mayorAnaliticosSinAgrupar, dataBalanceComprobacion, dataComprobantes, dataLibroDiario, dataLibroMayor, datosESF, datosER } from '../../utils/reportes.js'
 
 export const mayorAnalitico = async (req, res) => {
-  const { fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, agruparTerceros } = req.body
+  const { fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, agruparTerceros, cuentaDesde, cuentaHasta } = req.body
   try {
     console.log(req.body)
     if (agruparTerceros) {
-      const { dataCuentas } = await mayorAnaliticosAgrupado({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha })
+      const { dataCuentas } = await mayorAnaliticosAgrupado({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta })
       const listComprobante = await agreggateCollectionsSD({
         nameCollection: 'comprobantes',
         enviromentClienteId: clienteId,
@@ -21,7 +21,7 @@ export const mayorAnalitico = async (req, res) => {
       })
       return res.status(200).json({ mayorAnalitico: dataCuentas, listComprobante })
     }
-    const { dataCuentas } = await mayorAnaliticosSinAgrupar({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha })
+    const { dataCuentas } = await mayorAnaliticosSinAgrupar({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta })
     const listComprobante = await agreggateCollectionsSD({
       nameCollection: 'comprobantes',
       enviromentClienteId: clienteId,

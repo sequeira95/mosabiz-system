@@ -3,11 +3,31 @@ import { agreggateCollectionsSD, formatCollectionName, getItemSD } from './dataB
 import { subDominioName } from '../constants.js'
 import { ObjectId } from 'mongodb'
 
-export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha }) {
+export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta }) {
   const fechaInit = moment(fechaDesde, ajusteFecha || 'YYYY/MM/DD').startOf('day').toDate()
   const fechaEnd = moment(fechaHasta, ajusteFecha || 'YYYY/MM/DD').endOf('day').toDate()
   const sort = order === 'documento' ? { $sort: { documento: 1 } } : { $sort: { fecha: 1 } }
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
+  const addFieldCondition = { $addFields: { codigoToInt: { $convert: { input: '$codigo', to: 'double' } } } }
+  let matchCondition = []
+  if (cuentaDesde && !cuentaHasta) {
+    matchCondition = [
+      addFieldCondition,
+      { $match: { codigoToInt: { $gte: Number(cuentaDesde) } } }
+    ]
+  }
+  if (!cuentaDesde && cuentaHasta) {
+    matchCondition = [
+      addFieldCondition,
+      { $match: { codigoToInt: { $lte: Number(cuentaHasta) } } }
+    ]
+  }
+  if (cuentaDesde && cuentaHasta) {
+    matchCondition = [
+      addFieldCondition,
+      { $match: { codigoToInt: { $gte: Number(cuentaDesde), $lte: Number(cuentaHasta) } } }
+    ]
+  }
   try {
     const dataCuentas = await agreggateCollectionsSD({
       nameCollection: 'planCuenta',
@@ -18,6 +38,7 @@ export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order
             tipo: 'Movimiento'
           }
         },
+        ...matchCondition,
         {
           $lookup: {
             from: detalleComprobanteCollectionName,
@@ -128,7 +149,7 @@ export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order
     return e
   }
 }
-export async function mayorAnaliticosAgrupado ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha }) {
+export async function mayorAnaliticosAgrupado ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta }) {
   const fechaInit = moment(fechaDesde, ajusteFecha || 'YYYY/MM/DD').startOf('day').toDate()
   const fechaEnd = moment(fechaHasta, ajusteFecha || 'YYYY/MM/DD').endOf('day').toDate()
   const sort = order === 'documento' ? { $sort: { documento: 1 } } : { $sort: { fecha: 1 } }

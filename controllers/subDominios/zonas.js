@@ -132,6 +132,7 @@ export const listCategoriasPorZonas = async (req, res) => {
               { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
               {
                 $project: {
+                  cuentaId: '$detalleCuenta.cuentaId',
                   cuenta: '$detalleCuenta.codigo',
                   descripcion: '$detalleCuenta.descripcion'
                 }
@@ -145,7 +146,9 @@ export const listCategoriasPorZonas = async (req, res) => {
           $project: {
             categoriaId: '$_id',
             categoria: '$nombre',
-            detalleZona: '$detalleZona'
+            cuentaCodigo: '$detalleZona.cuenta',
+            cuentaId: '$detalleZona.cuentaId',
+            detalle: '$detalleZona'
           }
         }
       ]
@@ -154,5 +157,30 @@ export const listCategoriasPorZonas = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la lista de categorías por zonas ' + e.message })
+  }
+}
+export const saveCategoriasPorZonas = async (req, res) => {
+  const { clienteId, tipo, categoriasPorZona, zonaId } = req.body
+  console.log(req.body)
+  try {
+    const bulkWrite = categoriasPorZona.map(e => {
+      return {
+        updateOne: {
+          filter: { categoriaId: new ObjectId(e.categoriaId), zonaId: new ObjectId(zonaId) },
+          update: {
+            $set: {
+              cuentaId: new ObjectId(e.cuentaId),
+              tipo
+            }
+          },
+          upsert: true
+        }
+      }
+    })
+    await bulkWriteSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, pipeline: bulkWrite })
+    return res.status(200).json({ status: 'Categorias guardadas exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar las categoria por zona ' + e.message })
   }
 }

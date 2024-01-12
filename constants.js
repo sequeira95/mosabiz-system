@@ -23,9 +23,21 @@ export const statusOptionsPeriodos = {
   preCierre: 'Pre-cierre',
   cerrado: 'Cerrado'
 }
+export const keyActivosFijos = {
+  fechaAdquisicion: 'Fecha adquisición',
+  zona: 'Zona',
+  categoria: 'Categoría',
+  nombre: 'Nombre',
+  codigo: 'Código',
+  descripcion: 'Descripción',
+  tipo: 'Tipo',
+  unidad: 'Unidad',
+  cantidad: 'Cantidad',
+  vidaUtil: 'Vida útil'
+}
 export const collectionNameClient = [
   'ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios', 'categorias',
-  'zonas', 'categoriaPorZona'
+  'zonas', 'categoriaPorZona', 'activosFijos', 'historial'
 ]
 export const ListIndexesClient = [
   {

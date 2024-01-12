@@ -950,7 +950,7 @@ export async function dataLibroMayor ({ clienteId, periodoId, fecha, nivel, cuen
             saldoAnterior: 1,
             debe: 1,
             haber: 1,
-            saldo: { $subtract: ['$saldoAnterior', '$saldosIniciales', '$saldo'] },
+            saldo: { $sum: ['$saldoAnterior', '$saldosIniciales', '$saldo'] },
             preSaldo: '$saldo'
           }
         },

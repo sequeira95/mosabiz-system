@@ -52,6 +52,7 @@ export const saveZonas = async (req, res) => {
 }
 export const saveZonasToArray = async (req, res) => {
   const { clienteId, zonas, tipo } = req.body
+  console.log(req.body)
   try {
     if (!zonas[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de zonas' })
     const bulkWrite = zonas.map(e => {
@@ -147,8 +148,8 @@ export const listCategoriasPorZonas = async (req, res) => {
             categoriaId: '$_id',
             categoria: '$nombre',
             cuentaCodigo: '$detalleZona.cuenta',
-            cuentaId: '$detalleZona.cuentaId',
-            detalle: '$detalleZona'
+            cuentaId: '$detalleZona.cuentaId'
+            // detalle: '$detalleZona'
           }
         }
       ]

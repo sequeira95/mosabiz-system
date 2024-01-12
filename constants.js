@@ -23,7 +23,10 @@ export const statusOptionsPeriodos = {
   preCierre: 'Pre-cierre',
   cerrado: 'Cerrado'
 }
-export const collectionNameClient = ['ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios']
+export const collectionNameClient = [
+  'ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios', 'categorias',
+  'zonas', 'categoriaPorZona'
+]
 export const ListIndexesClient = [
   {
     collection: 'ajustes',

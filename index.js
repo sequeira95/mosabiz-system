@@ -26,6 +26,8 @@ import tercerosSDRouter from './routes/subDominios/terceros.js'
 import documentosSDRouter from './routes/subDominios/documentos.js'
 import conciliacionSDRouter from './routes/subDominios/conciliacion.js'
 import reportesSDRouter from './routes/subDominios/reportes.js'
+import categoriasSDRouter from './routes/subDominios/categorias.js'
+import zonasSDRouter from './routes/subDominios/zonas.js'
 import { getValoresBcv } from './utils/tareas.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
@@ -72,5 +74,7 @@ app.use('/v1/sub-dominio/terceros', tercerosSDRouter)
 app.use('/v1/sub-dominio/documentos', documentosSDRouter)
 app.use('/v1/sub-dominio/conciliacion', conciliacionSDRouter)
 app.use('/v1/sub-dominio/reportes', reportesSDRouter)
+app.use('/v1/sub-dominio/categorias', categoriasSDRouter)
+app.use('/v1/sub-dominio/zonas', zonasSDRouter)
 
 app.listen(PORT, () => console.log('0.0.0.0' + PORT))

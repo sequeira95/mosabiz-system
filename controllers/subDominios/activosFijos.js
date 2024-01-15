@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, createItemSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { uploadImg } from '../../utils/cloudImage.js'
 import { keyActivosFijos, subDominioName } from '../../constants.js'
@@ -31,7 +31,7 @@ export const getActivosFijos = async (req, res) => {
           }
         },
         { $unwind: { path: '$detalleZona', preserveNullAndEmptyArrays: true } },
-        {
+        /* {
           $group: {
             _id: '$tipo',
             tangibles: {
@@ -85,12 +85,24 @@ export const getActivosFijos = async (req, res) => {
               }
             }
           }
-        },
+        }, */
         {
           $project: {
-            _id: 0,
-            tangibles: 1,
-            intangibles: 1
+            codigo: '$codigo',
+            nombre: '$nombre',
+            descripcion: '$descripcion',
+            tipo: '$tipo',
+            unidad: '$unidad',
+            cantidad: '$cantidad',
+            categoriaId: '$categoria',
+            categoria: '$detalleCategoria.nombre',
+            zonaId: '$zona',
+            zona: '$detalleZona.nombre',
+            fechaAdquisicion: '$fechaAdquisicion',
+            vidaUtil: '$vidaUtil',
+            montoAdquision: '$montoAdquision',
+            observacion: '$observacion',
+            documentosAdjuntos: '$documentosAdjuntos'
           }
         }
       ]
@@ -103,10 +115,11 @@ export const getActivosFijos = async (req, res) => {
 }
 export const createActivoFijo = async (req, res) => {
   const { codigo, nombre, descripcion, tipo, unidad, cantidad, categoria, zona, fechaAdquisicion, vidaUtil, montoAdquision, observacion, clienteId } = req.body
-  const { documentos } = req.files
+  console.log(req.files)
+  const documentos = req.files?.documentos
   try {
     const documentosAdjuntos = []
-    if (documentos) {
+    if (req.files && req.files.documentos) {
       for (const documento of documentos) {
         const extension = documento.mimetype.split('/')[1]
         const namePath = `${documento.name}`
@@ -145,6 +158,8 @@ export const createActivoFijo = async (req, res) => {
       nameCollection: 'historial',
       enviromentClienteId: clienteId,
       item: {
+        idProducto: newActivo.insertedId,
+        categoria: 'creado',
         tipo: 'Activo fijo',
         fecha: moment().toDate(),
         descripcion: `Creo el activo: ${codigo} - ${nombre}`,
@@ -187,14 +202,16 @@ export const editActivoFijo = async (req, res) => {
     for (const [key, value] of Object.entries(activo)) {
       const originalValue = activoPreUpdate[key]
       if (originalValue !== value) {
-        console.log({ tipo: 'if', originalValue, value })
         if (key === 'zona') {
-          const equalsId = ObjectId.equals(originalValue, value)
+          const equalsId = originalValue.toJSON() === value.toJSON()
+          console.log(key, equalsId)
           if (equalsId) continue
           descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
+          continue
         }
         if (key === 'categoria') {
-          const equalsId = ObjectId.equals(originalValue, value)
+          const equalsId = originalValue.toJSON() === value.toJSON()
+          console.log(key, equalsId)
           if (equalsId) continue
           descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
           continue
@@ -212,20 +229,57 @@ export const editActivoFijo = async (req, res) => {
       }
     }
     console.log(descripcionUpdate)
-    await createItemSD({
-      nameCollection: 'historial',
-      enviromentClienteId: clienteId,
-      item: {
-        tipo: 'Activo fijo',
-        fecha: moment().toDate(),
-        descripcion: descripcionUpdate,
-        creadoPor: new ObjectId(req.uid)
-      }
-    })
+    if (descripcionUpdate[0]) {
+      await createItemSD({
+        nameCollection: 'historial',
+        enviromentClienteId: clienteId,
+        item: {
+          idProducto: activo._id,
+          categoria: 'editado',
+          tipo: 'Activo fijo',
+          fecha: moment().toDate(),
+          descripcion: descripcionUpdate,
+          creadoPor: new ObjectId(req.uid)
+        }
+      })
+    }
     return res.status(200).json({ status: 'Activo guardado exitosamente', activo })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar el activo' + e.message })
+  }
+}
+export const saveToArray = async (req, res) => {
+  const { clienteId, activos } = req.body
+  try {
+    if (!activos[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de activos' })
+    const bulkWrite = activos.map(e => {
+      return {
+        updateOne: {
+          filter: { nombre: e.nombre, codigo: e.codigo },
+          update: {
+            $set: {
+              descripcion: e.descripcion,
+              tipo: e.tipo,
+              unidad: e.unidad,
+              cantidad: Number(e.cantidad),
+              categoria: new ObjectId(e.categoria),
+              zona: new ObjectId(e.zona),
+              fechaAdquisicion: moment(e.fechaAdquisicion).toDate(),
+              vidaUtil: Number(e.vidaUtil),
+              montoAdquision: Number(e.montoAdquision),
+              observacion: e.observacion
+            }
+          },
+          upsert: true
+        }
+      }
+    })
+    await bulkWriteSD({ nameCollection: 'activosFijos', enviromentClienteId: clienteId, pipeline: bulkWrite })
+    return res.status(200).json({ status: 'Activos guardados exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar los activos' + e.message })
   }
 }
 export const deleteActivoFijo = async (req, res) => {

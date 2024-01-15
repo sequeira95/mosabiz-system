@@ -29,6 +29,7 @@ import reportesSDRouter from './routes/subDominios/reportes.js'
 import categoriasSDRouter from './routes/subDominios/categorias.js'
 import zonasSDRouter from './routes/subDominios/zonas.js'
 import activoFijosSDRouter from './routes/subDominios/activosFijos.js'
+import historialSDRouter from './routes/subDominios/historial.js'
 import { getValoresBcv } from './utils/tareas.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
@@ -78,5 +79,6 @@ app.use('/v1/sub-dominio/reportes', reportesSDRouter)
 app.use('/v1/sub-dominio/categorias', categoriasSDRouter)
 app.use('/v1/sub-dominio/zonas', zonasSDRouter)
 app.use('/v1/sub-dominio/activosFijo', activoFijosSDRouter)
+app.use('/v1/sub-dominio/historial', historialSDRouter)
 
 app.listen(PORT, () => console.log('0.0.0.0' + PORT))

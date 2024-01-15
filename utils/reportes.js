@@ -602,7 +602,8 @@ export async function dataComprobantes ({ clienteId, periodoId, order, comproban
                       documento: '$docReferenciaAux',
                       descripcion: '$descripcion',
                       debe: '$debe',
-                      haber: '$haber'
+                      haber: '$haber',
+                      tercero: '$terceroNombre'
                     }
                   }
                 }

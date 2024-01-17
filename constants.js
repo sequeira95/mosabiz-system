@@ -37,7 +37,7 @@ export const keyActivosFijos = {
 }
 export const collectionNameClient = [
   'ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios', 'categorias',
-  'zonas', 'categoriaPorZona', 'activosFijos', 'historial'
+  'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos'
 ]
 export const ListIndexesClient = [
   {

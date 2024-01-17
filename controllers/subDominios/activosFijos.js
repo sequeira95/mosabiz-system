@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, createItemSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { uploadImg } from '../../utils/cloudImage.js'
 import { keyActivosFijos, subDominioName } from '../../constants.js'
@@ -120,10 +120,25 @@ export const createActivoFijo = async (req, res) => {
   try {
     const documentosAdjuntos = []
     if (req.files && req.files.documentos) {
-      for (const documento of documentos) {
-        const extension = documento.mimetype.split('/')[1]
-        const namePath = `${documento.name}`
-        const resDoc = await uploadImg(documento.data, namePath)
+      if (documentos && documentos[0]) {
+        for (const documento of documentos) {
+          const extension = documento.mimetype.split('/')[1]
+          const namePath = `${documento.name}`
+          const resDoc = await uploadImg(documento.data, namePath)
+          documentosAdjuntos.push(
+            {
+              path: resDoc.filePath,
+              name: resDoc.name,
+              url: resDoc.url,
+              type: extension,
+              fileId: resDoc.fileId
+            })
+        }
+      }
+      if (documentos && documentos.nombre) {
+        const extension = documentos.mimetype.split('/')[1]
+        const namePath = `${documentos.name}`
+        const resDoc = await uploadImg(documentos.data, namePath)
         documentosAdjuntos.push(
           {
             path: resDoc.filePath,
@@ -170,7 +185,7 @@ export const createActivoFijo = async (req, res) => {
     return res.status(200).json({ status: 'Activo guardado exitosamente', activo })
   } catch (e) {
     console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de guardar el activo' + e.message })
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar el activo ' + e.message })
   }
 }
 export const editActivoFijo = async (req, res) => {
@@ -228,7 +243,6 @@ export const editActivoFijo = async (req, res) => {
         descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
       }
     }
-    console.log(descripcionUpdate)
     if (descripcionUpdate[0]) {
       await createItemSD({
         nameCollection: 'historial',
@@ -253,29 +267,114 @@ export const saveToArray = async (req, res) => {
   const { clienteId, activos } = req.body
   try {
     if (!activos[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de activos' })
-    const bulkWrite = activos.map(e => {
-      return {
-        updateOne: {
-          filter: { nombre: e.nombre, codigo: e.codigo },
+    for (const activo of activos) {
+      const verifyActivo = await getItemSD({
+        nameCollection: 'activosFijos',
+        enviromentClienteId: clienteId,
+        filters: { nombre: activo.nombre, codigo: activo.codigo }
+      })
+      if (verifyActivo) {
+        console.log('entramos a update')
+        const updateActivo = await updateItemSD({
+          nameCollection: 'activosFijos',
+          enviromentClienteId: clienteId,
+          filters: { nombre: { $regex: `/^${activo.nombre}/`, $options: 'i' }, codigo: { $regex: `/^${activo.codigo}/`, $options: 'i' } },
           update: {
             $set: {
-              descripcion: e.descripcion,
-              tipo: e.tipo,
-              unidad: e.unidad,
-              cantidad: Number(e.cantidad),
-              categoria: new ObjectId(e.categoria),
-              zona: new ObjectId(e.zona),
-              fechaAdquisicion: moment(e.fechaAdquisicion).toDate(),
-              vidaUtil: Number(e.vidaUtil),
-              montoAdquision: Number(e.montoAdquision),
-              observacion: e.observacion
+              nombre: activo.nombre,
+              descripcion: activo.descripcion,
+              codigo: activo.codigo,
+              tipo: activo.tipo,
+              unidad: activo.unidad,
+              cantidad: Number(activo.cantidad),
+              categoria: new ObjectId(activo.categoria),
+              zona: new ObjectId(activo.zona),
+              fechaAdquisicion: moment(activo.fechaAdquisicion).toDate(),
+              vidaUtil: Number(activo.vidaUtil),
+              montoAdquision: Number(activo.montoAdquision),
+              observacion: activo.observacion
             }
-          },
-          upsert: true
+          }
+        })
+        const descripcionUpdate = []
+        for (const [key, value] of Object.entries(activo)) {
+          const originalValue = verifyActivo[key]
+          if (originalValue !== value) {
+            if (key === 'zona') {
+              const equalsId = originalValue.toJSON() === new ObjectId(value).toJSON()
+              console.log(key, equalsId)
+              if (equalsId) continue
+              descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
+              continue
+            }
+            if (key === 'categoria') {
+              const equalsId = originalValue.toJSON() === new ObjectId(value).toJSON()
+              console.log(key, equalsId)
+              if (equalsId) continue
+              descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
+              continue
+            }
+            if (key === '_id') continue
+            if (key === 'documentosAdjuntos') continue
+            if (key === 'fechaAdquisicion') {
+              const fecha1 = moment(originalValue).format('DD/MM/YYYY')
+              const fecha2 = moment(value).format('DD/MM/YYYY')
+              if (fecha1 === fecha2) continue
+              descripcionUpdate.push({ campo: keyActivosFijos[key], antes: moment(originalValue).toDate(), despues: moment(value).toDate() })
+              continue
+            }
+            descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
+          }
         }
+        console.log(descripcionUpdate)
+        if (descripcionUpdate[0]) {
+          await createItemSD({
+            nameCollection: 'historial',
+            enviromentClienteId: clienteId,
+            item: {
+              idProducto: updateActivo._id,
+              categoria: 'editado',
+              tipo: 'Activo fijo',
+              fecha: moment().toDate(),
+              descripcion: descripcionUpdate,
+              creadoPor: new ObjectId(req.uid)
+            }
+          })
+        }
+      } else {
+        console.log('entramos a create')
+        const newActivo = await createItemSD({
+          nameCollection: 'activosFijos',
+          enviromentClienteId: clienteId,
+          item: {
+            nombre: activo.nombre,
+            descripcion: activo.descripcion,
+            codigo: activo.codigo,
+            tipo: activo.tipo,
+            unidad: activo.unidad,
+            cantidad: Number(activo.cantidad),
+            categoria: new ObjectId(activo.categoria),
+            zona: new ObjectId(activo.zona),
+            fechaAdquisicion: moment(activo.fechaAdquisicion).toDate(),
+            vidaUtil: Number(activo.vidaUtil),
+            montoAdquision: Number(activo.montoAdquision),
+            observacion: activo.observacion
+          }
+        })
+        await createItemSD({
+          nameCollection: 'historial',
+          enviromentClienteId: clienteId,
+          item: {
+            idProducto: newActivo.insertedId,
+            categoria: 'creado',
+            tipo: 'Activo fijo',
+            fecha: moment().toDate(),
+            descripcion: `Creo el activo: ${activo.codigo} - ${activo.nombre}`,
+            creadoPor: new ObjectId(req.uid)
+          }
+        })
       }
-    })
-    await bulkWriteSD({ nameCollection: 'activosFijos', enviromentClienteId: clienteId, pipeline: bulkWrite })
+    }
     return res.status(200).json({ status: 'Activos guardados exitosamente' })
   } catch (e) {
     console.log(e)

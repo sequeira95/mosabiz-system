@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { bulkWriteSD, deleteItemSD, getCollectionSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { bulkWriteSD, deleteItemSD, deleteManyItemsSD, getCollectionSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 
 export const getCategorias = async (req, res) => {
@@ -84,6 +84,8 @@ export const deleteCategorias = async (req, res) => {
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) }
     })
+    deleteManyItemsSD({ nameCollection: 'categoriaPorAlmacen', enviromentClienteId: clienteId, filters: { categoriaId: new ObjectId(_id) } })
+    deleteManyItemsSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, filters: { categoriaId: new ObjectId(_id) } })
     return res.status(200).json({ status: 'categoría eliminada exitosamente' })
   } catch (e) {
     console.log(e)

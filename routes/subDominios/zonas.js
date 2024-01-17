@@ -4,7 +4,7 @@ import { deleteZonas, getZonas, listCategoriasPorZonas, saveCategoriasPorZonas, 
 
 const router = express.Router()
 
-router.post('/get/activoFijo', requireSubDominioToken, getZonas)
+router.post('/get', requireSubDominioToken, getZonas)
 router.post('/save', requireSubDominioToken, saveZonas)
 router.post('/delete', requireSubDominioToken, deleteZonas)
 router.post('/saveToArray', requireSubDominioToken, saveZonasToArray)

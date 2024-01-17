@@ -1,15 +1,30 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, formatCollectionName, getCollectionSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { subDominioName } from '../../constants.js'
 
 export const getZonas = async (req, res) => {
   const { clienteId, tipo } = req.body
   try {
-    const zonas = await getCollectionSD({
+    const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+    const zonas = await agreggateCollectionsSD({
       nameCollection: 'zonas',
       enviromentClienteId: clienteId,
-      filters: { tipo }
+      pipeline: [
+        { $match: { tipo } },
+        {
+          $lookup: {
+            from: planCuentaCollection,
+            localField: 'cuentaId',
+            foreignField: '_id',
+            pipeline: [
+              { $project: { descripcion: 1, codigo: 1 } }
+            ],
+            as: 'detalleCuenta'
+          }
+        },
+        { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } }
+      ]
     })
     return res.status(200).json({ zonas })
   } catch (e) {
@@ -18,7 +33,7 @@ export const getZonas = async (req, res) => {
   }
 }
 export const saveZonas = async (req, res) => {
-  const { _id, clienteId, nombre, observacion, tipo, fechaCreacion } = req.body
+  const { _id, clienteId, nombre, observacion, tipo, fechaCreacion, cuentaId } = req.body
   try {
     if (!_id) {
       const verify = await getItemSD({
@@ -39,11 +54,11 @@ export const saveZonas = async (req, res) => {
         $set: {
           nombre,
           observacion,
+          cuentaId: cuentaId ? new ObjectId(cuentaId) : null,
           fechaCreacion: fechaCreacion ? moment(fechaCreacion).toDate() : moment().toDate()
         }
       }
     })
-
     return res.status(200).json({ status: 'Zona guardada exitosamente', zona })
   } catch (e) {
     console.log(e)
@@ -86,6 +101,7 @@ export const deleteZonas = async (req, res) => {
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) }
     })
+    deleteManyItemsSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, filters: { zonaId: new ObjectId(_id) } })
     return res.status(200).json({ status: 'Zona eliminada exitosamente' })
   } catch (e) {
     console.log(e)

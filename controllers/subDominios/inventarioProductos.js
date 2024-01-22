@@ -1,6 +1,7 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
+
 export const getProductos = async (req, res) => {
   const { clienteId } = req.body
   try {
@@ -26,8 +27,7 @@ export const getProductos = async (req, res) => {
             unidad: '$unidad',
             categoriaId: '$categoria',
             categoria: '$detalleCategoria.nombre',
-            observacion: '$observacion',
-            deetalle: '$detalleCategoria'
+            observacion: '$observacion'
           }
         }
       ]
@@ -39,7 +39,6 @@ export const getProductos = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de obtner datos de los activo fijos' + e.message })
   }
 }
-
 export const saveProducto = async (req, res) => {
   const { codigo, nombre, descripcion, unidad, categoria, observacion, clienteId, _id } = req.body
   try {
@@ -73,5 +72,46 @@ export const saveProducto = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar el producto ' + e.message })
+  }
+}
+export const deleteProducto = async (req, res) => {
+  const { _id, clienteId } = req.body
+  try {
+    await deleteItemSD({
+      nameCollection: 'productos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) }
+    })
+    return res.status(200).json({ status: 'Producto eliminado exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar el producto ' + e.message })
+  }
+}
+export const saveToArray = async (req, res) => {
+  const { clienteId, productos } = req.body
+  try {
+    if (!productos[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de productos' })
+    const bulkWrite = productos.map(e => {
+      return {
+        updateOne: {
+          filter: { nombre: e.nombre, codigo: e.codigo },
+          update: {
+            $set: {
+              descripcion: e.descripcion,
+              unidad: e.unidad,
+              categoria: e.categoria ? new ObjectId(e.categoria) : null,
+              observacion: e.observacion
+            }
+          },
+          upsert: true
+        }
+      }
+    })
+    await bulkWriteSD({ nameCollection: 'productos', enviromentClienteId: clienteId, pipeline: bulkWrite })
+    return res.status(200).json({ status: 'Productos guardados exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar los productos ' + e.message })
   }
 }

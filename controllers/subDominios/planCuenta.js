@@ -84,7 +84,8 @@ export const getCuentasMovimientos = async (req, res) => {
             descripcion: '$descripcion',
             tipo: '$tipo',
             nivelCuenta: '$nivelCuenta',
-            terceros: '$terceros'
+            terceros: '$terceros',
+            conciliacion: '$conciliacion'
           }
         },
         { $sort: { codigo: 1 } }

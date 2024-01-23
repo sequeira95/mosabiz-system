@@ -3,7 +3,6 @@ import { agreggateCollectionsSD, formatCollectionName } from '../../utils/dataBa
 import { subDominioName } from '../../constants.js'
 export const getHistorial = async (req, res) => {
   const { clienteId, productoId, tipo } = req.body
-  console.log(req.body)
   try {
     const personasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const historial = await agreggateCollectionsSD({
@@ -22,7 +21,6 @@ export const getHistorial = async (req, res) => {
         { $unwind: { path: '$detallePersona', preserveNullAndEmptyArrays: true } }
       ]
     })
-    console.log(historial)
     return res.status(200).json({ historial })
   } catch (e) {
     console.log(e)

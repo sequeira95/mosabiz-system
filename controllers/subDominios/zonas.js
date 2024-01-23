@@ -7,11 +7,20 @@ export const getZonas = async (req, res) => {
   const { clienteId, tipo } = req.body
   try {
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+    const activosFijosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'activosFijos' })
     const zonas = await agreggateCollectionsSD({
       nameCollection: 'zonas',
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: { tipo } },
+        {
+          $lookup: {
+            from: activosFijosCollection,
+            localField: '_id',
+            foreignField: 'zona',
+            as: 'detalleActivoFijo'
+          }
+        },
         {
           $lookup: {
             from: planCuentaCollection,
@@ -23,7 +32,16 @@ export const getZonas = async (req, res) => {
             as: 'detalleCuenta'
           }
         },
-        { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } }
+        { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            nombre: 1,
+            observacion: 1,
+            cuentaId: 1,
+            detalleCuenta: 1,
+            hasActivo: { $size: '$detalleActivoFijo' }
+          }
+        }
       ]
     })
     return res.status(200).json({ zonas })
@@ -148,10 +166,50 @@ export const listCategoriasPorZonas = async (req, res) => {
               },
               { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
               {
+                $lookup: {
+                  from: planCuentaCollection,
+                  localField: 'cuentaDepreciacionAcumulada',
+                  foreignField: '_id',
+                  pipeline: [
+                    {
+                      $project: {
+                        cuentaId: '$_id',
+                        codigo: '$codigo',
+                        descripcion: '$descripcion'
+                      }
+                    }
+                  ],
+                  as: 'detalleCuentaDepreciacionAcumulada'
+                }
+              },
+              { $unwind: { path: '$detalleCuentaDepreciacionAcumulada', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: planCuentaCollection,
+                  localField: 'cuentaGastosDepreciacion',
+                  foreignField: '_id',
+                  pipeline: [
+                    {
+                      $project: {
+                        cuentaId: '$_id',
+                        codigo: '$codigo',
+                        descripcion: '$descripcion'
+                      }
+                    }
+                  ],
+                  as: 'detalleCuentaGastosDepreciacion'
+                }
+              },
+              { $unwind: { path: '$detalleCuentaGastosDepreciacion', preserveNullAndEmptyArrays: true } },
+              {
                 $project: {
                   cuentaId: '$detalleCuenta.cuentaId',
                   cuenta: '$detalleCuenta.codigo',
-                  descripcion: '$detalleCuenta.descripcion'
+                  descripcion: '$detalleCuenta.descripcion',
+                  cuentaDepreciacionAcumuladaId: '$detalleCuentaDepreciacionAcumulada.cuentaId',
+                  cuentaDepreciacionAcumulada: '$detalleCuentaDepreciacionAcumulada.codigo',
+                  cuentaGastosDepreciacionId: '$detalleCuentaGastosDepreciacion.cuentaId',
+                  cuentaGastosDepreciacion: '$detalleCuentaGastosDepreciacion.codigo'
                 }
               }
             ],
@@ -164,7 +222,11 @@ export const listCategoriasPorZonas = async (req, res) => {
             categoriaId: '$_id',
             categoria: '$nombre',
             cuentaCodigo: '$detalleZona.cuenta',
-            cuentaId: '$detalleZona.cuentaId'
+            cuentaId: '$detalleZona.cuentaId',
+            cuentaDepreciacionAcumuladaId: '$detalleZona.cuentaDepreciacionAcumuladaId',
+            cuentaDepreciacionAcumulada: '$detalleZona.cuentaDepreciacionAcumulada',
+            cuentaGastosDepreciacionId: '$detalleZona.cuentaGastosDepreciacionId',
+            cuentaGastosDepreciacion: '$detalleZona.cuentaGastosDepreciacion'
             // detalle: '$detalleZona'
           }
         }
@@ -187,6 +249,8 @@ export const saveCategoriasPorZonas = async (req, res) => {
           update: {
             $set: {
               cuentaId: new ObjectId(e.cuentaId),
+              cuentaDepreciacionAcumulada: new ObjectId(e.cuentaDepreciacionAcumuladaId),
+              cuentaGastosDepreciacion: new ObjectId(e.cuentaGastosDepreciacionId),
               tipo
             }
           },

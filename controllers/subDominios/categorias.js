@@ -1,14 +1,34 @@
 import { ObjectId } from 'mongodb'
-import { bulkWriteSD, deleteItemSD, deleteManyItemsSD, getCollectionSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
+import { subDominioName } from '../../constants.js'
 
 export const getCategorias = async (req, res) => {
   const { clienteId, tipo } = req.body
   try {
-    const categorias = await getCollectionSD({
+    const activosFijosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'activosFijos' })
+    const categorias = await agreggateCollectionsSD({
       nameCollection: 'categorias',
       enviromentClienteId: clienteId,
-      filters: { tipo }
+      pipeline: [
+        { $match: { tipo } },
+        {
+          $lookup: {
+            from: activosFijosCollection,
+            localField: '_id',
+            foreignField: 'categoria',
+            as: 'detalleActivoFijo'
+          }
+        },
+        {
+          $project: {
+            nombre: 1,
+            tipo: 1,
+            observacion: 1,
+            hasActivo: { $size: '$detalleActivoFijo' }
+          }
+        }
+      ]
     })
     return res.status(200).json({ categorias })
   } catch (e) {

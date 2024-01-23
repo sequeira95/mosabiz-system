@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, createItemSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, createItemSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { uploadImg } from '../../utils/cloudImage.js'
 import { keyActivosFijos, subDominioName } from '../../constants.js'
@@ -9,6 +9,8 @@ export const getActivosFijos = async (req, res) => {
   try {
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
+    const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+    const comprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'comprobantes' })
     const activos = await agreggateCollectionsSD({
       nameCollection: 'activosFijos',
       enviromentClienteId: clienteId,
@@ -31,61 +33,24 @@ export const getActivosFijos = async (req, res) => {
           }
         },
         { $unwind: { path: '$detalleZona', preserveNullAndEmptyArrays: true } },
-        /* {
-          $group: {
-            _id: '$tipo',
-            tangibles: {
-              $push: {
-                $cond: {
-                  if: { $eq: ['$tipo', 'Tangibles'] },
-                  then: {
-                    _id: '$_id',
-                    codigo: '$codigo',
-                    nombre: '$nombre',
-                    descripcion: '$descripcion',
-                    tipo: '$tipo',
-                    unidad: '$unidad',
-                    cantidad: '$cantidad',
-                    zonaId: '$zona',
-                    zona: '$detalleZona.nombre',
-                    categoriaId: '$categoria',
-                    categoria: '$detalleCategoria.nombre',
-                    fechaAdquisicion: '$fechaAdquisicion',
-                    vidaUtil: '$vidaUtil',
-                    montoAdquision: '$montoAdquision',
-                    observacion: '$observacion',
-                    documentosAdjuntos: '$documentosAdjuntos'
-                  },
-                  else: null
-                }
-              }
-            },
-            intangibles: {
-              $push: {
-                $cond: {
-                  if: { $eq: ['$tipo', 'Intangibles'] },
-                  then: {
-                    _id: '$_id',
-                    codigo: '$codigo',
-                    nombre: '$nombre',
-                    descripcion: '$descripcion',
-                    tipo: '$tipo',
-                    unidad: '$unidad',
-                    cantidad: '$cantidad',
-                    categoriaId: '$categoria',
-                    categoria: '$detalleCategoria.nombre',
-                    fechaAdquisicion: '$fechaAdquisicion',
-                    vidaUtil: '$vidaUtil',
-                    montoAdquision: '$montoAdquision',
-                    observacion: '$observacion',
-                    documentosAdjuntos: '$documentosAdjuntos'
-                  },
-                  else: null
-                }
-              }
-            }
+        {
+          $lookup: {
+            from: planCuentaCollection,
+            localField: 'cuentaPago',
+            foreignField: '_id',
+            as: 'detalleCuentaPago'
           }
-        }, */
+        },
+        { $unwind: { path: '$detalleCuentaPago', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: comprobantesCollection,
+            localField: 'comprobanteRegistroActivo',
+            foreignField: '_id',
+            as: 'detalleComprobante'
+          }
+        },
+        { $unwind: { path: '$detalleComprobante', preserveNullAndEmptyArrays: true } },
         {
           $project: {
             codigo: '$codigo',
@@ -102,9 +67,15 @@ export const getActivosFijos = async (req, res) => {
             vidaUtil: '$vidaUtil',
             montoAdquision: '$montoAdquision',
             observacion: '$observacion',
-            documentosAdjuntos: '$documentosAdjuntos'
+            documentosAdjuntos: '$documentosAdjuntos',
+            cuentaPago: '$detalleCuentaPago.codigo',
+            referencia: '$referencia',
+            dataCuentaPago: '$detalleCuentaPago',
+            comprobante: { $concat: ['$detalleComprobante.mesPeriodo', '-', '$detalleComprobante.codigo'] },
+            dataComprobante: '$detalleComprobante'
           }
-        }
+        },
+        { $sort: { tipo: -1 } }
       ]
     })
     return res.status(200).json({ activos })
@@ -114,8 +85,26 @@ export const getActivosFijos = async (req, res) => {
   }
 }
 export const createActivoFijo = async (req, res) => {
-  const { codigo, nombre, descripcion, tipo, unidad, cantidad, categoria, zona, fechaAdquisicion, vidaUtil, montoAdquision, observacion, clienteId } = req.body
-  console.log(req.files)
+  const {
+    codigo,
+    nombre,
+    descripcion,
+    tipo,
+    unidad,
+    cantidad,
+    categoria,
+    zona,
+    fechaAdquisicion,
+    vidaUtil,
+    montoAdquision,
+    observacion,
+    clienteId,
+    cuentaPago,
+    referencia,
+    comprobanteRegistroActivo,
+    periodoId,
+    categoriaNombre
+  } = req.body
   const documentos = req.files?.documentos
   try {
     const documentosAdjuntos = []
@@ -166,10 +155,26 @@ export const createActivoFijo = async (req, res) => {
         vidaUtil: Number(vidaUtil),
         montoAdquision: Number(montoAdquision),
         observacion,
-        documentosAdjuntos
+        documentosAdjuntos,
+        cuentaPago: new ObjectId(cuentaPago),
+        referencia,
+        comprobanteRegistroActivo: new ObjectId(comprobanteRegistroActivo)
       }
     })
-    await createItemSD({
+    createDetalleComprobanteActivoFijo({
+      categoria,
+      categoriaNombre,
+      zona,
+      cuentaPago,
+      comprobanteRegistroActivo,
+      clienteId,
+      periodoId,
+      fechaAdquisicion,
+      montoAdquision,
+      referencia,
+      documentosAdjuntos
+    })
+    createItemSD({
       nameCollection: 'historial',
       enviromentClienteId: clienteId,
       item: {
@@ -189,9 +194,26 @@ export const createActivoFijo = async (req, res) => {
   }
 }
 export const editActivoFijo = async (req, res) => {
-  const { _id, codigo, nombre, descripcion, tipo, unidad, cantidad, categoria, zona, fechaAdquisicion, vidaUtil, clienteId } = req.body
+  const {
+    _id,
+    codigo,
+    nombre,
+    descripcion,
+    tipo,
+    unidad,
+    cantidad,
+    categoria,
+    zona,
+    fechaAdquisicion,
+    vidaUtil,
+    clienteId,
+    cuentaPago,
+    referencia,
+    comprobanteRegistroActivo,
+    periodoId,
+    categoriaNombre
+  } = req.body
   try {
-    console.log({ zona })
     // const ajuste = (await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })).dateFormat
     const activoPreUpdate = await getItemSD({ nameCollection: 'activosFijos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
     const activo = await updateItemSD({
@@ -209,15 +231,39 @@ export const editActivoFijo = async (req, res) => {
           categoria: new ObjectId(categoria),
           zona: new ObjectId(zona),
           fechaAdquisicion: moment(fechaAdquisicion).toDate(),
-          vidaUtil: Number(vidaUtil)
+          vidaUtil: Number(vidaUtil),
+          cuentaPago: new ObjectId(cuentaPago),
+          referencia,
+          comprobanteRegistroActivo: new ObjectId(comprobanteRegistroActivo)
         }
       }
     })
     const descripcionUpdate = []
+    if (activoPreUpdate.zona.toJSON() !== activo.zona.toJSON() || activoPreUpdate.categoria.toJSON() !== activo.categoria.toJSON()) {
+      createDetalleComprobanteForEdit({
+        categoria,
+        categoriaNombre,
+        zona,
+        dataPreUpdate: activoPreUpdate,
+        comprobanteRegistroActivo,
+        clienteId,
+        periodoId,
+        fechaAdquisicion,
+        montoAdquision: activo.montoAdquision,
+        referencia,
+        documentosAdjuntos: activo.documentosAdjuntos
+      })
+    }
     for (const [key, value] of Object.entries(activo)) {
       const originalValue = activoPreUpdate[key]
       if (originalValue !== value) {
-        if (key === 'zona') {
+        if (key === 'comprobanteRegistroActivo' || key === 'zona' || key === 'categoria') {
+          const equalsId = originalValue.toJSON() === value.toJSON()
+          if (equalsId) continue
+          descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
+          continue
+        }
+        /* if (key === 'zona') {
           const equalsId = originalValue.toJSON() === value.toJSON()
           console.log(key, equalsId)
           if (equalsId) continue
@@ -230,7 +276,7 @@ export const editActivoFijo = async (req, res) => {
           if (equalsId) continue
           descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
           continue
-        }
+        } */
         if (key === '_id') continue
         if (key === 'documentosAdjuntos') continue
         if (key === 'fechaAdquisicion') {
@@ -274,7 +320,6 @@ export const saveToArray = async (req, res) => {
         filters: { nombre: activo.nombre, codigo: activo.codigo }
       })
       if (verifyActivo) {
-        console.log('entramos a update')
         const updateActivo = await updateItemSD({
           nameCollection: 'activosFijos',
           enviromentClienteId: clienteId,
@@ -300,20 +345,24 @@ export const saveToArray = async (req, res) => {
         for (const [key, value] of Object.entries(activo)) {
           const originalValue = verifyActivo[key]
           if (originalValue !== value) {
-            if (key === 'zona') {
+            if (key === 'comprobanteRegistroActivo' || key === 'zona' || key === 'categoria') {
+              const equalsId = originalValue.toJSON() === value.toJSON()
+              if (equalsId) continue
+              descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
+              continue
+            }
+            /* if (key === 'zona') {
               const equalsId = originalValue.toJSON() === new ObjectId(value).toJSON()
-              console.log(key, equalsId)
               if (equalsId) continue
               descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
               continue
             }
             if (key === 'categoria') {
               const equalsId = originalValue.toJSON() === new ObjectId(value).toJSON()
-              console.log(key, equalsId)
               if (equalsId) continue
               descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
               continue
-            }
+            } */
             if (key === '_id') continue
             if (key === 'documentosAdjuntos') continue
             if (key === 'fechaAdquisicion') {
@@ -326,7 +375,6 @@ export const saveToArray = async (req, res) => {
             descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
           }
         }
-        console.log(descripcionUpdate)
         if (descripcionUpdate[0]) {
           await createItemSD({
             nameCollection: 'historial',
@@ -342,7 +390,6 @@ export const saveToArray = async (req, res) => {
           })
         }
       } else {
-        console.log('entramos a create')
         const newActivo = await createItemSD({
           nameCollection: 'activosFijos',
           enviromentClienteId: clienteId,
@@ -389,5 +436,140 @@ export const deleteActivoFijo = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar el activo' + e.message })
+  }
+}
+const createDetalleComprobanteActivoFijo = async ({
+  categoria,
+  categoriaNombre,
+  zona,
+  cuentaPago,
+  comprobanteRegistroActivo,
+  clienteId,
+  periodoId,
+  fechaAdquisicion,
+  montoAdquision,
+  referencia,
+  documentosAdjuntos
+}) => {
+  try {
+    const categoriaZona = await getItemSD({
+      nameCollection: 'categoriaPorZona',
+      enviromentClienteId: clienteId,
+      filters: { categoriaId: new ObjectId(categoria), zonaId: new ObjectId(zona) }
+    })
+    const cuentaCategoriaZona = await getItemSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      filters: { _id: categoriaZona.cuentaId }
+    })
+    const cuentaPagoActivo = await getItemSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(cuentaPago) }
+    })
+    const datosRepetidos = {
+      comprobanteId: new ObjectId(comprobanteRegistroActivo),
+      periodoId: new ObjectId(periodoId),
+      descripcion: `Adquisición ${categoriaNombre}`,
+      fecha: moment(fechaAdquisicion).toDate(),
+      fechaCreacion: moment().toDate(),
+      docReferenciaAux: referencia,
+      documento: {
+        docReferencia: referencia,
+        docFecha: moment(fechaAdquisicion).toDate(),
+        docTipo: 'Transacción',
+        documento: documentosAdjuntos
+      }
+    }
+    const lineaPagoComprobante = {
+      cuentaId: cuentaPagoActivo._id,
+      cuentaCodigo: cuentaPagoActivo.codigo,
+      cuentaNombre: cuentaPagoActivo.descripcion,
+      debe: 0,
+      haber: Number(montoAdquision),
+      ...datosRepetidos
+    }
+    const lineaCuentaActivo = {
+      cuentaId: cuentaCategoriaZona._id,
+      cuentaCodigo: cuentaCategoriaZona.codigo,
+      cuentaNombre: cuentaCategoriaZona.descripcion,
+      debe: Number(montoAdquision),
+      haber: 0,
+      ...datosRepetidos
+    }
+    const datosComprobantes = [lineaCuentaActivo, lineaPagoComprobante]
+    createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: datosComprobantes })
+  } catch (e) {
+    return e.message
+  }
+}
+const createDetalleComprobanteForEdit = async ({
+  categoria,
+  categoriaNombre,
+  zona,
+  dataPreUpdate,
+  comprobanteRegistroActivo,
+  clienteId,
+  periodoId,
+  fechaAdquisicion,
+  montoAdquision,
+  referencia,
+  documentosAdjuntos
+}) => {
+  try {
+    const categoriaZona = await getItemSD({
+      nameCollection: 'categoriaPorZona',
+      enviromentClienteId: clienteId,
+      filters: { categoriaId: new ObjectId(categoria), zonaId: new ObjectId(zona) }
+    })
+    const cuentaCategoriaZona = await getItemSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      filters: { _id: categoriaZona.cuentaId }
+    })
+    const categoriaZonaPreUpdate = await getItemSD({
+      nameCollection: 'categoriaPorZona',
+      enviromentClienteId: clienteId,
+      filters: { categoriaId: new ObjectId(dataPreUpdate.categoria), zonaId: new ObjectId(dataPreUpdate.zona) }
+    })
+    const cuentaCategoriaZonaPreUpdate = await getItemSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      filters: { _id: categoriaZonaPreUpdate.cuentaId }
+    })
+    const datosRepetidos = {
+      comprobanteId: new ObjectId(comprobanteRegistroActivo),
+      periodoId: new ObjectId(periodoId),
+      descripcion: `Adquisición ${categoriaNombre}`,
+      fecha: moment(fechaAdquisicion).toDate(),
+      fechaCreacion: moment().toDate(),
+      docReferenciaAux: referencia,
+      documento: {
+        docReferencia: referencia,
+        docFecha: moment(fechaAdquisicion).toDate(),
+        docTipo: 'Transacción',
+        documento: documentosAdjuntos
+      }
+    }
+    const lineaPreUpdateComprobante = {
+      cuentaId: cuentaCategoriaZonaPreUpdate._id,
+      cuentaCodigo: cuentaCategoriaZonaPreUpdate.codigo,
+      cuentaNombre: cuentaCategoriaZonaPreUpdate.descripcion,
+      debe: 0,
+      haber: Number(montoAdquision),
+      ...datosRepetidos
+    }
+    const lineaCuentaActivo = {
+      cuentaId: cuentaCategoriaZona._id,
+      cuentaCodigo: cuentaCategoriaZona.codigo,
+      cuentaNombre: cuentaCategoriaZona.descripcion,
+      debe: Number(montoAdquision),
+      haber: 0,
+      ...datosRepetidos
+    }
+    const datosComprobantes = [lineaCuentaActivo, lineaPreUpdateComprobante]
+    createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: datosComprobantes })
+  } catch (e) {
+    return e.message
   }
 }

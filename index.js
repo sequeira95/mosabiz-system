@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import cron from 'node-cron'
+// import cron from 'node-cron'
 import database from './database/connectdb.js'
 import express from 'express'
 import cookieParser from 'cookie-parser'
@@ -33,7 +33,7 @@ import almacenSDRouter from './routes/subDominios/almacen.js'
 import historialSDRouter from './routes/subDominios/historial.js'
 import productosSDRouter from './routes/subDominios/inventarioProducto.js'
 import movimientosSDRouter from './routes/subDominios/movimientos.js'
-import { getValoresBcv } from './utils/tareas.js'
+// import { getValoresBcv } from './utils/tareas.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
 
@@ -48,12 +48,12 @@ app.use(fileUpload({
   tempFileDir: './uploads' */
 }))
 // tareas segundo plano
-cron.schedule('30 8 * * *', () => {
+/* cron.schedule('30 8 * * *', () => {
   getValoresBcv()
 }, {
   scheduled: true,
   timezone: 'America/Caracas'
-})
+}) */
 const PORT = process.env.PORT || 8080
 // midelware
 app.use(express.json({ limit: '50mb' }))

@@ -24,6 +24,7 @@ export const getCategorias = async (req, res) => {
           $project: {
             nombre: 1,
             tipo: 1,
+            vidaUtil: 1,
             observacion: 1,
             hasActivo: { $size: '$detalleActivoFijo' }
           }
@@ -37,7 +38,7 @@ export const getCategorias = async (req, res) => {
   }
 }
 export const saveCategorias = async (req, res) => {
-  const { _id, clienteId, nombre, observacion, tipo, fechaCreacion } = req.body
+  const { _id, clienteId, nombre, observacion, tipo, fechaCreacion, vidaUtil } = req.body
   try {
     if (!_id) {
       const verifyCategoria = await getItemSD({
@@ -58,6 +59,7 @@ export const saveCategorias = async (req, res) => {
         $set: {
           nombre,
           observacion,
+          vidaUtil: Number(vidaUtil),
           fechaCreacion: fechaCreacion ? moment(fechaCreacion).toDate() : moment().toDate()
         }
       }

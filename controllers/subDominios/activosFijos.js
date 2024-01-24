@@ -1,7 +1,7 @@
 import { ObjectId } from 'mongodb'
 import { agreggateCollectionsSD, createItemSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
-import { uploadImg } from '../../utils/cloudImage.js'
+import { deleteImg, uploadImg } from '../../utils/cloudImage.js'
 import { keyActivosFijos, subDominioName } from '../../constants.js'
 
 export const getActivosFijos = async (req, res) => {
@@ -95,7 +95,7 @@ export const createActivoFijo = async (req, res) => {
     categoria,
     zona,
     fechaAdquisicion,
-    vidaUtil,
+    // vidaUtil,
     montoAdquision,
     observacion,
     clienteId,
@@ -152,7 +152,7 @@ export const createActivoFijo = async (req, res) => {
         categoria: new ObjectId(categoria),
         zona: new ObjectId(zona),
         fechaAdquisicion: moment(fechaAdquisicion).toDate(),
-        vidaUtil: Number(vidaUtil),
+        // vidaUtil: Number(vidaUtil),
         montoAdquision: Number(montoAdquision),
         observacion,
         documentosAdjuntos,
@@ -205,7 +205,7 @@ export const editActivoFijo = async (req, res) => {
     categoria,
     zona,
     fechaAdquisicion,
-    vidaUtil,
+    // vidaUtil,
     clienteId,
     cuentaPago,
     referencia,
@@ -231,7 +231,7 @@ export const editActivoFijo = async (req, res) => {
           categoria: new ObjectId(categoria),
           zona: new ObjectId(zona),
           fechaAdquisicion: moment(fechaAdquisicion).toDate(),
-          vidaUtil: Number(vidaUtil),
+          // vidaUtil: Number(vidaUtil),
           cuentaPago: new ObjectId(cuentaPago),
           referencia,
           comprobanteRegistroActivo: new ObjectId(comprobanteRegistroActivo)
@@ -260,6 +260,7 @@ export const editActivoFijo = async (req, res) => {
         if (key === 'comprobanteRegistroActivo' || key === 'zona' || key === 'categoria') {
           const equalsId = originalValue.toJSON() === value.toJSON()
           if (equalsId) continue
+          console.log({ key, antes: originalValue, despues: value })
           descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
           continue
         }
@@ -278,6 +279,7 @@ export const editActivoFijo = async (req, res) => {
           continue
         } */
         if (key === '_id') continue
+        if (key === 'cuentaPago') continue
         if (key === 'documentosAdjuntos') continue
         if (key === 'fechaAdquisicion') {
           const fecha1 = moment(originalValue).format('DD/MM/YYYY')
@@ -286,6 +288,7 @@ export const editActivoFijo = async (req, res) => {
           descripcionUpdate.push({ campo: keyActivosFijos[key], antes: moment(originalValue).toDate(), despues: moment(value).toDate() })
           continue
         }
+        console.log({ key, antes: originalValue, despues: value })
         descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
       }
     }
@@ -571,5 +574,223 @@ const createDetalleComprobanteForEdit = async ({
     createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: datosComprobantes })
   } catch (e) {
     return e.message
+  }
+}
+export const deleteImgActivo = async (req, res) => {
+  const { clienteId, activoId, imgId } = req.body
+  console.log(req.body)
+  try {
+    await updateItemSD({
+      nameCollection: 'activosFijos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(activoId) },
+      update: { $pull: { documentosAdjuntos: { fileId: imgId } } }
+    })
+    try {
+      await deleteImg(imgId)
+    } catch (e) {
+      console.log(e)
+    }
+    return res.status(200).json({ status: 'Imagen eliminada exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar la imagen del almacen ' + e.message })
+  }
+}
+export const addImagenToActivo = async (req, res) => {
+  const { clienteId, activoId } = req.body
+  try {
+    const documentos = req.files?.documentos
+    const documentosAdjuntos = []
+    if (req.files && req.files.documentos) {
+      if (documentos && documentos[0]) {
+        for (const documento of documentos) {
+          const extension = documento.mimetype.split('/')[1]
+          const namePath = `${documento.name}`
+          const resDoc = await uploadImg(documento.data, namePath)
+          documentosAdjuntos.push(
+            {
+              path: resDoc.filePath,
+              name: resDoc.name,
+              url: resDoc.url,
+              type: extension,
+              fileId: resDoc.fileId
+            })
+        }
+      }
+      if (documentos && documentos.name) {
+        const extension = documentos.mimetype.split('/')[1]
+        const namePath = `${documentos.name}`
+        const resDoc = await uploadImg(documentos.data, namePath)
+        documentosAdjuntos.push(
+          {
+            path: resDoc.filePath,
+            name: resDoc.name,
+            url: resDoc.url,
+            type: extension,
+            fileId: resDoc.fileId
+          }
+        )
+      }
+    }
+    if (documentosAdjuntos[0]) {
+      console.log(documentosAdjuntos)
+      const itemsAnterior = (await getItemSD({ nameCollection: 'activosFijos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(activoId) } })).documentosAdjuntos
+      if (itemsAnterior) {
+        documentosAdjuntos.push(...itemsAnterior)
+      }
+      const activoUpdate = await updateItemSD({
+        nameCollection: 'activosFijos',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(activoId) },
+        update: { $set: { documentosAdjuntos } }
+      })
+      return res.status(200).json({ status: 'Imagenes guardada exitosamente', activoUpdate })
+    }
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar las imagenes del almacen ' + e.message })
+  }
+}
+
+export const datosInicualesDepreciacion = async (req, res) => {
+  const { clienteId, periodoId, fechaHasta } = req.body
+  try {
+    const fecha = moment(fechaHasta, 'YYYY/MM').endOf('month').toDate()
+    const categoriasZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
+    const comprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'comprobantes' })
+    const datosDepereciacion = await agreggateCollectionsSD({
+      nameCollection: 'activosFijos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $group: {
+            _id: {
+              categoria: '$categoria',
+              zona: '$zona'
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: categoriasZonaCollection,
+            let: { categoriaId: '$_id.categoria', zonaId: '$_id.zona' },
+            pipeline: [
+              {
+                $match:
+                  {
+                    $expr:
+                    {
+                      $and:
+                        [
+                          { $eq: ['$categoriaId', '$$categoriaId'] },
+                          { $eq: ['$zonaId', '$$zonaId'] }
+                        ]
+                    }
+                  }
+              }
+            ],
+            as: 'detalleCategoriaZona'
+          }
+        },
+        { $unwind: { path: '$detalleCategoriaZona', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            categoriaId: '$_id.categoria',
+            zonaId: '$_id.zona',
+            cuentaDepreciacionAcumulada: '$detalleCategoriaZona.cuentaDepreciacionAcumulada'
+          }
+        },
+        { $match: { cuentaDepreciacionAcumulada: { $exists: true } } },
+        {
+          $lookup: {
+            from: comprobantesCollection,
+            localField: 'cuentaDepreciacionAcumulada',
+            foreignField: 'cuentaId',
+            pipeline: [
+              { $match: { periodoId: new ObjectId(periodoId), isPrecierre: true } },
+              {
+                $group: {
+                  _id: '$cuentaId',
+                  debe: { $sum: '$debe' },
+                  haber: { $sum: '$haber' }
+                }
+              },
+              {
+                $project: {
+                  acumulado: { $subtract: ['$debe', '$haber'] }
+                }
+              }
+            ],
+            as: 'detalleComprobantesIniciales'
+          }
+        },
+        { $unwind: { path: '$detalleComprobantesIniciales', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: comprobantesCollection,
+            localField: 'cuentaDepreciacionAcumulada',
+            foreignField: 'cuentaId',
+            pipeline: [
+              { $match: { periodoId: new ObjectId(periodoId), isPrecierre: { $ne: true }, isCierre: { $ne: true }, fecha: { $lte: fecha } } },
+              {
+                $group: {
+                  _id: {
+                    cuentaId: '$cuentaId',
+                    mes: { $month: '$fecha' }
+                  },
+                  debe: { $sum: '$debe' },
+                  haber: { $sum: '$haber' }
+                }
+              },
+              {
+                $project: {
+                  mes: '$_id.mes',
+                  ENERO: { $cond: { if: { $eq: ['$_id.mes', 1] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
+                  FEBRERO: { $cond: { if: { $eq: ['$_id.mes', 2] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
+                  MARZO: { $cond: { if: { $eq: ['$_id.mes', 3] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
+                  ABRIL: { $cond: { if: { $eq: ['$_id.mes', 4] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
+                  MAYO: { $cond: { if: { $eq: ['$_id.mes', 5] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
+                  JUNIO: { $cond: { if: { $eq: ['$_id.mes', 6] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
+                  JULIO: { $cond: { if: { $eq: ['$_id.mes', 7] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
+                  AGOSTO: { $cond: { if: { $eq: ['$_id.mes', 8] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
+                  SEPTIEMBRE: { $cond: { if: { $eq: ['$_id.mes', 9] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
+                  OCTUBRE: { $cond: { if: { $eq: ['$_id.mes', 10] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
+                  NOVIEMBRE: { $cond: { if: { $eq: ['$_id.mes', 11] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
+                  DICIEMBRE: { $cond: { if: { $eq: ['$_id.mes', 12] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } }
+                }
+              }
+            ],
+            as: 'detalleComprobantes'
+          }
+        },
+        { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            categoriaId: '$categoriaId',
+            zonaId: '$zonaId',
+            cuentaDepreciacionAcumulada: '$cuentaDepreciacionAcumulada',
+            acumulado: '$detalleComprobantesIniciales.acumulado',
+            ENERO: '$detalleComprobantes.ENERO',
+            FEBRERO: '$detalleComprobantes.FEBRERO',
+            MARZO: '$detalleComprobantes.MARZO',
+            ABRIL: '$detalleComprobantes.ABRIL',
+            MAYO: '$detalleComprobantes.MAYO',
+            JUNIO: '$detalleComprobantes.JUNIO',
+            JULIO: '$detalleComprobantes.JULIO',
+            AGOSTO: '$detalleComprobantes.AGOSTO',
+            SEPTIEMBRE: '$detalleComprobantes.SEPTIEMBRE',
+            OCTUBRE: '$detalleComprobantes.OCTUBRE',
+            NOVIEMBRE: '$detalleComprobantes.NOVIEMBRE',
+            DICIEMBRE: '$detalleComprobantes.DICIEMBRE',
+            mes: '$detalleComprobantes.mes'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ datosDepereciacion })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtner datos de los activo fijos' + e.message })
   }
 }

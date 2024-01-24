@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateManyItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { subDominioName } from '../../constants.js'
 
@@ -8,6 +8,7 @@ export const getZonas = async (req, res) => {
   try {
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
     const activosFijosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'activosFijos' })
+    const categoriaZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
     const zonas = await agreggateCollectionsSD({
       nameCollection: 'zonas',
       enviromentClienteId: clienteId,
@@ -34,12 +35,21 @@ export const getZonas = async (req, res) => {
         },
         { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
         {
+          $lookup: {
+            from: categoriaZonaCollection,
+            localField: '_id',
+            foreignField: 'zonaId',
+            as: 'detallesCategoriaPorZona'
+          }
+        },
+        {
           $project: {
             nombre: 1,
             observacion: 1,
             cuentaId: 1,
             detalleCuenta: 1,
-            hasActivo: { $size: '$detalleActivoFijo' }
+            hasActivo: { $size: '$detalleActivoFijo' },
+            detallesCategoriaPorZona: '$detallesCategoriaPorZona'
           }
         }
       ]
@@ -240,9 +250,10 @@ export const listCategoriasPorZonas = async (req, res) => {
 }
 export const saveCategoriasPorZonas = async (req, res) => {
   const { clienteId, tipo, categoriasPorZona, zonaId } = req.body
-  console.log(req.body)
+  console.log(categoriasPorZona)
   try {
-    const bulkWrite = categoriasPorZona.map(e => {
+    saveCategoriasPorZona({ clienteId, tipo, categoriasPorZona, zonaId })
+    /* const bulkWrite = categoriasPorZona.map(e => {
       return {
         updateOne: {
           filter: { categoriaId: new ObjectId(e.categoriaId), zonaId: new ObjectId(zonaId) },
@@ -258,10 +269,171 @@ export const saveCategoriasPorZonas = async (req, res) => {
         }
       }
     })
-    await bulkWriteSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, pipeline: bulkWrite })
+    await bulkWriteSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, pipeline: bulkWrite }) */
     return res.status(200).json({ status: 'Categorias guardadas exitosamente' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar las categoria por zona ' + e.message })
+  }
+}
+const saveCategoriasPorZona = async ({ clienteId, tipo, categoriasPorZona, zonaId }) => {
+  const bulkWrite = []
+  const periodoActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+  try {
+    for (const categoriaZona of categoriasPorZona) {
+      const dataAnterior = await getItemSD({
+        nameCollection: 'categoriaPorZona',
+        enviromentClienteId: clienteId,
+        filters: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) }
+      })
+      if (!dataAnterior) {
+        console.log('No existe data anterior')
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaId: categoriaZona.cuentaId ? new ObjectId(categoriaZona.cuentaId) : null,
+                cuentaDepreciacionAcumulada: categoriaZona.cuentaDepreciacionAcumuladaId ? new ObjectId(categoriaZona.cuentaDepreciacionAcumuladaId) : null,
+                cuentaGastosDepreciacion: categoriaZona.cuentaGastosDepreciacionId ? new ObjectId(categoriaZona.cuentaGastosDepreciacionId) : null,
+                tipo
+              }
+            },
+            upsert: true
+          }
+        })
+        continue
+      }
+      if (dataAnterior.cuentaId && categoriaZona.cuentaId && dataAnterior.cuentaId.toJSON() !== categoriaZona.cuentaId) {
+        console.log('entrando cuentaId primer if', dataAnterior.cuentaId.toJSON(), categoriaZona.cuentaId)
+        const newCuenta = await getItemSD({
+          nameCollection: 'planCuenta',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(categoriaZona.cuentaId) }
+        })
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaId: new ObjectId(categoriaZona.cuentaId)
+              }
+            }
+          }
+        })
+        updateManyItemSD({
+          nameCollection: 'detallesComprobantes',
+          enviromentClienteId: clienteId,
+          filters: { cuentaId: dataAnterior.cuentaId, periodoId: { $in: periodoActivos } },
+          update: {
+            $set: {
+              cuentaId: newCuenta._id,
+              cuentaCodigo: newCuenta.codigo,
+              cuentaNombre: newCuenta.descripcion
+            }
+          }
+        })
+      } else if (!dataAnterior.cuentaId && categoriaZona.cuentaId) {
+        console.log('entrando cuentaId segundo if if', dataAnterior?.cuentaId, categoriaZona.cuentaId)
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaId: new ObjectId(categoriaZona.cuentaId)
+              }
+            }
+          }
+        })
+      }
+      if (dataAnterior.cuentaDepreciacionAcumulada && categoriaZona.cuentaDepreciacionAcumuladaId && dataAnterior.cuentaDepreciacionAcumulada.toJSON() !== categoriaZona.cuentaDepreciacionAcumuladaId) {
+        console.log('entrando cuentaDepreciacionAcumulada primer if', dataAnterior.cuentaDepreciacionAcumulada.toJSON(), categoriaZona.cuentaDepreciacionAcumuladaId)
+        const newCuenta = await getItemSD({
+          nameCollection: 'planCuenta',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(categoriaZona.cuentaDepreciacionAcumuladaId) }
+        })
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaDepreciacionAcumulada: new ObjectId(categoriaZona.cuentaDepreciacionAcumuladaId)
+              }
+            }
+          }
+        })
+        updateManyItemSD({
+          nameCollection: 'detallesComprobantes',
+          enviromentClienteId: clienteId,
+          filters: { cuentaId: dataAnterior.cuentaDepreciacionAcumulada, periodoId: { $in: periodoActivos } },
+          update: {
+            $set: {
+              cuentaId: newCuenta._id,
+              cuentaCodigo: newCuenta.codigo,
+              cuentaNombre: newCuenta.descripcion
+            }
+          }
+        })
+      } else if (!dataAnterior.cuentaDepreciacionAcumulada && categoriaZona.cuentaDepreciacionAcumuladaId) {
+        console.log('entrando cuentaDepreciacionAcumulada segundo if if', dataAnterior?.cuentaDepreciacionAcumulada, categoriaZona.cuentaDepreciacionAcumuladaId)
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaDepreciacionAcumulada: new ObjectId(categoriaZona.cuentaDepreciacionAcumuladaId)
+              }
+            }
+          }
+        })
+      }
+      if (dataAnterior.cuentaGastosDepreciacion && categoriaZona.cuentaGastosDepreciacionId && dataAnterior.cuentaGastosDepreciacion.toJSON() !== categoriaZona.cuentaGastosDepreciacionId) {
+        console.log('entrando cuentaGastosDepreciacionId primer if', dataAnterior.cuentaGastosDepreciacion.toJSON(), categoriaZona.cuentaGastosDepreciacionId)
+        const newCuenta = await getItemSD({
+          nameCollection: 'planCuenta',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(categoriaZona.cuentaGastosDepreciacionId) }
+        })
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaGastosDepreciacion: new ObjectId(categoriaZona.cuentaGastosDepreciacionId)
+              }
+            }
+          }
+        })
+        updateManyItemSD({
+          nameCollection: 'detallesComprobantes',
+          enviromentClienteId: clienteId,
+          filters: { cuentaId: dataAnterior.cuentaGastosDepreciacion, periodoId: { $in: periodoActivos } },
+          update: {
+            $set: {
+              cuentaId: newCuenta._id,
+              cuentaCodigo: newCuenta.codigo,
+              cuentaNombre: newCuenta.descripcion
+            }
+          }
+        })
+      } else if (!dataAnterior.cuentaGastosDepreciacion && categoriaZona.cuentaGastosDepreciacionId) {
+        console.log('entrando cuentaGastosDepreciacion segundo if if', dataAnterior?.cuentaGastosDepreciacion, categoriaZona.cuentaGastosDepreciacionId)
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaGastosDepreciacion: new ObjectId(categoriaZona.cuentaGastosDepreciacionId)
+              }
+            }
+          }
+        })
+      }
+    }
+    if (bulkWrite[0]) await bulkWriteSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, pipeline: bulkWrite })
+  } catch (e) {
+    console.log(e)
+    return e
   }
 }

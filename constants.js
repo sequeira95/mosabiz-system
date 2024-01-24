@@ -33,7 +33,8 @@ export const keyActivosFijos = {
   tipo: 'Tipo',
   unidad: 'Unidad',
   cantidad: 'Cantidad',
-  vidaUtil: 'Vida útil'
+  vidaUtil: 'Vida útil',
+  comprobanteRegistroActivo: 'Comprobante de registro de activo'
 }
 export const collectionNameClient = [
   'ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios', 'categorias',

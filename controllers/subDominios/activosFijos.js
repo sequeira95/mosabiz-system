@@ -863,7 +863,9 @@ export const datosInicualesDepreciacion = async (req, res) => {
       // if (fechaAddVidaUtil.startOf('month') < moment().subtract(1, 'month').startOf('month')) continue
       console.log({ fecha1: calculo?.fechaAdquisicion, vida: calculo.vidaUtil, fecha2: fechaAddVidaUtil, actual: moment().subtract(1, 'month').startOf('month') })
       const calculoMensual = calculo?.montoAdquision / (calculo?.vidaUtil * 12)
-      const mesesTranscurrido = moment(mesAnteriorPeriodo).diff(calculo?.fechaAdquisicion, 'months')
+      let mesesTranscurrido = moment(mesAnteriorPeriodo).diff(calculo?.fechaAdquisicion, 'months')
+      const mesesVidaUtil = calculo?.vidaUtil * 12
+      if (mesesVidaUtil <= mesesTranscurrido) mesesTranscurrido = mesesVidaUtil
       console.log({ calculoMensual, mesesTranscurrido })
       if (mesesTranscurrido <= 0) continue
       totalAcumuladoCalculo += calculoMensual * mesesTranscurrido

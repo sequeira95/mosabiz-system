@@ -4,7 +4,7 @@ import { deleteCategorias, getCategorias, saveCategoriaToArray, saveCategorias }
 
 const router = express.Router()
 
-router.post('/get/activoFijo', requireSubDominioToken, getCategorias)
+router.post('/get', requireSubDominioToken, getCategorias)
 router.post('/save', requireSubDominioToken, saveCategorias)
 router.post('/delete', requireSubDominioToken, deleteCategorias)
 router.post('/saveToArray', requireSubDominioToken, saveCategoriaToArray)

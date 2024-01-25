@@ -18,14 +18,34 @@ export const nivelesCodigoByLength = {
   11: 5,
   14: 6
 }
+export const getParentCode = (code) => {
+  const nivel = nivelesCodigoByLength[String(code).length]
+  const length = lengthCodigoByNiveles[nivel - 1]
+  const parentCode = String(code).slice(0, length)
+  return parentCode
+}
+
 export const statusOptionsPeriodos = {
   activo: 'Activo',
   preCierre: 'Pre-cierre',
   cerrado: 'Cerrado'
 }
+export const keyActivosFijos = {
+  fechaAdquisicion: 'Fecha adquisición',
+  zona: 'Zona',
+  categoria: 'Categoría',
+  nombre: 'Nombre',
+  codigo: 'Código',
+  descripcion: 'Descripción',
+  tipo: 'Tipo',
+  unidad: 'Unidad',
+  cantidad: 'Cantidad',
+  vidaUtil: 'Vida útil',
+  comprobanteRegistroActivo: 'Comprobante de registro de activo'
+}
 export const collectionNameClient = [
   'ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios', 'categorias',
-  'zonas', 'categoriaPorZona'
+  'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos', 'contadores', 'movimientos', 'detalleMovimientos'
 ]
 export const ListIndexesClient = [
   {

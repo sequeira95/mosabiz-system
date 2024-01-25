@@ -1,14 +1,35 @@
 import { ObjectId } from 'mongodb'
-import { bulkWriteSD, deleteItemSD, getCollectionSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
+import { subDominioName } from '../../constants.js'
 
 export const getCategorias = async (req, res) => {
   const { clienteId, tipo } = req.body
   try {
-    const categorias = await getCollectionSD({
+    const activosFijosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'activosFijos' })
+    const categorias = await agreggateCollectionsSD({
       nameCollection: 'categorias',
       enviromentClienteId: clienteId,
-      filters: { tipo }
+      pipeline: [
+        { $match: { tipo } },
+        {
+          $lookup: {
+            from: activosFijosCollection,
+            localField: '_id',
+            foreignField: 'categoria',
+            as: 'detalleActivoFijo'
+          }
+        },
+        {
+          $project: {
+            nombre: 1,
+            tipo: 1,
+            vidaUtil: 1,
+            observacion: 1,
+            hasActivo: { $size: '$detalleActivoFijo' }
+          }
+        }
+      ]
     })
     return res.status(200).json({ categorias })
   } catch (e) {
@@ -17,7 +38,7 @@ export const getCategorias = async (req, res) => {
   }
 }
 export const saveCategorias = async (req, res) => {
-  const { _id, clienteId, nombre, observacion, tipo, fechaCreacion } = req.body
+  const { _id, clienteId, nombre, observacion, tipo, fechaCreacion, vidaUtil } = req.body
   try {
     if (!_id) {
       const verifyCategoria = await getItemSD({
@@ -38,6 +59,7 @@ export const saveCategorias = async (req, res) => {
         $set: {
           nombre,
           observacion,
+          vidaUtil: Number(vidaUtil),
           fechaCreacion: fechaCreacion ? moment(fechaCreacion).toDate() : moment().toDate()
         }
       }
@@ -84,6 +106,8 @@ export const deleteCategorias = async (req, res) => {
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) }
     })
+    deleteManyItemsSD({ nameCollection: 'categoriaPorAlmacen', enviromentClienteId: clienteId, filters: { categoriaId: new ObjectId(_id) } })
+    deleteManyItemsSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, filters: { categoriaId: new ObjectId(_id) } })
     return res.status(200).json({ status: 'categoría eliminada exitosamente' })
   } catch (e) {
     console.log(e)

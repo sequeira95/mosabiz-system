@@ -1,6 +1,6 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, formatCollectionName, getItemSD } from './dataBaseConfing.js'
-import { subDominioName } from '../constants.js'
+import { agreggateCollectionsSD, formatCollectionName, getItemSD, getCollectionSD } from './dataBaseConfing.js'
+import { subDominioName, getParentCode } from '../constants.js'
 import { ObjectId } from 'mongodb'
 
 export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta }) {
@@ -602,7 +602,8 @@ export async function dataComprobantes ({ clienteId, periodoId, order, comproban
                       documento: '$docReferenciaAux',
                       descripcion: '$descripcion',
                       debe: '$debe',
-                      haber: '$haber'
+                      haber: '$haber',
+                      tercero: '$terceroNombre'
                     }
                   }
                 }
@@ -950,7 +951,7 @@ export async function dataLibroMayor ({ clienteId, periodoId, fecha, nivel, cuen
             saldoAnterior: 1,
             debe: 1,
             haber: 1,
-            saldo: { $subtract: ['$saldoAnterior', '$saldosIniciales', '$saldo'] },
+            saldo: { $sum: ['$saldoAnterior', '$saldosIniciales', '$saldo'] },
             preSaldo: '$saldo'
           }
         },
@@ -964,9 +965,11 @@ export async function dataLibroMayor ({ clienteId, periodoId, fecha, nivel, cuen
   }
 }
 export async function datosESF ({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos }) {
-  const cuentasValidas = (await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })).grupoESF
-  const regexOr = `^(${cuentasValidas.join('|')})`
-  const fechaInit = moment(fecha, 'YYYY/MM').startOf('month').toDate()
+  const ajustesContables = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
+  const cuentaISLR = ajustesContables?.cuentaISLR || ''
+  const cuentaIdEjercicioActual = ajustesContables?.cuentaSuperAvitOperdidaActual || ''
+  const regexOr = '^(1|2|3)'
+  // const fechaInit = moment(fecha, 'YYYY/MM').startOf('month').toDate()
   const fechaEnd = moment(fecha, 'YYYY/MM').endOf('month').toDate()
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   // const matchSinMovimientos = cuentaSinMovimientos ? {} : { $match: { debe: { $gt: 0 }, haber: { $gt: 0 } } }
@@ -982,7 +985,7 @@ export async function datosESF ({ clienteId, periodoId, fecha, nivel, cuentaSinM
         {
           $lookup: {
             from: detalleComprobanteCollectionName,
-            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*'] }, nivelCuenta: '$nivelCuenta' },
+            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*'] } },
             pipeline: [
               {
                 $match: {
@@ -993,7 +996,7 @@ export async function datosESF ({ clienteId, periodoId, fecha, nivel, cuentaSinM
                       $and:
                       [
                         { $eq: ['$periodoId', new ObjectId(periodoId)] },
-                        { $gte: ['$fecha', fechaInit] },
+                        // { $gte: ['$fecha', fechaInit] },
                         { $lte: ['$fecha', fechaEnd] },
                         {
                           $regexMatch:
@@ -1027,32 +1030,45 @@ export async function datosESF ({ clienteId, periodoId, fecha, nivel, cuentaSinM
         },
         { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: cuentaSinMovimientos } },
         {
+          $group: {
+            _id: '$_id',
+            codigo: { $first: '$codigo' },
+            descripcion: { $first: '$descripcion' },
+            nivelCuenta: { $first: '$nivelCuenta' },
+            debe: { $sum: '$detalleComprobantes.debe' },
+            haber: { $sum: '$detalleComprobantes.haber' },
+            saldo: { $sum: '$detalleComprobantes.saldo' }
+          }
+        },
+        { $sort: { codigo: 1 } }
+      ]
+    })
+    if (!cuentaIdEjercicioActual) return { dataCuentas }
+    const regexEjercicoActual = '^(4|5|6|7)'
+    const dataEjercicoActual = await agreggateCollectionsSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            nivelCuenta: { $eq: nivel },
+            $or: [
+              { codigo: { $regex: regexEjercicoActual, $options: 'i' } },
+              { _id: new ObjectId(cuentaISLR) }
+            ]
+          }
+        },
+        {
           $lookup: {
             from: detalleComprobanteCollectionName,
             localField: '_id',
             foreignField: 'cuentaId',
-            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*'] }, nivelCuenta: '$nivelCuenta' },
+            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*'] } },
             pipeline: [
               {
                 $match: {
-                  // periodoId: new ObjectId(periodoId),
-                  // fecha: { $gte: fechaInit, $lte: fechaEnd },
-                  $expr:
-                    {
-                      $and:
-                      [
-                        { $eq: ['$periodoId', new ObjectId(periodoId)] },
-                        { $lte: ['$fecha', fechaInit] },
-                        {
-                          $regexMatch:
-                          {
-                            input: '$cuentaCodigo',
-                            regex: '$$cuentaCodigo',
-                            options: 'm'
-                          }
-                        }
-                      ]
-                    }
+                  periodoId: new ObjectId(periodoId),
+                  fecha: { $lte: fechaEnd }
                 }
               },
               {
@@ -1070,37 +1086,51 @@ export async function datosESF ({ clienteId, periodoId, fecha, nivel, cuentaSinM
                 }
               }
             ],
-            as: 'saldoAnterior'
+            as: 'detalleComprobantes'
           }
         },
-        { $unwind: { path: '$saldoAnterior', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$detalleComprobantes' } },
         {
           $group: {
-            _id: '$_id',
-            codigo: { $first: '$codigo' },
-            descripcion: { $first: '$descripcion' },
-            nivelCuenta: { $first: '$nivelCuenta' },
-            saldoAnterior: { $sum: '$saldoAnterior.saldo' },
-            debe: { $sum: '$detalleComprobantes.debe' },
-            haber: { $sum: '$detalleComprobantes.haber' },
-            saldo: { $sum: '$detalleComprobantes.saldo' }
+            _id: 0,
+            saldo: {
+              $sum: '$detalleComprobantes.saldo'
+            }
           }
-        },
-        {
-          $project: {
-            codigo: 1,
-            descripcion: 1,
-            nivelCuenta: 1,
-            saldoAnterior: 1,
-            debe: 1,
-            haber: 1,
-            // saldo: { $subtract: ['$saldoAnterior', '$saldo'] },
-            saldo: '$saldo'
-          }
-        },
-        { $sort: { codigo: 1 } }
+        }
       ]
     })
+    const cuentaEjercicioActual = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(cuentaIdEjercicioActual) } })
+    cuentaEjercicioActual.saldo = dataEjercicoActual[0]?.saldo || 0
+    // buscar cuentas grupos de la cuenta del ejercicio
+    const grupos = []
+    let grupoActual = cuentaEjercicioActual.codigo
+    let i = 0
+    while (grupoActual.length > 1) {
+      const padre = getParentCode(grupoActual)
+      grupoActual = padre
+      grupos.push(padre)
+      i++
+      if (i > 10) break
+    }
+    const cuentasPadreEjercicioActual = await getCollectionSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { codigo: { $in: grupos } } })
+    const noExisten = []
+    const dataCuentasbyCodigo = dataCuentas.reduce((acc, cur) => {
+      acc[cur.codigo] = cur
+      return acc
+    }, {})
+    for (const cuenta of cuentasPadreEjercicioActual) {
+      const existeCuenta = dataCuentasbyCodigo[cuenta.codigo]
+      if (existeCuenta) existeCuenta.saldo += cuentaEjercicioActual.saldo
+      else noExisten.push({ ...cuenta, saldo: cuentaEjercicioActual.saldo })
+    }
+    const existeCuenta = dataCuentasbyCodigo[cuentaEjercicioActual.codigo]
+    if (existeCuenta) existeCuenta.saldo += cuentaEjercicioActual.saldo
+    else noExisten.push(cuentaEjercicioActual)
+    if (noExisten.length > 0) {
+      dataCuentas.push(...noExisten)
+      dataCuentas.sort((a, b) => a.codigo.localeCompare(b.codigo))
+    }
     return { dataCuentas }
   } catch (e) {
     console.log(e)

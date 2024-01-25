@@ -18,6 +18,13 @@ export const nivelesCodigoByLength = {
   11: 5,
   14: 6
 }
+export const getParentCode = (code) => {
+  const nivel = nivelesCodigoByLength[String(code).length]
+  const length = lengthCodigoByNiveles[nivel - 1]
+  const parentCode = String(code).slice(0, length)
+  return parentCode
+}
+
 export const statusOptionsPeriodos = {
   activo: 'Activo',
   preCierre: 'Pre-cierre',

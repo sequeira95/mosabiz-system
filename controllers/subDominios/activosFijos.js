@@ -858,15 +858,19 @@ export const datosInicualesDepreciacion = async (req, res) => {
     let totalCalculosMensuales = 0
     const periodoActual = (await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })).fechaInicio
     const mesAnteriorPeriodo = moment(periodoActual).subtract(25, 'days').startOf('month')
+    console.log({ mesAnteriorPeriodo })
     for (const calculo of datosCalculosActivos) {
       // const fechaAddVidaUtil = moment(calculo?.fechaAdquisicion).add(calculo?.vidaUtil, 'years')
       // if (fechaAddVidaUtil.startOf('month') < moment().subtract(1, 'month').startOf('month')) continue
       // console.log({ fecha1: calculo?.fechaAdquisicion, vida: calculo.vidaUtil, fecha2: fechaAddVidaUtil, actual: moment().subtract(1, 'month').startOf('month') })
-      const calculoMensual = calculo?.montoAdquision / (calculo?.vidaUtil * 12)
-      let mesesTranscurrido = moment(mesAnteriorPeriodo).diff(calculo?.fechaAdquisicion, 'months')
+      const fechaAdquisicionMasMes = moment(calculo?.fechaAdquisicion).endOf('month').add(1, 'month')
+      let mesesTranscurrido = moment(mesAnteriorPeriodo).diff(fechaAdquisicionMasMes, 'months')
+      console.log({ fecha: calculo?.fechaAdquisicion, fechaAdquisicionMasMes, diff: moment(mesAnteriorPeriodo).diff(calculo?.fechaAdquisicion, 'months') })
       const mesesVidaUtil = calculo?.vidaUtil * 12
+      console.log({ mesesVidaUtil })
       if (mesesVidaUtil <= mesesTranscurrido) mesesTranscurrido = mesesVidaUtil
-      // console.log({ calculoMensual, mesesTranscurrido })
+      const calculoMensual = mesesVidaUtil <= mesesTranscurrido ? 0 : calculo?.montoAdquision / mesesVidaUtil
+      console.log({ calculoMensual, mesesTranscurrido, monto: calculo?.montoAdquision })
       if (mesesTranscurrido <= 0) continue
       totalAcumuladoCalculo += calculoMensual * mesesTranscurrido
       totalCalculosMensuales += calculoMensual
@@ -899,7 +903,6 @@ export const datosInicualesDepreciacion = async (req, res) => {
       depreciacionCalculos: totalAcumuladoCalculo + (totalCalculosMensuales * numberMonth),
       diferencia: totalAcumulado - (totalAcumuladoCalculo + (totalCalculosMensuales * numberMonth))
     })
-    console.log({ totalAcumuladoCalculo, totalCalculosMensuales })
     return res.status(200).json({ datosDepereciacion: newArray })
   } catch (e) {
     console.log(e)

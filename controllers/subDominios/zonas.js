@@ -253,23 +253,6 @@ export const saveCategoriasPorZonas = async (req, res) => {
   console.log(categoriasPorZona)
   try {
     saveCategoriasPorZona({ clienteId, tipo, categoriasPorZona, zonaId })
-    /* const bulkWrite = categoriasPorZona.map(e => {
-      return {
-        updateOne: {
-          filter: { categoriaId: new ObjectId(e.categoriaId), zonaId: new ObjectId(zonaId) },
-          update: {
-            $set: {
-              cuentaId: new ObjectId(e.cuentaId),
-              cuentaDepreciacionAcumulada: new ObjectId(e.cuentaDepreciacionAcumuladaId),
-              cuentaGastosDepreciacion: new ObjectId(e.cuentaGastosDepreciacionId),
-              tipo
-            }
-          },
-          upsert: true
-        }
-      }
-    })
-    await bulkWriteSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, pipeline: bulkWrite }) */
     return res.status(200).json({ status: 'Categorias guardadas exitosamente' })
   } catch (e) {
     console.log(e)

@@ -18,6 +18,21 @@ export const nivelesCodigoByLength = {
   11: 5,
   14: 6
 }
+export const ObjectNumbersMonths = {
+  ENERO: 1,
+  FEBRERO: 2,
+  MARZO: 3,
+  ABRIL: 4,
+  MAYO: 5,
+  JUNIO: 6,
+  JULIO: 7,
+  AGOSTO: 8,
+  SEPTIEMBRE: 9,
+  OCTUBRE: 10,
+  NOVIEMBRE: 11,
+  DICIEMBRE: 12
+
+}
 export const getParentCode = (code) => {
   const nivel = nivelesCodigoByLength[String(code).length]
   const length = lengthCodigoByNiveles[nivel - 1]
@@ -45,7 +60,8 @@ export const keyActivosFijos = {
 }
 export const collectionNameClient = [
   'ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios', 'categorias',
-  'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos', 'contadores', 'movimientos', 'detalleMovimientos'
+  'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos', 'contadores', 'movimientos', 'detalleMovimientos',
+  'productosPorAlmacen'
 ]
 export const ListIndexesClient = [
   {

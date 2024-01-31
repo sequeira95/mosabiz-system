@@ -48,7 +48,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
     { $unwind: '$comprobanteName' }
     )
   }
-  console.log({ configMatch })
+  // console.log({ configMatch })
   try {
     const detallesComprobantes = await agreggateCollectionsSD({
       nameCollection: 'detallesComprobantes',
@@ -87,7 +87,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
         ]
       })
     let detalleIndex = -1
-    console.log({ search })
+    // console.log({ search })
     let detalleall
     if (search.detalleId) {
       const detalle = await agreggateCollectionsSD(
@@ -110,7 +110,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
             }
           ]
         })
-      console.log({ detalle })
+      // console.log({ detalle })
       detalleall = await agreggateCollectionsSD(
         {
           nameCollection: 'detallesComprobantes',
@@ -119,7 +119,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
             { $match: configMatch }
           ]
         })
-      console.log({ detalleall })
+      // console.log({ detalleall })
       detalleIndex = detalle[0]?.index ?? -1
     }
     return ({ detalleall, detallesComprobantes, cantidad: datosExtras[0]?.count, totalDebe: datosExtras[0]?.debe, totalHaber: datosExtras[0]?.haber, detalleIndex })

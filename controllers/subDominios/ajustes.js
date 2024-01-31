@@ -40,6 +40,13 @@ export const upsertAjusteCliente = async (req, res) => {
   if (ajuste._id) delete ajuste._id
   if (ajuste.puedeRecibir && ajuste.puedeRecibir[0]) ajuste.puedeRecibir = ajuste.puedeRecibir.map(puedeRecibir => new ObjectId(puedeRecibir._id))
   if (ajuste.puedeCrear && ajuste.puedeCrear[0]) ajuste.puedeCrear = ajuste.puedeCrear.map(puedeCrear => new ObjectId(puedeCrear._id))
+  if (ajuste.puedeCrearProductos && ajuste.puedeCrearProductos[0]) ajuste.puedeCrearProductos = ajuste.puedeCrearProductos.map(puedeCrearProductos => new ObjectId(puedeCrearProductos._id))
+  if (ajuste.puedeEditarProductos && ajuste.puedeEditarProductos[0]) ajuste.puedeEditarProductos = ajuste.puedeEditarProductos.map(puedeEditarProductos => new ObjectId(puedeEditarProductos._id))
+  if (ajuste.puedeAgregarEditarCantidadesCostos && ajuste.puedeAgregarEditarCantidadesCostos[0]) ajuste.puedeAgregarEditarCantidadesCostos = ajuste.puedeAgregarEditarCantidadesCostos.map(puedeAgregarEditarCantidadesCostos => new ObjectId(puedeAgregarEditarCantidadesCostos._id))
+  if (ajuste.puedeImportarProductos && ajuste.puedeImportarProductos[0]) ajuste.puedeImportarProductos = ajuste.puedeImportarProductos.map(puedeImportarProductos => new ObjectId(puedeImportarProductos._id))
+  if (ajuste.puedeEnviarMercancia && ajuste.puedeEnviarMercancia[0]) ajuste.puedeEnviarMercancia = ajuste.puedeEnviarMercancia.map(puedeEnviarMercancia => new ObjectId(puedeEnviarMercancia._id))
+  if (ajuste.cuentaPerdidasAjusteInventario && ajuste.cuentaPerdidasAjusteInventario._id) ajuste.cuentaPerdidasAjusteInventario = new ObjectId(ajuste.cuentaPerdidasAjusteInventario._id)
+  if (ajuste.cuentaUtilidadAjusteInventario && ajuste.cuentaUtilidadAjusteInventario._id) ajuste.cuentaUtilidadAjusteInventario = ajuste.cuentaUtilidadAjusteInventario = new ObjectId(ajuste.cuentaUtilidadAjusteInventario._id)
   if (!clienteId) return res.status(400).json({ error: 'Falta el cliente' })
   try {
     if (!ajuste.fechaCreacion) ajuste.fechaCreacion = moment().toDate()

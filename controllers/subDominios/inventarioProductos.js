@@ -2,6 +2,7 @@ import { ObjectId } from 'mongodb'
 import { agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 import moment from 'moment'
+import { hasContabilidad } from '../../utils/hasContabilidad.js'
 
 export const getProductos = async (req, res) => {
   const { clienteId } = req.body
@@ -29,18 +30,18 @@ export const getProductos = async (req, res) => {
             pipeline: [
               {
                 $group: {
-                  _id: '$tipo',
+                  _id: '$tipoMovimiento',
                   entrada: {
                     $sum: {
                       $cond: {
-                        if: { $eq: ['$tipo', 'entrada'] }, then: '$cantidad', else: 0
+                        if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
                       }
                     }
                   },
                   salida: {
                     $sum: {
                       $cond: {
-                        if: { $eq: ['$tipo', 'salida'] }, then: '$cantidad', else: 0
+                        if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
                       }
                     }
                   }
@@ -74,7 +75,7 @@ export const getProductos = async (req, res) => {
     return res.status(200).json({ productos })
   } catch (e) {
     console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de obtner datos de los activo fijos' + e.message })
+    return res.status(500).json({ error: 'Error de servidor al momento de obtner datos de los productos' + e.message })
   }
 }
 export const saveProducto = async (req, res) => {
@@ -113,10 +114,13 @@ export const saveProducto = async (req, res) => {
             cantidad: Number(e.cantidad),
             almacenDestino: e.almacen._id ? new ObjectId(e.almacen._id) : null,
             almacenDestinoNombre: e.almacen._id ? e.almacen.nombre : null,
-            almacenOrigen: e.almacen._id ? new ObjectId(e.almacen._id) : null,
-            almacenOrigenNombre: e.almacen._id ? e.almacen.nombre : null,
-            tipo: 'entrada',
+            almacenId: e.almacen._id ? new ObjectId(e.almacen._id) : null,
+            // almacenOrigen: e.almacen._id ? new ObjectId(e.almacen._id) : null,
+            // almacenOrigenNombre: e.almacen._id ? e.almacen.nombre : null,
+            tipo: 'inicial',
+            tipoMovimiento: 'entrada',
             productoId: producto._id,
+            costoUnitario: Number(e.costoUnitario),
             fechaMovimiento: moment().toDate()
           }
         })
@@ -168,5 +172,99 @@ export const saveToArray = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar los productos ' + e.message })
+  }
+}
+export const getDetalleCantidad = async (req, res) => {
+  const { clienteId, productoId } = req.body
+  try {
+    const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const cantidadPorALmacen = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { productoId: new ObjectId(productoId) } },
+        {
+          $group: {
+            _id: '$almacenId',
+            entrada: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                }
+              }
+            },
+            salida: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                }
+              }
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: almacenesCollection,
+            localField: '_id',
+            foreignField: '_id',
+            as: 'detalleAlmacen'
+          }
+        },
+        { $unwind: { path: '$detalleAlmacen', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            cantidad: { $subtract: ['$entrada', '$salida'] },
+            almacenNombre: '$detalleAlmacen.nombre',
+            entrada: '$entrada',
+            salida: '$salida'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ cantidadPorALmacen })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtner el detalle del producto' + e.message })
+  }
+}
+export const getListCostos = async (req, res) => {
+  const { clienteId, productoId, almacenId } = req.body
+  try {
+    const costosPorAlmacen = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { productoId: new ObjectId(productoId), almacenId: new ObjectId(almacenId) } },
+        {
+          $group: {
+            _id: '$costoUnitario',
+            entrada: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                }
+              }
+            },
+            salida: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                }
+              }
+            }
+          }
+        },
+        {
+          $project: {
+            cantidad: { $subtract: ['$entrada', '$salida'] },
+            costosUnitarios: '$_id'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ costosPorAlmacen })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtner la listas de costos del almacen' + e.message })
   }
 }

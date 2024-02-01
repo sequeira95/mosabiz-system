@@ -56,6 +56,68 @@ export const getDataMovimientos = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de bucar datos de los movimientos ' + e.message })
   }
 }
+export const getMovimientosAjustes = async (req, res) => {
+  const { clienteId } = req.body
+  try {
+    const productosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+    const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const personasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'personas' })
+    const movimientosAjustes = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo: { $in: ['inicial', 'ajuste'] } } },
+        {
+          $lookup: {
+            from: productosCollection,
+            localField: 'productoId',
+            foreignField: '_id',
+            as: 'detalleProducto'
+          }
+        },
+        { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: personasCollection,
+            localField: 'creadoPor',
+            foreignField: 'usuarioId',
+            as: 'detallePersona'
+          }
+        },
+        { $unwind: { path: '$detallePersona', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: almacenCollection,
+            localField: 'almacenId',
+            foreignField: '_id',
+            as: 'detalleAlmacen'
+          }
+        },
+        { $unwind: { path: '$detalleAlmacen', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            cantidad: '$cantidad',
+            almacenId: '$almacenId',
+            almacenNombre: '$detalleAlmacen.nombre',
+            productoId: '$productoId',
+            productoNombre: '$detalleProducto.nombre',
+            codigoProducto: '$detalleProducto.codigo',
+            tipo: '$tipo',
+            costoUnitario: '$costoUnitario',
+            fechaMovimiento: '$fechaMovimiento',
+            tipoMovimiento: '$tipoMovimiento',
+            creadoPor: '$detallePersona.nombre'
+          }
+        },
+        { $sort: { fechaMovimiento: -1 } }
+      ]
+    })
+    return res.status(200).json({ movimientosAjustes })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de bucar datos de los movimientos ' + e.message })
+  }
+}
 export const createMovimientos = async (req, res) => {
   const { clienteId, movimiento, estado, detalleMovimiento } = req.body
   try {
@@ -140,11 +202,11 @@ export const updateEstadoMovimiento = async (req, res) => {
     let descripcion = ''
     if (estado === 'recepcionPendiente') {
       descripcion = 'Cambió estado a pendiente por recibir'
-      updateMovimientoSalida({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId })
+      updateMovimientoSalida({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid: req.uid })
     }
     if (estado === 'recibido') {
       descripcion = 'Cambió estado a recibido'
-      updateMovimientoEntrada({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId })
+      updateMovimientoEntrada({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid: req.uid })
     }
     if (estado === 'recibido') {
       const newDetalle = detalleMovimientos.map(e => {
@@ -197,7 +259,7 @@ export const cancelarMovimiento = async (req, res) => {
         categoria: 'editado',
         tipo: 'Movimiento',
         fecha: moment().toDate(),
-        descripcion: `Movimiento ${movimiento.movimiento} cancelado`
+        descripcion: `Movimiento ${movimiento.numeroMovimiento} cancelado`
       }
     })
     return res.status(200).json({ status: 'Movimiento cancelado exitosamente' })
@@ -206,7 +268,7 @@ export const cancelarMovimiento = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de cancelar el movimiento ' + e.message })
   }
 }
-const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId }) => {
+const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid }) => {
   // console.log({ detalleMovimientos, almacenOrigen, almacenDestino })
   const detallesCrear = []
   for (const detalle of detalleMovimientos) {
@@ -262,7 +324,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           tipo: 'movimiento',
           tipoMovimiento: 'salida',
           fechaMovimiento: moment().toDate(),
-          costoUnitario: movimientos.costoUnitario
+          costoUnitario: movimientos.costoUnitario,
+          creadoPor: new ObjectId(uid)
         })
         detalle.cantidad -= movimientos.cantidad
         continue
@@ -278,7 +341,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           tipo: 'movimiento',
           tipoMovimiento: 'salida',
           fechaMovimiento: moment().toDate(),
-          costoUnitario: movimientos.costoUnitario
+          costoUnitario: movimientos.costoUnitario,
+          creadoPor: new ObjectId(uid)
         })
         detalle.cantidad = 0
         break
@@ -291,7 +355,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
     items: detallesCrear
   })
 }
-const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId }) => {
+const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid }) => {
   const detallesCrear = []
   for (const detalle of detalleMovimientos) {
     console.log(detalle)
@@ -315,7 +379,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           tipo: 'movimiento',
           tipoMovimiento: 'entrada',
           fechaMovimiento: moment().toDate(),
-          costoUnitario: movimientos.costoUnitario
+          costoUnitario: movimientos.costoUnitario,
+          creadoPor: new ObjectId(uid)
         })
         detalle.cantidadRecibido -= movimientos.cantidad
         continue
@@ -331,7 +396,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           tipo: 'movimiento',
           tipoMovimiento: 'entrada',
           fechaMovimiento: moment().toDate(),
-          costoUnitario: movimientos.costoUnitario
+          costoUnitario: movimientos.costoUnitario,
+          creadoPor: new ObjectId(uid)
         })
         detalle.cantidadRecibido = 0
         break

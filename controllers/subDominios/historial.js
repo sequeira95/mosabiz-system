@@ -2,14 +2,18 @@ import { ObjectId } from 'mongodb'
 import { agreggateCollectionsSD, formatCollectionName } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 export const getHistorial = async (req, res) => {
-  const { clienteId, productoId, tipo } = req.body
+  const { clienteId, productoId, tipo, idMovimiento } = req.body
+  console.log(req.body, 1)
+  let matchTipo = {}
+  if (productoId) matchTipo = { idProducto: new ObjectId(productoId) }
+  if (idMovimiento) matchTipo = { idMovimiento: new ObjectId(idMovimiento) }
   try {
     const personasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const historial = await agreggateCollectionsSD({
       nameCollection: 'historial',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { idProducto: new ObjectId(productoId), tipo } },
+        { $match: { ...matchTipo, tipo } },
         {
           $lookup: {
             from: personasCollection,

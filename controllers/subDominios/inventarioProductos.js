@@ -128,7 +128,8 @@ export const saveProducto = async (req, res) => {
             tipoMovimiento: 'entrada',
             productoId: producto._id,
             costoUnitario: Number(e.costoUnitario),
-            fechaMovimiento: moment().toDate()
+            fechaMovimiento: moment().toDate(),
+            creadoPor: new ObjectId(req.uid)
           }
         })
         createManyItemsSD({ nameCollection: 'productosPorAlmacen', enviromentClienteId: clienteId, items: datosParaAlmacen })
@@ -288,7 +289,8 @@ export const saveAjusteAlmacen = async (req, res) => {
         costoUnitario: Number(costoUnitario),
         tipoMovimiento: 'entrada',
         tipo: 'ajuste',
-        almacenDestino: new ObjectId(almacen._id)
+        almacenDestino: new ObjectId(almacen._id),
+        creadoPor: new ObjectId(req.uid)
       }
     })
     if (await hasContabilidad({ clienteId })) {

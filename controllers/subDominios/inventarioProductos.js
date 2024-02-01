@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 import moment from 'moment'
 import { hasContabilidad } from '../../utils/hasContabilidad.js'
@@ -266,5 +266,46 @@ export const getListCostos = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtner la listas de costos del almacen' + e.message })
+  }
+}
+export const saveAjusteAlmacen = async (req, res) => {
+  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo } = req.body
+  if (tipo === 'Ingreso') {
+    const newMovimiento = await createItemSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      item: {
+        productoId: new ObjectId(productoId),
+        almacenId: new ObjectId(almacen._id),
+        cantidad: Number(cantidad),
+        costoUnitario: Number(costoUnitario),
+        tipoMovimiento: 'entrada',
+        tipo: 'ajuste',
+        almacenDestino: new ObjectId(almacen._id)
+      }
+    })
+    if (await hasContabilidad({ clienteId })) {
+      // aquí va la contabilidad preguntar en que comprobante iria el ajuste
+    }
+    return res.status(200).json({ status: 'Ajuste guardado exitosamente' })
+  }
+  if (tipo === 'Salida') {
+    const newMovimiento = await createItemSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      item: {
+        productoId: new ObjectId(productoId),
+        almacenId: new ObjectId(almacen._id),
+        cantidad: Number(cantidad),
+        costoUnitario: Number(costoUnitario.costosUnitarios),
+        tipoMovimiento: 'salida',
+        tipo: 'ajuste',
+        almacenOrigen: new ObjectId(almacen._id)
+      }
+    })
+    if (await hasContabilidad({ clienteId })) {
+      // aquí va la contabilidad preguntar en que comprobante iria el ajuste
+    }
+    return res.status(200).json({ status: 'Ajuste guardado exitosamente' })
   }
 }

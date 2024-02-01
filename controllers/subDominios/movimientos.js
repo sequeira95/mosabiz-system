@@ -125,6 +125,11 @@ export const updateEstadoMovimiento = async (req, res) => {
     }
     if (estado === 'recibido') {
       updateMovimiento.fechaEntrega = moment(fechaEntrega).toDate()
+      if (detalleMovimientos.every(e => e.cantidad === e.cantidadRecibido)) {
+        updateMovimiento.estadoRecepcion = 'Satisfactorio'
+      } else {
+        updateMovimiento.estadoRecepcion = 'Con diferencia'
+      }
     }
     await updateItemSD({
       nameCollection: 'movimientos',

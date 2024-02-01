@@ -32,7 +32,7 @@ export const getProductos = async (req, res) => {
               { $match: { ...matchAlmacen } },
               {
                 $group: {
-                  _id: '$tipoMovimiento',
+                  _id: '$productoId',
                   entrada: {
                     $sum: {
                       $cond: {

@@ -116,7 +116,7 @@ export const createMovimientos = async (req, res) => {
   }
 }
 export const updateEstadoMovimiento = async (req, res) => {
-  const { _id, clienteId, estado, fechaEnvio, fechaRecepcionEstimada, detalleMovimientos, fechaEntrega } = req.body
+  const { _id, clienteId, estado, fechaEnvio, fechaRecepcionEstimada, detalleMovimientos, fechaEntrega, almacenOrigen, almacenDestino } = req.body
   try {
     const updateMovimiento = {}
     if (estado === 'recepcionPendiente') {
@@ -133,8 +133,14 @@ export const updateEstadoMovimiento = async (req, res) => {
       update: { $set: { estado, ...updateMovimiento } }
     })
     let descripcion = ''
-    if (estado === 'recepcionPendiente') descripcion = 'Cambió estado a pendiente por recibir'
-    if (estado === 'recibido') descripcion = 'Cambió estado a recibido'
+    if (estado === 'recepcionPendiente') {
+      descripcion = 'Cambió estado a pendiente por recibir'
+      updateMovimientoSalida({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId })
+    }
+    if (estado === 'recibido') {
+      descripcion = 'Cambió estado a recibido'
+      updateMovimientoEntrada({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId })
+    }
     if (estado === 'recibido') {
       const newDetalle = detalleMovimientos.map(e => {
         return {
@@ -194,4 +200,143 @@ export const cancelarMovimiento = async (req, res) => {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de cancelar el movimiento ' + e.message })
   }
+}
+const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId }) => {
+  // console.log({ detalleMovimientos, almacenOrigen, almacenDestino })
+  const detallesCrear = []
+  for (const detalle of detalleMovimientos) {
+    const datosMovivientoPorProducto = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { productoId: new ObjectId(detalle.productoId), almacenId: new ObjectId(almacenOrigen._id) } },
+        {
+          $group: {
+            _id: {
+              costoUnitario: '$costoUnitario',
+              fechaMovimiento: '$fechaMovimiento'
+            },
+            entrada: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                }
+              }
+            },
+            salida: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                }
+              }
+            }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            costoUnitario: '$_id.costoUnitario',
+            fechaMovimiento: '$_id.fechaMovimiento',
+            cantidad: { $subtract: ['$entrada', '$salida'] } // cantidad de producto en el almacen de origen
+          }
+        },
+        { $sort: { fechaMovimiento: 1 } }
+      ]
+    })
+    console.log({ datosMovivientoPorProducto })
+    for (const movimientos of datosMovivientoPorProducto) {
+      if (detalle.cantidad === 0) break
+      if (detalle.cantidad >= movimientos.cantidad) {
+        detallesCrear.push({
+          productoId: new ObjectId(detalle.productoId),
+          movimientoId: new ObjectId(detalle.movimientoId),
+          cantidad: Number(movimientos.cantidad),
+          almacenId: new ObjectId(almacenOrigen._id),
+          almacenOrigen: new ObjectId(almacenOrigen._id),
+          almacenDestino: new ObjectId(almacenDestino._id),
+          tipo: 'movimiento',
+          tipoMovimiento: 'salida',
+          fechaMovimiento: moment().toDate(),
+          costoUnitario: movimientos.costoUnitario
+        })
+        detalle.cantidad -= movimientos.cantidad
+        continue
+      }
+      if (detalle.cantidad < movimientos.cantidad) {
+        detallesCrear.push({
+          productoId: new ObjectId(detalle.productoId),
+          movimientoId: new ObjectId(detalle.movimientoId),
+          cantidad: Number(detalle.cantidad),
+          almacenId: new ObjectId(almacenOrigen._id),
+          almacenOrigen: new ObjectId(almacenOrigen._id),
+          almacenDestino: new ObjectId(almacenDestino._id),
+          tipo: 'movimiento',
+          tipoMovimiento: 'salida',
+          fechaMovimiento: moment().toDate(),
+          costoUnitario: movimientos.costoUnitario
+        })
+        detalle.cantidad = 0
+        break
+      }
+    }
+  }
+  createManyItemsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    items: detallesCrear
+  })
+}
+const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId }) => {
+  const detallesCrear = []
+  for (const detalle of detalleMovimientos) {
+    console.log(detalle)
+    const detallesMovimientosPorProducto = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { productoId: new ObjectId(detalle.productoId), movimientoId: new ObjectId(detalle.movimientoId), tipoMovimiento: 'salida' } }
+      ]
+    })
+    for (const movimientos of detallesMovimientosPorProducto) {
+      if (detalle.cantidadRecibido === 0) break
+      if (detalle.cantidadRecibido >= movimientos.cantidad) {
+        detallesCrear.push({
+          productoId: new ObjectId(detalle.productoId),
+          movimientoId: new ObjectId(detalle.movimientoId),
+          cantidad: Number(movimientos.cantidad),
+          almacenId: new ObjectId(almacenDestino._id),
+          almacenOrigen: new ObjectId(almacenOrigen._id),
+          almacenDestino: new ObjectId(almacenDestino._id),
+          tipo: 'movimiento',
+          tipoMovimiento: 'entrada',
+          fechaMovimiento: moment().toDate(),
+          costoUnitario: movimientos.costoUnitario
+        })
+        detalle.cantidadRecibido -= movimientos.cantidad
+        continue
+      }
+      if (detalle.cantidadRecibido < movimientos.cantidad) {
+        detallesCrear.push({
+          productoId: new ObjectId(detalle.productoId),
+          movimientoId: new ObjectId(detalle.movimientoId),
+          cantidad: Number(detalle.cantidadRecibido),
+          almacenId: new ObjectId(almacenDestino._id),
+          almacenOrigen: new ObjectId(almacenOrigen._id),
+          almacenDestino: new ObjectId(almacenDestino._id),
+          tipo: 'movimiento',
+          tipoMovimiento: 'entrada',
+          fechaMovimiento: moment().toDate(),
+          costoUnitario: movimientos.costoUnitario
+        })
+        detalle.cantidadRecibido = 0
+        break
+      }
+    }
+    console.log({ detallesMovimientosPorProducto })
+  }
+  createManyItemsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    items: detallesCrear
+  })
 }

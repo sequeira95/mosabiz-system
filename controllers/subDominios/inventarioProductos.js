@@ -5,10 +5,11 @@ import moment from 'moment'
 import { hasContabilidad } from '../../utils/hasContabilidad.js'
 
 export const getProductos = async (req, res) => {
-  const { clienteId } = req.body
+  const { clienteId, almacenOrigen } = req.body
   try {
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+    const matchAlmacen = almacenOrigen ? { almacenId: new ObjectId(almacenOrigen) } : {}
     const productos = await agreggateCollectionsSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
@@ -28,6 +29,7 @@ export const getProductos = async (req, res) => {
             localField: '_id',
             foreignField: 'productoId',
             pipeline: [
+              { $match: { ...matchAlmacen } },
               {
                 $group: {
                   _id: '$tipoMovimiento',
@@ -49,7 +51,9 @@ export const getProductos = async (req, res) => {
               },
               {
                 $project: {
-                  cantidad: { $subtract: ['$entrada', '$salida'] }
+                  cantidad: { $subtract: ['$entrada', '$salida'] },
+                  entrada: '$entrada',
+                  salida: '$salida'
                 }
               }
             ],
@@ -66,9 +70,12 @@ export const getProductos = async (req, res) => {
             categoriaId: '$categoria',
             categoria: '$detalleCategoria.nombre',
             observacion: '$observacion',
-            cantidad: '$detalleCantidadProducto.cantidad'
+            cantidad: '$detalleCantidadProducto.cantidad',
+            entrada: '$detalleCantidadProducto.entrada',
+            salida: '$detalleCantidadProducto.salida'
           }
-        }
+        },
+        { $match: { cantidad: { $gt: 0 } } }
       ]
     })
     console.log(productos)

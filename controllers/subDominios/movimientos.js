@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { subDominioName } from '../../constants.js'
 export const getDataMovimientos = async (req, res) => {
@@ -250,6 +250,7 @@ export const cancelarMovimiento = async (req, res) => {
       filters: { _id: new ObjectId(movimientoId) },
       update: { $set: { estado: 'Cancelado', observacion } }
     })
+    deleteManyItemsSD({ nameCollection: 'productosPorAlmacen', enviromentClienteId: clienteId, filters: { movimientoId: new ObjectId(movimientoId) } })
     createItemSD({
       nameCollection: 'historial',
       enviromentClienteId: clienteId,

@@ -876,6 +876,7 @@ export const datosInicualesDepreciacion = async (req, res) => {
       totalCalculosMensuales += calculoMensual
     }
     const numberMonth = fecha.getMonth() + 1
+    let totalDiferencia = 0
     for (const key in datosDepereciacion[0]) {
       if (key === '_id') continue
       totalAcumulado += datosDepereciacion[0][key]
@@ -884,10 +885,12 @@ export const datosInicualesDepreciacion = async (req, res) => {
       if (key === 'acumulado') {
         calculosDepreciacion = totalAcumuladoCalculo
         calculoDiferencia = datosDepereciacion[0][key] - totalAcumuladoCalculo
+        totalDiferencia += calculoDiferencia
       }
       if (key !== 'acumulado' && ObjectNumbersMonths[key] <= numberMonth) {
         calculosDepreciacion = totalCalculosMensuales
         calculoDiferencia = datosDepereciacion[0][key] - totalCalculosMensuales
+        totalDiferencia += calculoDiferencia
       }
       newArray.push({
         nombre: key === 'acumulado' ? 'Acumulado' : key,
@@ -901,7 +904,7 @@ export const datosInicualesDepreciacion = async (req, res) => {
       nombre: 'Total acumulado',
       depreciacionContabilidad: totalAcumulado,
       depreciacionCalculos: totalAcumuladoCalculo + (totalCalculosMensuales * numberMonth),
-      diferencia: totalAcumulado - (totalAcumuladoCalculo + (totalCalculosMensuales * numberMonth))
+      diferencia: totalDiferencia// totalAcumulado - (totalAcumuladoCalculo + (totalCalculosMensuales * numberMonth))
     })
     return res.status(200).json({ datosDepereciacion: newArray })
   } catch (e) {

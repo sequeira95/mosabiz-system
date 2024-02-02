@@ -277,9 +277,14 @@ export const getListCostos = async (req, res) => {
   }
 }
 export const saveAjusteAlmacen = async (req, res) => {
-  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo } = req.body
+  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo, periodoId } = req.body
+  const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
+  const tieneContabilidad = await hasContabilidad({ clienteId })
+  if (tieneContabilidad) {
+    if (ajusteInventario && !ajusteInventario.codigoComprobanteAjuste) return res.status(400).json({ error: 'No existe enm ajuste el codigo del comprobante para realizar ajuste' })
+  }
   if (tipo === 'Ingreso') {
-    const newMovimiento = await createItemSD({
+    await createItemSD({
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       item: {
@@ -293,13 +298,130 @@ export const saveAjusteAlmacen = async (req, res) => {
         creadoPor: new ObjectId(req.uid)
       }
     })
-    if (await hasContabilidad({ clienteId })) {
+    if (tieneContabilidad) {
       // aquí va la contabilidad preguntar en que comprobante iria el ajuste
+      // const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })
+      const mesPeriodo = moment().format('YYYY/MM')
+      let comprobante = await getItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: new ObjectId(periodoId), mesPeriodo }
+      })
+      if (!comprobante) {
+        comprobante = await upsertItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: new ObjectId(periodoId), mesPeriodo },
+          update: {
+            $set: {
+              nombre: 'Ajuste de inventario',
+              isBloqueado: false,
+              fechaCreacion: moment().toDate()
+            }
+          }
+        })
+      }
+      const categoriasPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
+      const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+      const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+      const dataParaDetalle = await agreggateCollectionsSD({
+        nameCollection: 'productos',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { _id: new ObjectId(productoId) } },
+          {
+            $lookup: {
+              from: categoriasCollection,
+              localField: 'categoria',
+              foreignField: '_id',
+              as: 'detalleCategoria'
+            }
+          },
+          { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: categoriasPorAlmacenCollection,
+              localField: 'categoria',
+              foreignField: 'categoriaId',
+              as: 'detalleCategoriaPorAlmacen'
+            }
+          },
+          { $unwind: { path: '$detalleCategoriaPorAlmacen', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: planCuentaCollection,
+              localField: 'detalleCategoria.cuentaId',
+              foreignField: '_id',
+              as: 'detalleCuenta'
+            }
+          },
+          { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              nombre: '$nombre',
+              codigo: '$codigo',
+              categoriaId: '$categoria',
+              categoria: '$detalleCategoria.nombre',
+              cuentaId: '$detalleCuenta._id',
+              cuentaNombre: '$detalleCuenta.descripcion',
+              cuentaCodigo: '$detalleCuenta.codigo'
+            }
+          }
+        ]
+      })
+      /* const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(productoId) } })
+      const cuentaPorAlmacen = await getItemSD({
+        nameCollection: 'categoriaPorAlmacen',
+        enviromentClienteId: clienteId,
+        filters: { almacenId: new ObjectId(almacen._id), categoriaId: producto.categoria }
+      }) */
+      const cuentaAjuste = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: ajusteInventario.cuentaUtilidadAjusteInventario } })
+      const detalleComprobante = [
+        {
+          cuentaId: dataParaDetalle[0].cuentaId,
+          cuentaCodigo: dataParaDetalle[0].cuentaCodigo,
+          cuentaNombre: dataParaDetalle[0].cuentaNombre,
+          comprobanteId: comprobante._id,
+          periodoId: new ObjectId(periodoId),
+          descripcion: `Ajuste de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
+          fecha: moment().toDate(),
+          debe: Number(cantidad) * Number(costoUnitario),
+          haber: 0,
+          fechaCreacion: moment().toDate(),
+          docReferenciaAux: 'AJUSTE',
+          documento: {
+            docReferencia: 'AJUSTE',
+            docFecha: moment().toDate()
+          }
+        },
+        {
+          cuentaId: cuentaAjuste._id,
+          cuentaCodigo: cuentaAjuste.codigo,
+          cuentaNombre: cuentaAjuste.descripcion,
+          comprobanteId: comprobante._id,
+          periodoId: new ObjectId(periodoId),
+          descripcion: `Ajuste de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
+          fecha: moment().toDate(),
+          debe: 0,
+          haber: Number(cantidad) * Number(costoUnitario),
+          fechaCreacion: moment().toDate(),
+          docReferenciaAux: 'AJUSTE',
+          documento: {
+            docReferencia: 'AJUSTE',
+            docFecha: moment().toDate()
+          }
+        }
+      ]
+      createManyItemsSD({
+        nameCollection: 'detalleComprobantes',
+        enviromentClienteId: clienteId,
+        items: detalleComprobante
+      })
     }
     return res.status(200).json({ status: 'Ajuste guardado exitosamente' })
   }
   if (tipo === 'Salida') {
-    const newMovimiento = await createItemSD({
+    await createItemSD({
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       item: {
@@ -312,8 +434,125 @@ export const saveAjusteAlmacen = async (req, res) => {
         almacenOrigen: new ObjectId(almacen._id)
       }
     })
-    if (await hasContabilidad({ clienteId })) {
+    if (tieneContabilidad) {
       // aquí va la contabilidad preguntar en que comprobante iria el ajuste
+      // const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })
+      const mesPeriodo = moment().format('YYYY/MM')
+      let comprobante = await getItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: new ObjectId(periodoId), mesPeriodo }
+      })
+      if (!comprobante) {
+        comprobante = await upsertItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: new ObjectId(periodoId), mesPeriodo },
+          update: {
+            $set: {
+              nombre: 'Ajuste de inventario',
+              isBloqueado: false,
+              fechaCreacion: moment().toDate()
+            }
+          }
+        })
+      }
+      const categoriasPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
+      const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+      const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+      const dataParaDetalle = await agreggateCollectionsSD({
+        nameCollection: 'productos',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { _id: new ObjectId(productoId) } },
+          {
+            $lookup: {
+              from: categoriasCollection,
+              localField: 'categoria',
+              foreignField: '_id',
+              as: 'detalleCategoria'
+            }
+          },
+          { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: categoriasPorAlmacenCollection,
+              localField: 'categoria',
+              foreignField: 'categoriaId',
+              as: 'detalleCategoriaPorAlmacen'
+            }
+          },
+          { $unwind: { path: '$detalleCategoriaPorAlmacen', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: planCuentaCollection,
+              localField: 'detalleCategoria.cuentaId',
+              foreignField: '_id',
+              as: 'detalleCuenta'
+            }
+          },
+          { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              nombre: '$nombre',
+              codigo: '$codigo',
+              categoriaId: '$categoria',
+              categoria: '$detalleCategoria.nombre',
+              cuentaId: '$detalleCuenta._id',
+              cuentaNombre: '$detalleCuenta.descripcion',
+              cuentaCodigo: '$detalleCuenta.codigo'
+            }
+          }
+        ]
+      })
+      /* const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(productoId) } })
+      const cuentaPorAlmacen = await getItemSD({
+        nameCollection: 'categoriaPorAlmacen',
+        enviromentClienteId: clienteId,
+        filters: { almacenId: new ObjectId(almacen._id), categoriaId: producto.categoria }
+      }) */
+      const cuentaAjuste = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: ajusteInventario.cuentaPerdidasAjusteInventario } })
+      const detalleComprobante = [
+        {
+          cuentaId: cuentaAjuste._id,
+          cuentaCodigo: cuentaAjuste.codigo,
+          cuentaNombre: cuentaAjuste.descripcion,
+          comprobanteId: comprobante._id,
+          periodoId: new ObjectId(periodoId),
+          descripcion: `Ajuste de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
+          fecha: moment().toDate(),
+          debe: Number(cantidad) * Number(costoUnitario),
+          haber: 0,
+          fechaCreacion: moment().toDate(),
+          docReferenciaAux: 'AJUSTE',
+          documento: {
+            docReferencia: 'AJUSTE',
+            docFecha: moment().toDate()
+          }
+        },
+        {
+          cuentaId: dataParaDetalle[0].cuentaId,
+          cuentaCodigo: dataParaDetalle[0].cuentaCodigo,
+          cuentaNombre: dataParaDetalle[0].cuentaNombre,
+          comprobanteId: comprobante._id,
+          periodoId: new ObjectId(periodoId),
+          descripcion: `Ajuste de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
+          fecha: moment().toDate(),
+          debe: 0,
+          haber: Number(cantidad) * Number(costoUnitario),
+          fechaCreacion: moment().toDate(),
+          docReferenciaAux: 'AJUSTE',
+          documento: {
+            docReferencia: 'AJUSTE',
+            docFecha: moment().toDate()
+          }
+        }
+      ]
+      createManyItemsSD({
+        nameCollection: 'detalleComprobantes',
+        enviromentClienteId: clienteId,
+        items: detalleComprobante
+      })
     }
     return res.status(200).json({ status: 'Ajuste guardado exitosamente' })
   }

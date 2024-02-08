@@ -1120,7 +1120,10 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
       { $unwind: { path: '$zonacategoria' } },
       {
         $group: {
-          _id: '$zonacategoria.cuentaDepreciacionAcumulada',
+          _id: {
+            acumulado: '$zonacategoria.cuentaDepreciacionAcumulada',
+            gastos: '$zonacategoria.cuentaGastosDepreciacion'
+          },
           categoriaNombre: {
             $first: '$categoriaNombre'
           },
@@ -1129,6 +1132,26 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
           }
         }
       },
+      /*
+        [
+          {acumulado: 1, gastos: 2, total: 50, nombre: Maquinas}
+          {acumulado: 1, gastos: 3, total: 50, nombre: Maquinas}
+          {acumulado: 1, gastos: 3, total: 50, nombre: Maquinas}
+        ]
+        ////
+        [
+          {acumulado: 1, gastos: [
+            {2: 50, 3: 100}
+          ], total: 150, nombre: Maquinas,
+          contabilidadACC: {1: 100},
+          contabilidadGastos: {2: 50, 3: 50}}
+        ]
+        // si gastos esta cuadrado (el valor de gastos es igual al de calculos)
+        y accumulado no, utilizar la cuenta de diferencias
+        // si acumulado esta cuadrado, y gastos no, utilizar la ceunta de diferencia
+        // si los dos estan malos, cuadrarse entre ellos magicamente y
+        // diferencia a la cuenta e diferencia
+       */
       {
         $lookup: {
           from: detalleComprobantesCollection,

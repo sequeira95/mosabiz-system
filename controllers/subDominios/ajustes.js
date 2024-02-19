@@ -47,6 +47,12 @@ export const upsertAjusteCliente = async (req, res) => {
   if (ajuste.puedeEnviarMercancia && ajuste.puedeEnviarMercancia[0]) ajuste.puedeEnviarMercancia = ajuste.puedeEnviarMercancia.map(puedeEnviarMercancia => new ObjectId(puedeEnviarMercancia._id))
   if (ajuste.cuentaPerdidasAjusteInventario && ajuste.cuentaPerdidasAjusteInventario._id) ajuste.cuentaPerdidasAjusteInventario = new ObjectId(ajuste.cuentaPerdidasAjusteInventario._id)
   if (ajuste.cuentaUtilidadAjusteInventario && ajuste.cuentaUtilidadAjusteInventario._id) ajuste.cuentaUtilidadAjusteInventario = ajuste.cuentaUtilidadAjusteInventario = new ObjectId(ajuste.cuentaUtilidadAjusteInventario._id)
+  if (ajuste.puedeModificarPrecioProducto && ajuste.puedeModificarPrecioProducto[0]) ajuste.puedeModificarPrecioProducto = ajuste.puedeModificarPrecioProducto.map(puedeModificarPrecioProducto => new ObjectId(puedeModificarPrecioProducto._id))
+  if (ajuste.puedeCrearNotasCredito && ajuste.puedeCrearNotasCredito[0]) ajuste.puedeCrearNotasCredito = ajuste.puedeCrearNotasCredito.map(puedeCrearNotasCredito => new ObjectId(puedeCrearNotasCredito._id))
+  if (ajuste.puedeCrearNotasDebito && ajuste.puedeCrearNotasDebito[0]) ajuste.puedeCrearNotasDebito = ajuste.puedeCrearNotasDebito.map(puedeCrearNotasDebito => new ObjectId(puedeCrearNotasDebito._id))
+  if (ajuste.accesoFacturacionFija && ajuste.accesoFacturacionFija[0]) ajuste.accesoFacturacionFija = ajuste.accesoFacturacionFija.map(accesoFacturacionFija => new ObjectId(accesoFacturacionFija._id))
+  if (ajuste.puedeCrearEditarFacturacionFija && ajuste.puedeCrearEditarFacturacionFija[0]) ajuste.puedeCrearEditarFacturacionFija = ajuste.puedeCrearEditarFacturacionFija.map(puedeCrearEditarFacturacionFija => new ObjectId(puedeCrearEditarFacturacionFija._id))
+  if (ajuste.numeroFacturaInicial) ajuste.numeroFacturaInicial = Number(ajuste.numeroFacturaInicial)
   if (!clienteId) return res.status(400).json({ error: 'Falta el cliente' })
   try {
     if (!ajuste.fechaCreacion) ajuste.fechaCreacion = moment().toDate()

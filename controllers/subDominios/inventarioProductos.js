@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 import moment from 'moment'
 import { hasContabilidad } from '../../utils/hasContabilidad.js'
@@ -14,6 +14,15 @@ export const getProductos = async (req, res) => {
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
       pipeline: [
+        {
+          $lookup: {
+            from: categoriasCollection,
+            localField: 'categoriaVentas',
+            foreignField: '_id',
+            as: 'detalleCategoriaVentas'
+          }
+        },
+        { $unwind: { path: '$detalleCategoriaVentas', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
             from: categoriasCollection,
@@ -69,6 +78,8 @@ export const getProductos = async (req, res) => {
             unidad: '$unidad',
             categoriaId: '$categoria',
             categoria: '$detalleCategoria.nombre',
+            categoriaVentaId: '$categoriaVentas',
+            categoriaVenta: '$detalleCategoriaVentas.nombre',
             observacion: '$observacion',
             cantidad: '$detalleCantidadProducto.cantidad',
             entrada: '$detalleCantidadProducto.entrada',
@@ -555,5 +566,32 @@ export const saveAjusteAlmacen = async (req, res) => {
       })
     }
     return res.status(200).json({ status: 'Ajuste guardado exitosamente' })
+  }
+}
+export const saveProductosVentas = async (req, res) => {
+  const { nombre, descripcion, unidad, categoriaVentas, observacion, clienteId, _id, moneda, isExento, precioVenta, iva } = req.body
+  try {
+    const producto = await updateItemSD({
+      nameCollection: 'productos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: {
+        $set: {
+          nombre,
+          descripcion,
+          unidad,
+          categoriaVentas: new ObjectId(categoriaVentas),
+          moneda: new ObjectId(moneda),
+          isExento,
+          precioVenta: Number(precioVenta),
+          iva: Number(iva),
+          observacion
+        }
+      }
+    })
+    return res.status(200).json({ status: 'Producto guardado exitosamente', producto })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar el producto ' + e.message })
   }
 }

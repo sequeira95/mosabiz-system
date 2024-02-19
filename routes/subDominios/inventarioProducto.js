@@ -1,6 +1,6 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { deleteProducto, getDetalleCantidad, getListCostos, getProductos, saveAjusteAlmacen, saveProducto, saveToArray } from '../../controllers/subDominios/inventarioProductos.js'
+import { deleteProducto, getDetalleCantidad, getListCostos, getProductos, saveAjusteAlmacen, saveProducto, saveProductosVentas, saveToArray } from '../../controllers/subDominios/inventarioProductos.js'
 
 const router = express.Router()
 
@@ -11,4 +11,5 @@ router.post('/delete', requireSubDominioToken, deleteProducto)
 router.post('/getDetalleCantidad', requireSubDominioToken, getDetalleCantidad)
 router.post('/getListCostos', requireSubDominioToken, getListCostos)
 router.post('/saveAjuste', requireSubDominioToken, saveAjusteAlmacen)
+router.post('/save/ventas', requireSubDominioToken, saveProductosVentas)
 export default router

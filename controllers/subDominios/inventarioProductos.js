@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 import moment from 'moment'
 import { hasContabilidad } from '../../utils/hasContabilidad.js'
@@ -83,7 +83,11 @@ export const getProductos = async (req, res) => {
             observacion: '$observacion',
             cantidad: '$detalleCantidadProducto.cantidad',
             entrada: '$detalleCantidadProducto.entrada',
-            salida: '$detalleCantidadProducto.salida'
+            salida: '$detalleCantidadProducto.salida',
+            moneda: '$moneda',
+            isExento: '$isExento',
+            precioVenta: '$precioVenta',
+            iva: '$iva'
           }
         },
         { $match: { cantidad: { $gt: 0 } } }
@@ -580,7 +584,7 @@ export const saveProductosVentas = async (req, res) => {
           nombre,
           descripcion,
           unidad,
-          categoriaVentas: new ObjectId(categoriaVentas),
+          categoria: new ObjectId(categoriaVentas),
           moneda: new ObjectId(moneda),
           isExento,
           precioVenta: Number(precioVenta),
@@ -593,5 +597,15 @@ export const saveProductosVentas = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar el producto ' + e.message })
+  }
+}
+export const updatePrecioProducto = async (req, res) => {
+  const { clienteId, _id, utilidad, descuento } = req.body
+  try {
+    const productos = await getCollectionSD({ nameCollection: 'inventario', enviromentClienteId: clienteId, filters: { categoria: new ObjectId(_id) } })
+    const productosBulkWrite = []
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de actualizar los productos ' + e.message })
   }
 }

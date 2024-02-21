@@ -51,7 +51,7 @@ export const getCategoriasForVentas = async (req, res) => {
       nameCollection: 'categorias',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipo: 'servicio' } }
+        { $match: { tipo: 'servicios' } }
       ]
     })
     console.log(categoriasProductos, categoriasServicios)

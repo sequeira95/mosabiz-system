@@ -1,13 +1,53 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, deleteItemSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
+import { subDominioName } from '../../constants.js'
 
 export const getClientesVentas = async (req, res) => {
   const { clienteId } = req.body
   try {
+    const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
     const clientes = await agreggateCollectionsSD({
       nameCollection: 'clientes',
-      enviromentClienteId: clienteId
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $lookup: {
+            from: zonasCollection,
+            localField: 'zona',
+            foreignField: '_id',
+            as: 'detalleZona'
+          }
+        },
+        { $unwind: { path: '$detalleZona', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: categoriaCollection,
+            localField: 'categoria',
+            foreignField: '_id',
+            as: 'detalleCategoria'
+          }
+        },
+        { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            zonaId: '$detalleZona._id',
+            zona: '$detalleZona.nombre',
+            categoriaId: '$detalleCategoria._id',
+            categoria: '$detalleCategoria.nombre',
+            tipoDocumento: 1,
+            documentoIdentidad: 1,
+            email: 1,
+            razonSocial: 1,
+            telefono: 1,
+            isContribuyenteEspecial: 1,
+            direccion: 1,
+            direccionEnvio: 1,
+            observacion: 1
+          }
+        }
+      ]
     })
     return res.status(200).json({ clientes })
   } catch (e) {
@@ -56,8 +96,8 @@ export const saveClienteVentas = async (req, res) => {
             isContribuyenteEspecial,
             direccion,
             direccionEnvio,
-            zona,
-            categoria,
+            zona: zona ? new ObjectId(zona) : null,
+            categoria: categoria ? new ObjectId(categoria) : null,
             observacion,
             fechaCreacion: moment().toDate()
           }
@@ -79,8 +119,8 @@ export const saveClienteVentas = async (req, res) => {
           isContribuyenteEspecial,
           direccion,
           direccionEnvio,
-          zona,
-          categoria,
+          zona: zona ? new ObjectId(zona) : null,
+          categoria: categoria ? new ObjectId(categoria) : null,
           observacion
         }
       }

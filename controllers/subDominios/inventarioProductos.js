@@ -17,15 +17,6 @@ export const getProductos = async (req, res) => {
         {
           $lookup: {
             from: categoriasCollection,
-            localField: 'categoriaVentas',
-            foreignField: '_id',
-            as: 'detalleCategoriaVentas'
-          }
-        },
-        { $unwind: { path: '$detalleCategoriaVentas', preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: categoriasCollection,
             localField: 'categoria',
             foreignField: '_id',
             as: 'detalleCategoria'
@@ -78,8 +69,10 @@ export const getProductos = async (req, res) => {
             unidad: '$unidad',
             categoriaId: '$categoria',
             categoria: '$detalleCategoria.nombre',
-            categoriaVentaId: '$categoriaVentas',
-            categoriaVenta: '$detalleCategoriaVentas.nombre',
+            descuento: '$detalleCategoria.descuento',
+            hasDescuento: '$detalleCategoria.hasDescuento',
+            utilidad: '$detalleCategoria.utilidad',
+            tipoDescuento: '$detalleCategoria.tipoDescuento',
             observacion: '$observacion',
             cantidad: '$detalleCantidadProducto.cantidad',
             entrada: '$detalleCantidadProducto.entrada',

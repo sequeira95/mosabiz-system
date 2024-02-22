@@ -9,11 +9,21 @@ export const getProductos = async (req, res) => {
   try {
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+    const ivaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'iva' })
     const matchAlmacen = almacenOrigen ? { almacenId: new ObjectId(almacenOrigen) } : {}
     const productos = await agreggateCollectionsSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
       pipeline: [
+        {
+          $lookup: {
+            from: ivaCollection,
+            localField: 'iva',
+            foreignField: '_id',
+            as: 'detalleIva'
+          }
+        },
+        { $unwind: { path: '$detalleIva', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
             from: categoriasCollection,
@@ -80,7 +90,8 @@ export const getProductos = async (req, res) => {
             moneda: '$moneda',
             isExento: '$isExento',
             precioVenta: '$precioVenta',
-            iva: '$iva'
+            ivaId: '$iva',
+            iva: '$detalleIva.iva'
           }
         },
         { $match: { cantidad: { $gt: 0 } } }
@@ -567,6 +578,7 @@ export const saveAjusteAlmacen = async (req, res) => {
 }
 export const saveProductosVentas = async (req, res) => {
   const { nombre, descripcion, unidad, categoriaVentas, observacion, clienteId, _id, moneda, isExento, precioVenta, iva } = req.body
+  console.log(req.body, 1)
   try {
     const producto = await updateItemSD({
       nameCollection: 'productos',
@@ -581,7 +593,7 @@ export const saveProductosVentas = async (req, res) => {
           moneda: new ObjectId(moneda),
           isExento,
           precioVenta: Number(precioVenta),
-          iva: Number(iva),
+          iva: iva ? new ObjectId(iva) : null,
           observacion
         }
       }

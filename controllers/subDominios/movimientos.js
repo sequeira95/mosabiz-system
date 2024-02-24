@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { subDominioName } from '../../constants.js'
 export const getDataMovimientos = async (req, res) => {
@@ -51,6 +51,68 @@ export const getDataMovimientos = async (req, res) => {
       ]
     })
     return res.status(200).json({ movimientos })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de bucar datos de los movimientos ' + e.message })
+  }
+}
+export const getMovimientosAjustes = async (req, res) => {
+  const { clienteId } = req.body
+  try {
+    const productosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+    const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const personasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'personas' })
+    const movimientosAjustes = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo: { $in: ['inicial', 'ajuste'] } } },
+        {
+          $lookup: {
+            from: productosCollection,
+            localField: 'productoId',
+            foreignField: '_id',
+            as: 'detalleProducto'
+          }
+        },
+        { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: personasCollection,
+            localField: 'creadoPor',
+            foreignField: 'usuarioId',
+            as: 'detallePersona'
+          }
+        },
+        { $unwind: { path: '$detallePersona', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: almacenCollection,
+            localField: 'almacenId',
+            foreignField: '_id',
+            as: 'detalleAlmacen'
+          }
+        },
+        { $unwind: { path: '$detalleAlmacen', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            cantidad: '$cantidad',
+            almacenId: '$almacenId',
+            almacenNombre: '$detalleAlmacen.nombre',
+            productoId: '$productoId',
+            productoNombre: '$detalleProducto.nombre',
+            codigoProducto: '$detalleProducto.codigo',
+            tipo: '$tipo',
+            costoUnitario: '$costoUnitario',
+            fechaMovimiento: '$fechaMovimiento',
+            tipoMovimiento: '$tipoMovimiento',
+            creadoPor: '$detallePersona.nombre'
+          }
+        },
+        { $sort: { fechaMovimiento: -1 } }
+      ]
+    })
+    return res.status(200).json({ movimientosAjustes })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de bucar datos de los movimientos ' + e.message })
@@ -116,7 +178,7 @@ export const createMovimientos = async (req, res) => {
   }
 }
 export const updateEstadoMovimiento = async (req, res) => {
-  const { _id, clienteId, estado, fechaEnvio, fechaRecepcionEstimada, detalleMovimientos, fechaEntrega } = req.body
+  const { _id, clienteId, estado, fechaEnvio, fechaRecepcionEstimada, detalleMovimientos, fechaEntrega, almacenOrigen, almacenDestino } = req.body
   try {
     const updateMovimiento = {}
     if (estado === 'recepcionPendiente') {
@@ -125,6 +187,11 @@ export const updateEstadoMovimiento = async (req, res) => {
     }
     if (estado === 'recibido') {
       updateMovimiento.fechaEntrega = moment(fechaEntrega).toDate()
+      if (detalleMovimientos.every(e => e.cantidad === e.cantidadRecibido)) {
+        updateMovimiento.estadoRecepcion = 'Satisfactorio'
+      } else {
+        updateMovimiento.estadoRecepcion = 'Con diferencia'
+      }
     }
     await updateItemSD({
       nameCollection: 'movimientos',
@@ -133,8 +200,14 @@ export const updateEstadoMovimiento = async (req, res) => {
       update: { $set: { estado, ...updateMovimiento } }
     })
     let descripcion = ''
-    if (estado === 'recepcionPendiente') descripcion = 'Cambió estado a pendiente por recibir'
-    if (estado === 'recibido') descripcion = 'Cambió estado a recibido'
+    if (estado === 'recepcionPendiente') {
+      descripcion = 'Cambió estado a pendiente por recibir'
+      updateMovimientoSalida({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid: req.uid })
+    }
+    if (estado === 'recibido') {
+      descripcion = 'Cambió estado a recibido'
+      updateMovimientoEntrada({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid: req.uid })
+    }
     if (estado === 'recibido') {
       const newDetalle = detalleMovimientos.map(e => {
         return {
@@ -177,6 +250,7 @@ export const cancelarMovimiento = async (req, res) => {
       filters: { _id: new ObjectId(movimientoId) },
       update: { $set: { estado: 'Cancelado', observacion } }
     })
+    deleteManyItemsSD({ nameCollection: 'productosPorAlmacen', enviromentClienteId: clienteId, filters: { movimientoId: new ObjectId(movimientoId) } })
     createItemSD({
       nameCollection: 'historial',
       enviromentClienteId: clienteId,
@@ -186,7 +260,7 @@ export const cancelarMovimiento = async (req, res) => {
         categoria: 'editado',
         tipo: 'Movimiento',
         fecha: moment().toDate(),
-        descripcion: `Movimiento ${movimiento.movimiento} cancelado`
+        descripcion: `Movimiento ${movimiento.numeroMovimiento} cancelado`
       }
     })
     return res.status(200).json({ status: 'Movimiento cancelado exitosamente' })
@@ -194,4 +268,147 @@ export const cancelarMovimiento = async (req, res) => {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de cancelar el movimiento ' + e.message })
   }
+}
+const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid }) => {
+  // console.log({ detalleMovimientos, almacenOrigen, almacenDestino })
+  const detallesCrear = []
+  for (const detalle of detalleMovimientos) {
+    const datosMovivientoPorProducto = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { productoId: new ObjectId(detalle.productoId), almacenId: new ObjectId(almacenOrigen._id) } },
+        {
+          $group: {
+            _id: {
+              costoUnitario: '$costoUnitario',
+              fechaMovimiento: '$fechaMovimiento'
+            },
+            entrada: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                }
+              }
+            },
+            salida: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                }
+              }
+            }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            costoUnitario: '$_id.costoUnitario',
+            fechaMovimiento: '$_id.fechaMovimiento',
+            cantidad: { $subtract: ['$entrada', '$salida'] } // cantidad de producto en el almacen de origen
+          }
+        },
+        { $sort: { fechaMovimiento: 1 } }
+      ]
+    })
+    console.log({ datosMovivientoPorProducto })
+    for (const movimientos of datosMovivientoPorProducto) {
+      if (detalle.cantidad === 0) break
+      if (detalle.cantidad >= movimientos.cantidad) {
+        detallesCrear.push({
+          productoId: new ObjectId(detalle.productoId),
+          movimientoId: new ObjectId(detalle.movimientoId),
+          cantidad: Number(movimientos.cantidad),
+          almacenId: new ObjectId(almacenOrigen._id),
+          almacenOrigen: new ObjectId(almacenOrigen._id),
+          almacenDestino: new ObjectId(almacenDestino._id),
+          tipo: 'movimiento',
+          tipoMovimiento: 'salida',
+          fechaMovimiento: moment().toDate(),
+          costoUnitario: movimientos.costoUnitario,
+          creadoPor: new ObjectId(uid)
+        })
+        detalle.cantidad -= movimientos.cantidad
+        continue
+      }
+      if (detalle.cantidad < movimientos.cantidad) {
+        detallesCrear.push({
+          productoId: new ObjectId(detalle.productoId),
+          movimientoId: new ObjectId(detalle.movimientoId),
+          cantidad: Number(detalle.cantidad),
+          almacenId: new ObjectId(almacenOrigen._id),
+          almacenOrigen: new ObjectId(almacenOrigen._id),
+          almacenDestino: new ObjectId(almacenDestino._id),
+          tipo: 'movimiento',
+          tipoMovimiento: 'salida',
+          fechaMovimiento: moment().toDate(),
+          costoUnitario: movimientos.costoUnitario,
+          creadoPor: new ObjectId(uid)
+        })
+        detalle.cantidad = 0
+        break
+      }
+    }
+  }
+  createManyItemsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    items: detallesCrear
+  })
+}
+const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid }) => {
+  const detallesCrear = []
+  for (const detalle of detalleMovimientos) {
+    console.log(detalle)
+    const detallesMovimientosPorProducto = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { productoId: new ObjectId(detalle.productoId), movimientoId: new ObjectId(detalle.movimientoId), tipoMovimiento: 'salida' } }
+      ]
+    })
+    for (const movimientos of detallesMovimientosPorProducto) {
+      if (detalle.cantidadRecibido === 0) break
+      if (detalle.cantidadRecibido >= movimientos.cantidad) {
+        detallesCrear.push({
+          productoId: new ObjectId(detalle.productoId),
+          movimientoId: new ObjectId(detalle.movimientoId),
+          cantidad: Number(movimientos.cantidad),
+          almacenId: new ObjectId(almacenDestino._id),
+          almacenOrigen: new ObjectId(almacenOrigen._id),
+          almacenDestino: new ObjectId(almacenDestino._id),
+          tipo: 'movimiento',
+          tipoMovimiento: 'entrada',
+          fechaMovimiento: moment().toDate(),
+          costoUnitario: movimientos.costoUnitario,
+          creadoPor: new ObjectId(uid)
+        })
+        detalle.cantidadRecibido -= movimientos.cantidad
+        continue
+      }
+      if (detalle.cantidadRecibido < movimientos.cantidad) {
+        detallesCrear.push({
+          productoId: new ObjectId(detalle.productoId),
+          movimientoId: new ObjectId(detalle.movimientoId),
+          cantidad: Number(detalle.cantidadRecibido),
+          almacenId: new ObjectId(almacenDestino._id),
+          almacenOrigen: new ObjectId(almacenOrigen._id),
+          almacenDestino: new ObjectId(almacenDestino._id),
+          tipo: 'movimiento',
+          tipoMovimiento: 'entrada',
+          fechaMovimiento: moment().toDate(),
+          costoUnitario: movimientos.costoUnitario,
+          creadoPor: new ObjectId(uid)
+        })
+        detalle.cantidadRecibido = 0
+        break
+      }
+    }
+    console.log({ detallesMovimientosPorProducto })
+  }
+  createManyItemsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    items: detallesCrear
+  })
 }

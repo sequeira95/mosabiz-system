@@ -33,6 +33,11 @@ import almacenSDRouter from './routes/subDominios/almacen.js'
 import historialSDRouter from './routes/subDominios/historial.js'
 import productosSDRouter from './routes/subDominios/inventarioProducto.js'
 import movimientosSDRouter from './routes/subDominios/movimientos.js'
+import retencionSDRouter from './routes/subDominios/retencionISLR.js'
+import bancosSDRouter from './routes/subDominios/bancos.js'
+import clientesVentasSDRouter from './routes/subDominios/clientesVentas.js'
+import serviciosSDRouter from './routes/subDominios/servicios.js'
+import ivaSDRouter from './routes/subDominios/iva.js'
 // import { getValoresBcv } from './utils/tareas.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
@@ -86,5 +91,10 @@ app.use('/v1/sub-dominio/almacen', almacenSDRouter)
 app.use('/v1/sub-dominio/productos', productosSDRouter)
 app.use('/v1/sub-dominio/movimientos', movimientosSDRouter)
 app.use('/v1/sub-dominio/historial', historialSDRouter)
+app.use('/v1/sub-dominio/retencion', retencionSDRouter)
+app.use('/v1/sub-dominio/bancos', bancosSDRouter)
+app.use('/v1/sub-dominio/clientesVentas', clientesVentasSDRouter)
+app.use('/v1/sub-dominio/servicios', serviciosSDRouter)
+app.use('/v1/sub-dominio/iva', ivaSDRouter)
 
 app.listen(PORT, () => console.log('0.0.0.0' + PORT))

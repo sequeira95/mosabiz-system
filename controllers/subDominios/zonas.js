@@ -138,6 +138,7 @@ export const deleteZonas = async (req, res) => {
 }
 export const listCategoriasPorZonas = async (req, res) => {
   const { clienteId, zonaId, tipo } = req.body
+  console.log(req.body)
   try {
     const categoriaZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })

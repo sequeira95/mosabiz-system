@@ -56,15 +56,12 @@ export const getActivosFijos = async (req, res) => {
             codigo: '$codigo',
             nombre: '$nombre',
             descripcion: '$descripcion',
-            tipo: '$tipo',
-            unidad: '$unidad',
-            cantidad: '$cantidad',
             categoriaId: '$categoria',
             categoria: '$detalleCategoria.nombre',
             zonaId: '$zona',
             zona: '$detalleZona.nombre',
             fechaAdquisicion: '$fechaAdquisicion',
-            vidaUtil: '$vidaUtil',
+            vidaUtil: '$detalleCategoria.vidaUtil',
             montoAdquision: '$montoAdquision',
             observacion: '$observacion',
             documentosAdjuntos: '$documentosAdjuntos',
@@ -338,13 +335,10 @@ export const saveToArray = async (req, res) => {
               nombre: activo.nombre,
               descripcion: activo.descripcion,
               codigo: activo.codigo,
-              tipo: activo.tipo,
-              unidad: activo.unidad,
-              cantidad: Number(activo.cantidad),
               categoria: new ObjectId(activo.categoria),
               zona: new ObjectId(activo.zona),
               fechaAdquisicion: moment(activo.fechaAdquisicion).toDate(),
-              vidaUtil: Number(activo.vidaUtil),
+              // vidaUtil: Number(activo.vidaUtil),
               montoAdquision: Number(activo.montoAdquision),
               observacion: activo.observacion
             }
@@ -876,6 +870,7 @@ export const datosInicualesDepreciacion = async (req, res) => {
       totalCalculosMensuales += calculoMensual
     }
     const numberMonth = fecha.getMonth() + 1
+    let totalDiferencia = 0
     for (const key in datosDepereciacion[0]) {
       if (key === '_id') continue
       totalAcumulado += datosDepereciacion[0][key]
@@ -884,10 +879,12 @@ export const datosInicualesDepreciacion = async (req, res) => {
       if (key === 'acumulado') {
         calculosDepreciacion = totalAcumuladoCalculo
         calculoDiferencia = datosDepereciacion[0][key] - totalAcumuladoCalculo
+        totalDiferencia += calculoDiferencia
       }
       if (key !== 'acumulado' && ObjectNumbersMonths[key] <= numberMonth) {
         calculosDepreciacion = totalCalculosMensuales
         calculoDiferencia = datosDepereciacion[0][key] - totalCalculosMensuales
+        totalDiferencia += calculoDiferencia
       }
       newArray.push({
         nombre: key === 'acumulado' ? 'Acumulado' : key,
@@ -901,7 +898,7 @@ export const datosInicualesDepreciacion = async (req, res) => {
       nombre: 'Total acumulado',
       depreciacionContabilidad: totalAcumulado,
       depreciacionCalculos: totalAcumuladoCalculo + (totalCalculosMensuales * numberMonth),
-      diferencia: totalAcumulado - (totalAcumuladoCalculo + (totalCalculosMensuales * numberMonth))
+      diferencia: totalDiferencia// totalAcumulado - (totalAcumuladoCalculo + (totalCalculosMensuales * numberMonth))
     })
     return res.status(200).json({ datosDepereciacion: newArray })
   } catch (e) {
@@ -911,14 +908,22 @@ export const datosInicualesDepreciacion = async (req, res) => {
 }
 export const saveCalculosDepreciacion = async (req, res) => {
   const { clienteId, periodoId, datosDepreciacion, fechaHasta } = req.body
+  console.log(datosDepreciacion)
   try {
     const fecha = moment(fechaHasta, 'YYYY/MM').endOf('month').toDate()
     const ajustesContabilidad = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
     const comprobantesAmortizacion = await getCollectionSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { codigo: ajustesContabilidad.codigoComprobanteActivoAmortizado } })
     const comprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
-    console.log(datosDepreciacion)
     const categoriasZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    const resultados = []
+    for (const mes of datosDepreciacion) {
+      const fechaBusqueda = moment(mes.fecha).subtract(1, 'month').endOf('month').toDate()
+      const resultado = await depreciacionPorCategoriaSegunMes(fechaBusqueda, clienteId)
+      resultados.push(resultado)
+    }
+    return res.status(200).json({ resultados })
+
     const datosActivos = await agreggateCollectionsSD({
       nameCollection: 'activosFijos',
       enviromentClienteId: clienteId,
@@ -1036,4 +1041,159 @@ export const saveCalculosDepreciacion = async (req, res) => {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar los calculos de depreciación y amortización ' + e.message })
   }
+}
+
+const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => {
+  const categoriaPorZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
+  const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+  const detalleComprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
+  const ajustesContabilidad = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
+  if (!ajustesContabilidad?.codigoComprobanteActivoAmortizado) {
+    throw new Error('No existe el coidigo de comprobante de amortizaciones en los ajustes')
+  }
+  const comprobantesAmortizacion = await getItemSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { codigo: ajustesContabilidad.codigoComprobanteActivoAmortizado } })
+  const fechaInicio = moment(fecha).startOf('month').toDate()
+  const fechaFin = moment(fecha).endOf('month').toDate()
+  const activosSegunCalculos = await agreggateCollectionsSD({
+    nameCollection: 'activosFijos',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      {
+        $match: {
+          fechaAdquisicion: { $lte: fechaFin }
+        }
+      },
+      {
+        $lookup: {
+          from: categoriasCollection,
+          localField: 'categoria',
+          foreignField: '_id',
+          as: 'detalleCategoria'
+        }
+      },
+      { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          categoria: '$categoria',
+          categoriaNombre: '$detalleCategoria.nombre',
+          zona: '$zona',
+          vidaUtilMeses: { $multiply: ['$detalleCategoria.vidaUtil', 12] },
+          fechaAdquisicion: '$fechaAdquisicion',
+          montoAdquision: '$montoAdquision',
+          mesesDiff: {
+            $dateDiff: {
+              startDate: '$fechaAdquisicion',
+              endDate: fecha,
+              unit: 'month'
+            }
+          }
+        }
+      },
+      { $match: { $expr: { $gte: ['$vidaUtilMeses', '$mesesDiff'] } } },
+      { $addFields: { depreciacionMes: { $divide: ['$montoAdquision', '$vidaUtilMeses'] } } },
+      {
+        $group: {
+          _id: {
+            categoria: '$categoria',
+            zona: '$zona'
+          },
+          categoriaNombre: {
+            $first: '$categoriaNombre'
+          },
+          total: {
+            $sum: '$depreciacionMes'
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: categoriaPorZonaCollection,
+          localField: '_id.categoria',
+          foreignField: 'categoriaId',
+          let: { zonaId: '$_id.zona' },
+          pipeline: [
+            { $match: { tipo: 'activoFijo', $expr: { $eq: ['$zonaId', '$$zonaId'] } } }
+          ],
+          as: 'zonacategoria'
+        }
+      },
+      { $unwind: { path: '$zonacategoria' } },
+      {
+        $group: {
+          _id: {
+            acumulado: '$zonacategoria.cuentaDepreciacionAcumulada',
+            gastos: '$zonacategoria.cuentaGastosDepreciacion'
+          },
+          categoriaNombre: {
+            $first: '$categoriaNombre'
+          },
+          total: {
+            $sum: '$total'
+          }
+        }
+      },
+      /*
+        [
+          {acumulado: 1, gastos: 2, total: 50, nombre: Maquinas}
+          {acumulado: 1, gastos: 3, total: 50, nombre: Maquinas}
+          {acumulado: 1, gastos: 3, total: 50, nombre: Maquinas}
+        ]
+        ////
+        [
+          {acumulado: 1, gastos: [
+            {2: 50, 3: 100}
+          ], total: 150, nombre: Maquinas,
+          contabilidadACC: {1: 100},
+          contabilidadGastos: {2: 50, 3: 50}}
+        ]
+        // si gastos esta cuadrado (el valor de gastos es igual al de calculos)
+        y accumulado no, utilizar la cuenta de diferencias
+        // si acumulado esta cuadrado, y gastos no, utilizar la ceunta de diferencia
+        // si los dos estan malos, cuadrarse entre ellos magicamente y
+        // diferencia a la cuenta e diferencia
+       */
+      {
+        $lookup: {
+          from: detalleComprobantesCollection,
+          localField: '_id.cuentaDepreciacionAcumulada',
+          foreignField: 'cuentaId',
+          pipeline: [
+            {
+              $match: {
+                isPrecierre: { $ne: true },
+                isCierre: { $ne: true },
+                fecha: { $lte: fechaFin, $gte: fechaInicio },
+                comprobanteId: { $eq: comprobantesAmortizacion?._id && new ObjectId(comprobantesAmortizacion._id) }
+              }
+            },
+            {
+              $group: {
+                _id: '$cuentaId',
+                debe: { $sum: '$debe' },
+                haber: { $sum: '$haber' }
+              }
+            },
+            {
+              $project: {
+                totalContabilidad: { $subtract: ['$debe', '$haber'] }
+              }
+            }
+          ],
+          as: 'detalleComprobantes'
+        }
+      },
+      { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          cuentaDepreciacionAcumulada: '$_id',
+          categoriaNombre: '$categoriaNombre',
+          total: '$total',
+          totalContabilidad: '$detalleComprobantes.totalContabilidad',
+          totalDiferencia: { $subtract: ['$total', { $ifNull: ['$detalleComprobantes.totalContabilidad', 0] }] }
+        }
+      }
+    ]
+  })
+  return activosSegunCalculos
 }

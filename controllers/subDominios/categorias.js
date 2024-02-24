@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { subDominioName } from '../../constants.js'
 
@@ -37,8 +37,32 @@ export const getCategorias = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las categoría' + e.message })
   }
 }
+export const getCategoriasForVentas = async (req, res) => {
+  const { clienteId } = req.body
+  try {
+    const categoriasProductos = await agreggateCollectionsSD({
+      nameCollection: 'categorias',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo: 'inventario' } }
+      ]
+    })
+    const categoriasServicios = await agreggateCollectionsSD({
+      nameCollection: 'categorias',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo: 'servicios' } }
+      ]
+    })
+    console.log(categoriasProductos, categoriasServicios)
+    return res.status(200).json({ categoriasProductos, categoriasServicios })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las categoría' + e.message })
+  }
+}
 export const saveCategorias = async (req, res) => {
-  const { _id, clienteId, nombre, observacion, tipo, fechaCreacion, vidaUtil } = req.body
+  const { _id, clienteId, nombre, observacion, tipo, vidaUtil } = req.body
   try {
     if (!_id) {
       const verifyCategoria = await getItemSD({
@@ -50,8 +74,22 @@ export const saveCategorias = async (req, res) => {
         }
       })
       if (verifyCategoria) return res.status(400).json({ error: 'Ya existe una categoría con este nombre' })
+      const categoria = await upsertItemSD({
+        nameCollection: 'categorias',
+        enviromentClienteId: clienteId,
+        filters: { tipo, _id: new ObjectId(_id) },
+        update: {
+          $set: {
+            nombre,
+            observacion,
+            vidaUtil: Number(vidaUtil),
+            fechaCreacion: moment().toDate()
+          }
+        }
+      })
+      return res.status(200).json({ status: 'categoría guardada exitosamente', categoria })
     }
-    const categoria = await upsertItemSD({
+    const categoria = await updateItemSD({
       nameCollection: 'categorias',
       enviromentClienteId: clienteId,
       filters: { tipo, _id: new ObjectId(_id) },
@@ -59,8 +97,63 @@ export const saveCategorias = async (req, res) => {
         $set: {
           nombre,
           observacion,
-          vidaUtil: Number(vidaUtil),
-          fechaCreacion: fechaCreacion ? moment(fechaCreacion).toDate() : moment().toDate()
+          vidaUtil: Number(vidaUtil)
+          // fechaCreacion: fechaCreacion ? moment(fechaCreacion).toDate() : moment().toDate()
+        }
+      }
+    })
+
+    return res.status(200).json({ status: 'categoría guardada exitosamente', categoria })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar la categoría' + e.message })
+  }
+}
+export const saveCategoriasForVentas = async (req, res) => {
+  const { _id, clienteId, nombre, utilidad, hasDescuento, descuento, tipoDescuento, observacion, tipo } = req.body
+  try {
+    if (!_id) {
+      const verifyCategoria = await getItemSD({
+        nameCollection: 'categorias',
+        enviromentClienteId: clienteId,
+        filters: {
+          tipo,
+          nombre
+        }
+      })
+      if (verifyCategoria) return res.status(400).json({ error: 'Ya existe una categoría con este nombre' })
+      const categoria = await upsertItemSD({
+        nameCollection: 'categorias',
+        enviromentClienteId: clienteId,
+        filters: { tipo, _id: new ObjectId(_id) },
+        update: {
+          $set: {
+            nombre,
+            observacion,
+            utilidad: Number(utilidad) || null,
+            hasDescuento,
+            descuento: Number(descuento) || null,
+            tipoDescuento,
+            tipo,
+            fechaCreacion: moment().toDate()
+          }
+        }
+      })
+      return res.status(200).json({ status: 'categoría guardada exitosamente', categoria })
+    }
+    const categoria = await updateItemSD({
+      nameCollection: 'categorias',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: {
+        $set: {
+          nombre,
+          observacion,
+          utilidad: Number(utilidad) || null,
+          hasDescuento,
+          descuento: Number(descuento) || null,
+          tipoDescuento,
+          fechaCreacion: moment().toDate()
         }
       }
     })

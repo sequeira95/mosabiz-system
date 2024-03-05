@@ -3,11 +3,14 @@ import { agreggateCollectionsSD, deleteItemSD, getItemSD, updateItemSD, upsertIt
 import moment from 'moment'
 
 export const getRetenciones = async (req, res) => {
-  const { clienteId } = req.body
+  const { clienteId, tipo } = req.body
   try {
     const retenciones = await agreggateCollectionsSD({
       nameCollection: 'retencionISLR',
-      enviromentClienteId: clienteId
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo } }
+      ]
     })
     return res.status(200).json({ retenciones })
   } catch (e) {
@@ -16,7 +19,7 @@ export const getRetenciones = async (req, res) => {
   }
 }
 export const saveRetencion = async (req, res) => {
-  const { _id, clienteId, nombre, valorRet, moneda, sustraendo, minimo, isVariable, codigo } = req.body
+  const { _id, clienteId, nombre, valorRet, moneda, sustraendo, minimo, isVariable, codigo, tipo } = req.body
   try {
     if (!_id) {
       const verify = await getItemSD({
@@ -40,6 +43,7 @@ export const saveRetencion = async (req, res) => {
             sustraendo: Number(sustraendo),
             minimo: Number(minimo),
             isVariable,
+            tipo,
             fechaCreacion: moment().toDate()
           }
         }
@@ -58,7 +62,8 @@ export const saveRetencion = async (req, res) => {
           moneda: new ObjectId(moneda),
           sustraendo: Number(sustraendo),
           minimo: Number(minimo),
-          isVariable
+          isVariable,
+          tipo
         }
       }
     })

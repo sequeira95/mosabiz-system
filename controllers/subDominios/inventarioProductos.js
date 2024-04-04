@@ -1,8 +1,8 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 import moment from 'moment'
-import { hasContabilidad } from '../../utils/hasContabilidad.js'
+// import { hasContabilidad } from '../../utils/hasContabilidad.js'
 
 export const getProductos = async (req, res) => {
   const { clienteId, almacenOrigen } = req.body
@@ -142,12 +142,22 @@ export const saveProducto = async (req, res) => {
 export const deleteProducto = async (req, res) => {
   const { _id, clienteId } = req.body
   try {
-    await deleteItemSD({
+    await updateItemSD({
+      nameCollection: 'productos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: {
+        $set: {
+          activo: false
+        }
+      }
+    })
+    /* await deleteItemSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) }
-    })
-    return res.status(200).json({ status: 'Producto eliminado exitosamente' })
+    }) */
+    return res.status(200).json({ status: 'Producto desactivado exitosamente' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar el producto ' + e.message })
@@ -275,14 +285,14 @@ export const getListCostos = async (req, res) => {
   }
 }
 export const saveAjusteAlmacen = async (req, res) => {
-  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo, lote, fechaAjuste, fechaVencimiento, configuacionFecha } = req.body
+  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo, lote, fechaAjuste, fechaVencimiento, configuacionFecha, ignorarContabilidad } = req.body
   const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
-  const tieneContabilidad = await hasContabilidad({ clienteId })
+  /* const tieneContabilidad = await hasContabilidad({ clienteId })
   if (tieneContabilidad) {
     if (ajusteInventario && !ajusteInventario.codigoComprobanteAjuste) return res.status(400).json({ error: 'No existe en ajustes el codigo del comprobante para realizar ajuste' })
     if (tipo === 'Ingreso' && ajusteInventario && !ajusteInventario.cuentaUtilidadAjusteInventario) return res.status(400).json({ error: 'No existe en ajustes una cuenta seleccionada para poder realizar el ajuste' })
     if (tipo === 'Salida' && ajusteInventario && !ajusteInventario.cuentaPerdidasAjusteInventario) return res.status(400).json({ error: 'No existe en ajustes una cuenta seleccionada para poder realizar el ajuste' })
-  }
+  } */
   const fechaAjusteFormat = moment(fechaAjuste, configuacionFecha || 'YYYY/MM/DD').toDate()
   const fechaVencimientoFormat = moment(fechaVencimiento, configuacionFecha || 'YYYY/MM/DD').toDate()
   let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'ajuste' } }))?.contador
@@ -346,7 +356,7 @@ export const saveAjusteAlmacen = async (req, res) => {
         cantidad: Number(cantidad)
       }
     })
-    if (tieneContabilidad) {
+    if (/* tieneContabilidad */ !ignorarContabilidad) {
       // aquí va la contabilidad preguntar en que comprobante iria el ajuste
       const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: fechaAjusteFormat }, fechaFin: { $gte: fechaAjusteFormat } } })
       const mesPeriodo = moment(fechaAjusteFormat).format('YYYY/MM')
@@ -527,7 +537,7 @@ export const saveAjusteAlmacen = async (req, res) => {
         creadoPor: new ObjectId(req.uid)
       }
     })
-    if (tieneContabilidad) {
+    if (/* tieneContabilidad */ !ignorarContabilidad) {
       // aquí va la contabilidad preguntar en que comprobante iria el ajuste
       const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: fechaAjusteFormat }, fechaFin: { $gte: fechaAjusteFormat } } })
       const mesPeriodo = moment(fechaAjusteFormat).format('YYYY/MM')

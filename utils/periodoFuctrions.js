@@ -91,6 +91,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
             debe: e.saldo < 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
             haber: e.saldo > 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
             terceroNombre: Number(e.cuentaCodigo[0]) < 4 ? e.terceroNombre : null,
+            // terceroId: Number(e.cuentaCodigo[0]) < 4 ? e.terceroId : null,
             isPreCierre: true,
             fechaCreacion: moment().toDate()
           }
@@ -220,7 +221,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
     saldosAcumulados += Number(e.cuentaCodigo[0]) >= 4 ? e.saldo : 0
     return {
       updateOne: {
-        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobante), terceroId: e.terceroId ? new ObjectId(e.terceroId) : '' },
+        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobante), terceroId: e.terceroId ? new ObjectId(e.terceroId) : null },
         update: {
           $set:
           {
@@ -234,6 +235,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
             debe: e.saldo < 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
             haber: e.saldo > 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
             terceroNombre: Number(e.cuentaCodigo[0]) < 4 ? e.terceroNombre : null,
+            // terceroId: Number(e.cuentaCodigo[0]) < 4 ? e.terceroId : null,
             isCierre: true,
             fechaCreacion: moment().toDate()
           }

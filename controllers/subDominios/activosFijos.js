@@ -718,7 +718,7 @@ export const datosInicualesDepreciacion = async (req, res) => {
             localField: '_id',
             foreignField: 'cuentaId',
             pipeline: [
-              { $match: { periodoId: new ObjectId(periodoId), isPrecierre: true } },
+              { $match: { periodoId: new ObjectId(periodoId) /* isPrecierre: true */ } },
               {
                 $group: {
                   _id: '$cuentaId',
@@ -745,7 +745,7 @@ export const datosInicualesDepreciacion = async (req, res) => {
               {
                 $match: {
                   periodoId: new ObjectId(periodoId),
-                  isPrecierre: { $ne: true },
+                  // isPrecierre: { $ne: true },
                   isCierre: { $ne: true },
                   fecha: { $lte: fecha },
                   comprobanteId: { $in: comprobantesAmortizacion.map(comprobante => comprobante._id) }

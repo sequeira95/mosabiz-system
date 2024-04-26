@@ -13,7 +13,7 @@ export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order
   if (cuentaDesde && !cuentaHasta) {
     matchCondition = [
       addFieldCondition,
-      { $match: { codigoToInt: { $gte: Number(cuentaDesde) } } }
+      { $match: { codigoToInt: { $eq: Number(cuentaDesde) } } }
     ]
   }
   if (!cuentaDesde && cuentaHasta) {

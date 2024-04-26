@@ -93,8 +93,8 @@ export const getProductos = async (req, res) => {
             ivaId: '$iva',
             iva: '$detalleIva.iva'
           }
-        },
-        { $match: { cantidad: { $gt: 0 } } }
+        }
+        // { $match: { cantidad: { $gte: 0 } } }
       ]
     })
     console.log(productos)

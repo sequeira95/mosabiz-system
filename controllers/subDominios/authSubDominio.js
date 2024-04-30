@@ -44,7 +44,8 @@ export const login = async (req, res) => {
     const usuario = await getItemSD({ nameCollection: 'usuarios', filters: { email: email.toLowerCase() } })
     // en caso de que no exista el email , retornamos un error
     if (!usuario) return res.status(403).json({ error: 'Usuario o contraseña incorrecto' })
-    const isValidPassword = await comparePassword(password, usuario.password)
+    const decodePass = atob(password)
+    const isValidPassword = await comparePassword(decodePass, usuario.password)
     // en caso de que no sea valida la contraseña, retornamos un error
     if (!isValidPassword) return res.status(403).json({ error: 'Usuario o contraseña incorrecto' })
     // generando token jwt
@@ -101,47 +102,3 @@ export const recoverPassword = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor' + e.message })
   }
 }
-
-/* export const login2 = async (req, res) => {
-  const db = await accessToDataBase(dataBaseSecundaria)
-  const { email, password } = req.body
-  try {
-    const subDominioUsuariosCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'usuarios' })
-    const usuariosCollection = await db.collection(subDominioUsuariosCollectionsName)
-    const usuario = await usuariosCollection.findOne({ email })
-    // en caso de que no exista el email , retornamos un error
-    if (!usuario) return res.status(403).json({ error: 'Usuario o contraseña incorrecto' })
-    const isValidPassword = await comparePassword(password, usuario.password)
-    // en caso de que no sea valida la contraseña, retornamos un error
-    if (!isValidPassword) return res.status(403).json({ error: 'Usuario o contraseña incorrecto' })
-    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
-    const subDominioEmpresasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'empresa' })
-    const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
-    const personasCollection = await db.collection(subDominioPersonasCollectionsName)
-    const persona = await personasCollection.aggregate([
-      { $match: { usuarioId: usuario._id } },
-      {
-        $lookup:
-          {
-            from: `${subDominioEmpresasCollectionsName}`,
-            localField: 'empresaId',
-            foreignField: '_id',
-            as: 'empresa'
-          }
-      },
-      { $unwind: { path: 'empresa', preserveNullAndEmptyArrays: true } },
-      {
-        $lookup:
-          {
-            from: `${subDominioClientesCollectionsName}`,
-            localField: 'clienteId',
-            foreignField: '_id',
-            as: 'cliente'
-          }
-      },
-      { $unwind: { path: 'cliente', preserveNullAndEmptyArrays: true } }
-    ])
-  } catch (e) {
-    return res.status(500).json({ error: 'Error de servidor' })
-  }
-} */

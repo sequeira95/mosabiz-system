@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollections, deleteItem, getCollection, getItem, upsertItem } from '../utils/dataBaseConfing.js'
+import moment from 'moment'
+import { agreggateCollections, deleteItem, deleteItems, getCollection, getItem, upsertItem, createItems } from '../utils/dataBaseConfing.js'
 
 export const getMonedas = async (req, res) => {
   try {
@@ -45,26 +46,12 @@ export const deleteMoneda = async (req, res) => {
 export const getTasas = async (req, res) => {
   const { itemsPorPagina, pagina } = req.body
   try {
+    // await deleteItems({nameCollection: 'tasas'})
+    // await deleteItems({nameCollection: 'monedas'})
     const tasas = await agreggateCollections({
       nameCollection: 'tasas',
       pipeline: [
-        { $sort: { fecha: 1 } },
-        {
-          $lookup: {
-            from: 'monedas',
-            localField: 'monedaPrincipal',
-            foreignField: '_id',
-            pipeline: [
-              {
-                $project: {
-                  monedaNombre: '$nombreCorto'
-                }
-              }
-            ],
-            as: 'moneda'
-          }
-        },
-        { $unwind: '$moneda' },
+        { $sort: { fechaValor: 1 } },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) }
       ]
@@ -80,5 +67,62 @@ export const getTasas = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar tasas monetarias' + e.message })
+  }
+}
+export const saveTasas = async (req, res) => {
+  const { tasas, monedas } = req.body
+  if (!monedas[0]) return res.status(500).json({ error: 'Error de servidor al momento de guardar: No Hay monedas para crear' })
+  try {
+    if (!Array.isArray(tasas)) return res.status(500).json({ error: 'Error de servidor al momento de guardar las Tasas: Formato invalido' })
+    const monedasUpdate = []
+
+    const bulkWritePipeline = tasas.map((e, index) => {
+      const item = {}
+      for (const moneda of monedas) {
+        item[moneda] = e[moneda]
+        item.monedaPrincipal = e.monedaPrincipal
+        if (index === 0) {
+          monedasUpdate.push({
+            updateOne: {
+              filter: { nombreCorto: moneda },
+              update: {
+                $set: {}
+              },
+              upsert: true
+            }
+          })
+        }
+      }
+
+      return {
+        updateOne: {
+          filter: { fechaUpdate: e.fechaUpdate },
+          update: {
+            $set: {
+              ...item,
+              fechaOperacion: moment(e.fechaOperacion).toDate(),
+              fechaValor: moment(e.fechaValor).toDate()
+            }
+          },
+          upsert: true
+        }
+      }
+    })
+    await createItems({ nameCollection: 'tasas', pipeline: bulkWritePipeline })
+    await createItems({ nameCollection: 'monedas', pipeline: monedasUpdate })
+    return res.status(200).json({ status: 'Tasas guardadas con exito' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar esta moneda ' + e.message })
+  }
+}
+export const deleteTasa = async (req, res) => {
+  const { tasaId } = req.body
+  try {
+    await deleteItem({ nameCollection: 'tasas', filters: { _id: new ObjectId(tasaId) } })
+    return res.status(200).json({ status: 'Tasa eliminada con exito' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar esta Tasa ' + e.message })
   }
 }

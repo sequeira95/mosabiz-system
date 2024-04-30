@@ -235,10 +235,12 @@ export const changePassword = async (req, res) => {
   const { passwordActual, newPassword } = req.body
   const uid = req.uid
   try {
+    const decodePasswordActual = atob(passwordActual)
     const usuario = await getItemSD({ nameCollection: 'usuarios', filters: { _id: new ObjectId(uid) } })
-    const isValidPassword = await comparePassword(passwordActual, usuario.password)
+    const isValidPassword = await comparePassword(decodePasswordActual, usuario.password)
     if (!isValidPassword) return res.status(400).json({ error: 'Contraseña incorrecta' })
-    const password = await encryptPassword(newPassword)
+    const decodeNewPassword = atob(newPassword)
+    const password = await encryptPassword(decodeNewPassword)
     await updateItemSD({
       nameCollection: 'usuarios',
       filters: { _id: new ObjectId(uid) },

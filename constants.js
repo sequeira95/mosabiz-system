@@ -61,7 +61,7 @@ export const keyActivosFijos = {
 export const collectionNameClient = [
   'ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios', 'categorias',
   'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos', 'contadores', 'movimientos', 'detalleMovimientos',
-  'productosPorAlmacen', 'retencionISLR', 'bancos', 'clientes', 'servicios', 'iva'
+  'productosPorAlmacen', 'retencionISLR', 'bancos', 'clientes', 'servicios', 'iva', 'proveedores', 'metodosPagos'
 ]
 export const ListIndexesClient = [
   {
@@ -94,3 +94,8 @@ export const ListIndexesClient = [
     ]
   }
 ]
+export const tipoMovimientosShort = {
+  solicitudInterna: 'SI',
+  solicitudCompra: 'SC',
+  transferencia: 'TR'
+}

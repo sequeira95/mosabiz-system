@@ -5,9 +5,49 @@ import { subDominioName } from '../../constants.js'
 export const getAlmacenes = async (req, res) => {
   const { clienteId } = req.body
   try {
+    const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
     const almacenes = await agreggateCollectionsSD({
       nameCollection: 'almacenes',
-      enviromentClienteId: clienteId
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $lookup: {
+            from: productorPorAlamcenCollection,
+            localField: '_id',
+            foreignField: 'almacenId',
+            pipeline: [
+              {
+                $group: {
+                  _id: '$almacenId',
+                  entrada: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                      }
+                    }
+                  },
+                  salida: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                $project: {
+                  cantidad: { $subtract: ['$entrada', '$salida'] },
+                  entrada: '$entrada',
+                  salida: '$salida'
+                }
+              }
+            ],
+            as: 'productoPorAlmacen'
+          }
+        },
+        { $unwind: { path: '$productoPorAlmacen', preserveNullAndEmptyArrays: true } }
+      ]
     })
     return res.status(200).json({ almacenes })
   } catch (e) {

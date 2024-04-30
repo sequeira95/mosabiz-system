@@ -1,8 +1,8 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 import moment from 'moment'
-import { hasContabilidad } from '../../utils/hasContabilidad.js'
+// import { hasContabilidad } from '../../utils/hasContabilidad.js'
 
 export const getProductos = async (req, res) => {
   const { clienteId, almacenOrigen } = req.body
@@ -93,8 +93,8 @@ export const getProductos = async (req, res) => {
             ivaId: '$iva',
             iva: '$detalleIva.iva'
           }
-        },
-        { $match: { cantidad: { $gt: 0 } } }
+        }
+        // { $match: { cantidad: { $gte: 0 } } }
       ]
     })
     console.log(productos)
@@ -105,7 +105,7 @@ export const getProductos = async (req, res) => {
   }
 }
 export const saveProducto = async (req, res) => {
-  const { codigo, nombre, descripcion, unidad, categoria, observacion, clienteId, _id, cantidadPorAlmacen } = req.body
+  const { codigo, nombre, descripcion, unidad, categoria, observacion, clienteId, _id } = req.body
   try {
     if (!_id) {
       const verify = await getItemSD({
@@ -133,27 +133,6 @@ export const saveProducto = async (req, res) => {
         }
       }
     })
-    if (!_id) {
-      if (cantidadPorAlmacen[0]) {
-        const datosParaAlmacen = cantidadPorAlmacen.map(e => {
-          return {
-            cantidad: Number(e.cantidad),
-            almacenDestino: e.almacen._id ? new ObjectId(e.almacen._id) : null,
-            almacenDestinoNombre: e.almacen._id ? e.almacen.nombre : null,
-            almacenId: e.almacen._id ? new ObjectId(e.almacen._id) : null,
-            // almacenOrigen: e.almacen._id ? new ObjectId(e.almacen._id) : null,
-            // almacenOrigenNombre: e.almacen._id ? e.almacen.nombre : null,
-            tipo: 'inicial',
-            tipoMovimiento: 'entrada',
-            productoId: producto._id,
-            costoUnitario: Number(e.costoUnitario),
-            fechaMovimiento: moment().toDate(),
-            creadoPor: new ObjectId(req.uid)
-          }
-        })
-        createManyItemsSD({ nameCollection: 'productosPorAlmacen', enviromentClienteId: clienteId, items: datosParaAlmacen })
-      }
-    }
     return res.status(200).json({ status: 'Producto guardado exitosamente', producto })
   } catch (e) {
     console.log(e)
@@ -163,12 +142,22 @@ export const saveProducto = async (req, res) => {
 export const deleteProducto = async (req, res) => {
   const { _id, clienteId } = req.body
   try {
-    await deleteItemSD({
+    await updateItemSD({
+      nameCollection: 'productos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: {
+        $set: {
+          activo: false
+        }
+      }
+    })
+    /* await deleteItemSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) }
-    })
-    return res.status(200).json({ status: 'Producto eliminado exitosamente' })
+    }) */
+    return res.status(200).json({ status: 'Producto desactivado exitosamente' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar el producto ' + e.message })
@@ -296,12 +285,20 @@ export const getListCostos = async (req, res) => {
   }
 }
 export const saveAjusteAlmacen = async (req, res) => {
-  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo, periodoId } = req.body
+  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo, lote, fechaAjuste, fechaVencimiento, configuacionFecha, ignorarContabilidad } = req.body
   const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
-  const tieneContabilidad = await hasContabilidad({ clienteId })
+  /* const tieneContabilidad = await hasContabilidad({ clienteId })
   if (tieneContabilidad) {
-    if (ajusteInventario && !ajusteInventario.codigoComprobanteAjuste) return res.status(400).json({ error: 'No existe enm ajuste el codigo del comprobante para realizar ajuste' })
-  }
+    if (ajusteInventario && !ajusteInventario.codigoComprobanteAjuste) return res.status(400).json({ error: 'No existe en ajustes el codigo del comprobante para realizar ajuste' })
+    if (tipo === 'Ingreso' && ajusteInventario && !ajusteInventario.cuentaUtilidadAjusteInventario) return res.status(400).json({ error: 'No existe en ajustes una cuenta seleccionada para poder realizar el ajuste' })
+    if (tipo === 'Salida' && ajusteInventario && !ajusteInventario.cuentaPerdidasAjusteInventario) return res.status(400).json({ error: 'No existe en ajustes una cuenta seleccionada para poder realizar el ajuste' })
+  } */
+  const fechaAjusteFormat = moment(fechaAjuste, configuacionFecha || 'YYYY/MM/DD').toDate()
+  const fechaVencimientoFormat = moment(fechaVencimiento, configuacionFecha || 'YYYY/MM/DD').toDate()
+  let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'ajuste' } }))?.contador
+  if (contador) ++contador
+  if (!contador) contador = 1
+  const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: new ObjectId(productoId) })
   if (tipo === 'Ingreso') {
     await createItemSD({
       nameCollection: 'productosPorAlmacen',
@@ -313,24 +310,66 @@ export const saveAjusteAlmacen = async (req, res) => {
         costoUnitario: Number(costoUnitario),
         tipoMovimiento: 'entrada',
         tipo: 'ajuste',
+        lote,
+        fechaVencimiento: fechaVencimientoFormat,
         almacenDestino: new ObjectId(almacen._id),
+        creadoPor: new ObjectId(req.uid),
+        fechaCreacion: moment().toDate()
+      }
+    })
+    const movimiento = await createItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      item: {
+        fecha: fechaAjusteFormat,
+        fechaVencimiento: fechaVencimientoFormat,
+        tipo: 'Ajuste',
+        almacenOrigen: null,
+        almacenDestino: new ObjectId(almacen._id) || null,
+        zona: null,
+        numeroMovimiento: contador
+      }
+    })
+    createItemSD({
+      nameCollection: 'historial',
+      enviromentClienteId: clienteId,
+      item: {
+        idMovimiento: movimiento.insertedId,
+        categoria: 'creado',
+        tipo: 'Movimiento',
+        fecha: moment().toDate(),
+        descripcion: `Movimiento AJ-${contador} creado`,
         creadoPor: new ObjectId(req.uid)
       }
     })
-    if (tieneContabilidad) {
+    createItemSD({
+      nameCollection: 'detalleMovimientos',
+      enviromentClienteId: clienteId,
+      items: {
+        movimientoId: movimiento.insertedId,
+        productoId: new ObjectId(productoId),
+        codigo: producto.codigo,
+        descripcion: producto.descripcion,
+        nombre: producto.nombre,
+        observacion: producto.observacion,
+        unidad: producto.unidad,
+        cantidad: Number(cantidad)
+      }
+    })
+    if (/* tieneContabilidad */ !ignorarContabilidad) {
       // aquí va la contabilidad preguntar en que comprobante iria el ajuste
-      // const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })
-      const mesPeriodo = moment().format('YYYY/MM')
+      const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: fechaAjusteFormat }, fechaFin: { $gte: fechaAjusteFormat } } })
+      const mesPeriodo = moment(fechaAjusteFormat).format('YYYY/MM')
       let comprobante = await getItemSD({
         nameCollection: 'comprobantes',
         enviromentClienteId: clienteId,
-        filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: new ObjectId(periodoId), mesPeriodo }
+        filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: perido._id, mesPeriodo }
       })
       if (!comprobante) {
         comprobante = await upsertItemSD({
           nameCollection: 'comprobantes',
           enviromentClienteId: clienteId,
-          filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: new ObjectId(periodoId), mesPeriodo },
+          filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: perido._id, mesPeriodo },
           update: {
             $set: {
               nombre: 'Ajuste de inventario',
@@ -379,7 +418,10 @@ export const saveAjusteAlmacen = async (req, res) => {
             $project: {
               nombre: '$nombre',
               codigo: '$codigo',
+              descripcion: '$descripcion',
+              unidad: '$unidad',
               categoriaId: '$categoria',
+              observacion: '$observacion',
               categoria: '$detalleCategoria.nombre',
               cuentaId: '$detalleCuenta._id',
               cuentaNombre: '$detalleCuenta.descripcion',
@@ -401,16 +443,16 @@ export const saveAjusteAlmacen = async (req, res) => {
           cuentaCodigo: dataParaDetalle[0].cuentaCodigo,
           cuentaNombre: dataParaDetalle[0].cuentaNombre,
           comprobanteId: comprobante._id,
-          periodoId: new ObjectId(periodoId),
-          descripcion: `Ajuste de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
-          fecha: moment().toDate(),
+          periodoId: perido._id,
+          descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
+          fecha: fechaAjusteFormat,
           debe: Number(cantidad) * Number(costoUnitario),
           haber: 0,
           fechaCreacion: moment().toDate(),
-          docReferenciaAux: 'AJUSTE',
+          docReferenciaAux: `MOV-AJ-${contador}`,
           documento: {
-            docReferencia: 'AJUSTE',
-            docFecha: moment().toDate()
+            docReferencia: `MOV-AJ-${contador}`,
+            docFecha: fechaAjusteFormat
           }
         },
         {
@@ -418,16 +460,16 @@ export const saveAjusteAlmacen = async (req, res) => {
           cuentaCodigo: cuentaAjuste.codigo,
           cuentaNombre: cuentaAjuste.descripcion,
           comprobanteId: comprobante._id,
-          periodoId: new ObjectId(periodoId),
-          descripcion: `Ajuste de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
-          fecha: moment().toDate(),
+          periodoId: perido._id,
+          descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
+          fecha: fechaAjusteFormat,
           debe: 0,
           haber: Number(cantidad) * Number(costoUnitario),
           fechaCreacion: moment().toDate(),
-          docReferenciaAux: 'AJUSTE',
+          docReferenciaAux: `MOV-AJ-${contador}`,
           documento: {
-            docReferencia: 'AJUSTE',
-            docFecha: moment().toDate()
+            docReferencia: `MOV-AJ-${contador}`,
+            docFecha: fechaAjusteFormat
           }
         }
       ]
@@ -437,6 +479,7 @@ export const saveAjusteAlmacen = async (req, res) => {
         items: detalleComprobante
       })
     }
+    upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'ajuste' }, update: { $set: { contador } } })
     return res.status(200).json({ status: 'Ajuste guardado exitosamente' })
   }
   if (tipo === 'Salida') {
@@ -450,23 +493,64 @@ export const saveAjusteAlmacen = async (req, res) => {
         costoUnitario: Number(costoUnitario.costosUnitarios),
         tipoMovimiento: 'salida',
         tipo: 'ajuste',
+        lote,
+        fechaVencimiento: fechaVencimientoFormat,
         almacenOrigen: new ObjectId(almacen._id)
       }
     })
-    if (tieneContabilidad) {
+    const movimiento = await createItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      item: {
+        fecha: fechaAjusteFormat,
+        fechaVencimiento: fechaVencimientoFormat,
+        tipo: 'Ajuste',
+        almacenOrigen: null,
+        almacenDestino: new ObjectId(almacen._id) || null,
+        zona: null,
+        numeroMovimiento: contador
+      }
+    })
+    createItemSD({
+      nameCollection: 'detalleMovimientos',
+      enviromentClienteId: clienteId,
+      items: {
+        movimientoId: movimiento.insertedId,
+        productoId: new ObjectId(productoId),
+        codigo: producto.codigo,
+        descripcion: producto.descripcion,
+        nombre: producto.nombre,
+        observacion: producto.observacion,
+        unidad: producto.unidad,
+        cantidad: Number(cantidad)
+      }
+    })
+    createItemSD({
+      nameCollection: 'historial',
+      enviromentClienteId: clienteId,
+      item: {
+        idMovimiento: movimiento.insertedId,
+        categoria: 'creado',
+        tipo: 'Movimiento',
+        fecha: moment().toDate(),
+        descripcion: `Movimiento AJ-${contador} creado`,
+        creadoPor: new ObjectId(req.uid)
+      }
+    })
+    if (/* tieneContabilidad */ !ignorarContabilidad) {
       // aquí va la contabilidad preguntar en que comprobante iria el ajuste
-      // const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })
-      const mesPeriodo = moment().format('YYYY/MM')
+      const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: fechaAjusteFormat }, fechaFin: { $gte: fechaAjusteFormat } } })
+      const mesPeriodo = moment(fechaAjusteFormat).format('YYYY/MM')
       let comprobante = await getItemSD({
         nameCollection: 'comprobantes',
         enviromentClienteId: clienteId,
-        filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: new ObjectId(periodoId), mesPeriodo }
+        filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: perido._id, mesPeriodo }
       })
       if (!comprobante) {
         comprobante = await upsertItemSD({
           nameCollection: 'comprobantes',
           enviromentClienteId: clienteId,
-          filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: new ObjectId(periodoId), mesPeriodo },
+          filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: perido._id, mesPeriodo },
           update: {
             $set: {
               nombre: 'Ajuste de inventario',
@@ -515,7 +599,10 @@ export const saveAjusteAlmacen = async (req, res) => {
             $project: {
               nombre: '$nombre',
               codigo: '$codigo',
+              descripcion: '$descripcion',
+              unidad: '$unidad',
               categoriaId: '$categoria',
+              observacion: '$observacion',
               categoria: '$detalleCategoria.nombre',
               cuentaId: '$detalleCuenta._id',
               cuentaNombre: '$detalleCuenta.descripcion',
@@ -537,16 +624,16 @@ export const saveAjusteAlmacen = async (req, res) => {
           cuentaCodigo: cuentaAjuste.codigo,
           cuentaNombre: cuentaAjuste.descripcion,
           comprobanteId: comprobante._id,
-          periodoId: new ObjectId(periodoId),
-          descripcion: `Ajuste de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
-          fecha: moment().toDate(),
+          periodoId: perido._id,
+          descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
+          fecha: fechaAjusteFormat,
           debe: Number(cantidad) * Number(costoUnitario),
           haber: 0,
           fechaCreacion: moment().toDate(),
-          docReferenciaAux: 'AJUSTE',
+          docReferenciaAux: `MOV-AJ-${contador}`,
           documento: {
-            docReferencia: 'AJUSTE',
-            docFecha: moment().toDate()
+            docReferencia: `MOV-AJ-${contador}`,
+            docFecha: fechaAjusteFormat
           }
         },
         {
@@ -554,16 +641,16 @@ export const saveAjusteAlmacen = async (req, res) => {
           cuentaCodigo: dataParaDetalle[0].cuentaCodigo,
           cuentaNombre: dataParaDetalle[0].cuentaNombre,
           comprobanteId: comprobante._id,
-          periodoId: new ObjectId(periodoId),
-          descripcion: `Ajuste de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
-          fecha: moment().toDate(),
+          periodoId: perido._id,
+          descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
+          fecha: fechaAjusteFormat,
           debe: 0,
           haber: Number(cantidad) * Number(costoUnitario),
           fechaCreacion: moment().toDate(),
-          docReferenciaAux: 'AJUSTE',
+          docReferenciaAux: `MOV-AJ-${contador}`,
           documento: {
-            docReferencia: 'AJUSTE',
-            docFecha: moment().toDate()
+            docReferencia: `MOV-AJ-${contador}`,
+            docFecha: fechaAjusteFormat
           }
         }
       ]
@@ -573,6 +660,7 @@ export const saveAjusteAlmacen = async (req, res) => {
         items: detalleComprobante
       })
     }
+    upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'ajuste' }, update: { $set: { contador } } })
     return res.status(200).json({ status: 'Ajuste guardado exitosamente' })
   }
 }
@@ -613,4 +701,27 @@ export const updatePrecioProducto = async (req, res) => {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de actualizar los productos ' + e.message })
   }
+}
+export const saveDataInicial = async (req, res) => {
+  const { clienteId, cantidadPorAlmacen, productoId, configuracionFecha } = req.body
+  if (cantidadPorAlmacen[0]) {
+    const datosParaAlmacen = cantidadPorAlmacen.map(e => {
+      return {
+        cantidad: Number(e.cantidad),
+        almacenDestino: e.almacen._id ? new ObjectId(e.almacen._id) : null,
+        almacenDestinoNombre: e.almacen._id ? e.almacen.nombre : null,
+        almacenId: e.almacen._id ? new ObjectId(e.almacen._id) : null,
+        tipo: 'inicial',
+        lote: e.lote,
+        tipoMovimiento: 'entrada',
+        productoId,
+        fechaVencimiento: moment(e.fechaVencimiento, (configuracionFecha || 'YYYY/MM/DD')).toDate(),
+        costoUnitario: Number(e.costoUnitario),
+        fechaMovimiento: moment().toDate(),
+        creadoPor: new ObjectId(req.uid)
+      }
+    })
+    await createManyItemsSD({ nameCollection: 'productosPorAlmacen', enviromentClienteId: clienteId, items: datosParaAlmacen })
+  }
+  return res.status(200).json({ status: 'Datos iniciales guardados exitosamente' })
 }

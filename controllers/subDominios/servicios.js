@@ -4,7 +4,7 @@ import moment from 'moment'
 import { subDominioName } from '../../constants.js'
 
 export const getServicios = async (req, res) => {
-  const { clienteId } = req.body
+  const { clienteId, tipo } = req.body
   try {
     const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
@@ -13,6 +13,7 @@ export const getServicios = async (req, res) => {
       nameCollection: 'servicios',
       enviromentClienteId: clienteId,
       pipeline: [
+        { $match: { tipo } },
         {
           $lookup: {
             from: zonasCollection,
@@ -68,7 +69,7 @@ export const getServicios = async (req, res) => {
   }
 }
 export const saveServicios = async (req, res) => {
-  const { _id, clienteId, categoria, zona, codigo, nombre, moneda, precio, retencion, observacion } = req.body
+  const { _id, clienteId, categoria, zona, codigo, nombre, moneda, precio, retencion, observacion, tipo } = req.body
   try {
     if (!_id) {
       const verify = await getItemSD({
@@ -90,10 +91,11 @@ export const saveServicios = async (req, res) => {
             codigo,
             nombre,
             moneda: moneda ? new ObjectId(moneda) : null,
-            precio: Number(precio),
+            precio: Number(precio) || null,
             retencion: retencion ? new ObjectId(retencion) : null,
             observacion,
-            fechaCreacion: moment().toDate()
+            fechaCreacion: moment().toDate(),
+            tipo
           }
         }
       })
@@ -110,9 +112,10 @@ export const saveServicios = async (req, res) => {
           codigo,
           nombre,
           moneda: moneda ? new ObjectId(moneda) : null,
-          precio: Number(precio),
+          precio: Number(precio) || null,
           retencion: retencion ? new ObjectId(retencion) : null,
-          observacion
+          observacion,
+          tipo
         }
       }
     })

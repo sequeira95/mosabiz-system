@@ -57,19 +57,56 @@ export const savePeriodo = async (req, res) => {
       filters: { _id: new ObjectId(periodo._id) },
       update: {
         $set: {
-          periodo: periodo.periodo ? periodo.periodo : `${periodo.fechaInicio.replace('/', '-')}/${periodo.fechaFin.replace('/', '-')}`,
-          fechaInicio: moment(periodo.fechaInicio, 'YYYY/MM').startOf('month').toDate(),
-          fechaFin: moment(periodo.fechaFin, 'YYYY/MM').endOf('month').toDate(),
+          /* periodo: periodo.periodo ? periodo.periodo : `${periodo.fechaInicio.replace('/', '-')}/${periodo.fechaFin.replace('/', '-')}`,
+          fechaInicio: moment(periodo.fechaInicio).startOf('month').toDate(),
+          fechaFin: moment(periodo.fechaFin).endOf('month').toDate(), */
           status: periodo.status,
-          activo: periodo.status === 'Activo' || periodo.status === 'Pre-cierre',
-          periodoAnterior: periodo.periodoAnterior?._id ? new ObjectId(periodo.periodoAnterior._id) : null,
-          periodoAnteriorNombre: periodo.periodoAnterior?._id ? periodo.periodoAnterior.periodo : null
+          activo: periodo.status === 'Activo' || periodo.status === 'Pre-cierre'
+          /* periodoAnterior: periodo.periodoAnterior?._id ? new ObjectId(periodo.periodoAnterior._id) : null,
+          periodoAnteriorNombre: periodo.periodoAnterior?._id ? periodo.periodoAnterior.periodo : null */
         }
       }
     })
     if (newPeriodo.status === statusOptionsPeriodos.cerrado) {
       console.log('creear o actualizar el comprobante para el nuevo periodo de cierre y tambien pre cierre')
       cerrarPeriodo({ clienteId, periodo: newPeriodo })
+      const verifyPeriodoAPreCierre = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { status: statusOptionsPeriodos.preCierre, periodoAnterior: newPeriodo._id } })
+      if (!verifyPeriodoAPreCierre) {
+        const periodoInit = moment(periodo.fechaFin).add(1, 'month')
+        const periodoFin = moment(periodoInit).add(11, 'month')
+        const periodoFormat = `${moment(periodoInit).format('YYYY-MM')} / ${moment(periodoFin).format('YYYY-MM')}`
+        console.log({ periodoInit, periodoFin, periodoFormat })
+        const preCierrePeriodo1 = await upsertItemSD({
+          nameCollection: 'periodos',
+          enviromentClienteId: clienteId,
+          filters: { periodoAnterior: newPeriodo._id },
+          update: {
+            $set: {
+              periodo: periodoFormat,
+              fechaInicio: moment(periodoInit).startOf('month').toDate(),
+              fechaFin: moment(periodoFin).endOf('month').toDate(),
+              status: 'Activo',
+              activo: true,
+              periodoAnterior: new ObjectId(newPeriodo._id),
+              periodoAnteriorNombre: newPeriodo.periodo
+            }
+          }
+        })
+        preCierrePeriodo({ clienteId, periodo: preCierrePeriodo1 })
+      } else {
+        const preCierrePeriodo1 = await upsertItemSD({
+          nameCollection: 'periodos',
+          enviromentClienteId: clienteId,
+          filters: { periodoAnterior: newPeriodo._id },
+          update: {
+            $set: {
+              status: 'Activo',
+              activo: true
+            }
+          }
+        })
+        preCierrePeriodo({ clienteId, periodo: preCierrePeriodo1 })
+      }
     }
 
     return res.status(200).json({ status: 'Periodo guardado con exito', periodo: newPeriodo })

@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb'
 import moment from 'moment'
-import { agreggateCollections, deleteItem, deleteItems, getCollection, getItem, upsertItem, createItems } from '../utils/dataBaseConfing.js'
+import { agreggateCollections, deleteItem, getCollection, getItem, upsertItem, createItems } from '../utils/dataBaseConfing.js'
 
 export const getMonedas = async (req, res) => {
   try {
@@ -12,18 +12,17 @@ export const getMonedas = async (req, res) => {
   }
 }
 export const saveMoneda = async (req, res) => {
-  const { nombre, nombreCorto, nombreInterno, _id } = req.body
+  const { nombre, nombreCorto, simbolo, _id } = req.body
   try {
-    const verifyMoneda = await getItem({ nameCollection: 'monedas', filters: { nombreInterno } })
-    if (verifyMoneda) return res.status(400).json({ error: 'Ya existe una moneda con este nombre interno' })
+    const verifyMoneda = await getItem({ nameCollection: 'monedas', filters: { nombreCorto } })
+    if (!verifyMoneda) return res.status(400).json({ error: 'No existe una moneda con este nombre interno' })
     const moneda = await upsertItem({
       nameCollection: 'monedas',
       filters: { _id: new ObjectId(_id) },
       update: {
         $set: {
           nombre,
-          nombreCorto,
-          nombreInterno
+          simbolo
         }
       }
     })

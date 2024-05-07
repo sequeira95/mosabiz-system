@@ -120,7 +120,9 @@ export const createCliente = async (req, res) => {
     primerPeriodoFiscal,
     limiteUsuarios,
     modulos,
-    periodoActual
+    periodoActual,
+    periodoInit,
+    periodoEnd
   } = req.body
   try {
     const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
@@ -179,14 +181,14 @@ export const createCliente = async (req, res) => {
     })
     // creamos el primer periodo activo segun los datos del periodo actual
     if (periodoActual) {
-      const [periodoActualFrom, periodoActualto] = periodoActual.split('/')
+      // const [periodoActualFrom, periodoActualto] = periodoActual.split('/')
       createItemSD({
         nameCollection: 'periodos',
         enviromentClienteId: clienteCol.insertedId,
         item: {
           periodo: periodoActual,
-          fechaInicio: moment(periodoActualFrom, 'yyyy-MM').startOf('month').toDate(),
-          fechaFin: moment(periodoActualto, 'yyyy-MM').endOf('month').toDate(),
+          fechaInicio: moment(periodoInit).toDate(),
+          fechaFin: moment(periodoEnd).toDate(),
           activo: true,
           status: 'Activo'
         }

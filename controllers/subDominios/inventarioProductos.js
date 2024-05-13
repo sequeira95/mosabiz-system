@@ -2,6 +2,7 @@ import { ObjectId } from 'mongodb'
 import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 import moment from 'moment'
+import { hasContabilidad, validAjustesContablesForAjusteProducto } from '../../utils/hasContabilidad.js'
 // import { hasContabilidad } from '../../utils/hasContabilidad.js'
 
 export const getProductos = async (req, res) => {
@@ -285,16 +286,18 @@ export const getListCostos = async (req, res) => {
   }
 }
 export const saveAjusteAlmacen = async (req, res) => {
-  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo, lote, fechaAjuste, fechaVencimiento, configuacionFecha, ignorarContabilidad } = req.body
+  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo, lote, fechaAjuste, fechaVencimiento } = req.body
+  // console.log(req.body)
+  const tieneContabilidad = await hasContabilidad({ clienteId })
   const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
-  /* const tieneContabilidad = await hasContabilidad({ clienteId })
   if (tieneContabilidad) {
-    if (ajusteInventario && !ajusteInventario.codigoComprobanteAjuste) return res.status(400).json({ error: 'No existe en ajustes el codigo del comprobante para realizar ajuste' })
-    if (tipo === 'Ingreso' && ajusteInventario && !ajusteInventario.cuentaUtilidadAjusteInventario) return res.status(400).json({ error: 'No existe en ajustes una cuenta seleccionada para poder realizar el ajuste' })
-    if (tipo === 'Salida' && ajusteInventario && !ajusteInventario.cuentaPerdidasAjusteInventario) return res.status(400).json({ error: 'No existe en ajustes una cuenta seleccionada para poder realizar el ajuste' })
-  } */
-  const fechaAjusteFormat = moment(fechaAjuste, configuacionFecha || 'YYYY/MM/DD').toDate()
-  const fechaVencimientoFormat = moment(fechaVencimiento, configuacionFecha || 'YYYY/MM/DD').toDate()
+    const validContabilidad = await validAjustesContablesForAjusteProducto({ clienteId, tipo, productoId, almacen })
+    if (validContabilidad && validContabilidad.message) {
+      return res.status(500).json({ error: 'Error al momento de validar información contable: ' + validContabilidad.message })
+    }
+  }
+  // const fechaAjusteFormat = moment(fechaAjuste, configuacionFecha || 'YYYY/MM/DD').toDate()
+  // const fechaVencimientoFormat = moment(fechaVencimiento, configuacionFecha || 'YYYY/MM/DD').toDate()
   let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'ajuste' } }))?.contador
   if (contador) ++contador
   if (!contador) contador = 1
@@ -311,7 +314,7 @@ export const saveAjusteAlmacen = async (req, res) => {
         tipoMovimiento: 'entrada',
         tipo: 'ajuste',
         lote,
-        fechaVencimiento: fechaVencimientoFormat,
+        fechaVencimiento: moment(fechaVencimiento).toDate(),
         almacenDestino: new ObjectId(almacen._id),
         creadoPor: new ObjectId(req.uid),
         fechaCreacion: moment().toDate()
@@ -321,8 +324,8 @@ export const saveAjusteAlmacen = async (req, res) => {
       nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
       item: {
-        fecha: fechaAjusteFormat,
-        fechaVencimiento: fechaVencimientoFormat,
+        fecha: moment(fechaAjuste).toDate(),
+        fechaVencimiento: moment(fechaVencimiento).toDate(),
         tipo: 'Ajuste',
         almacenOrigen: null,
         almacenDestino: new ObjectId(almacen._id) || null,
@@ -356,10 +359,10 @@ export const saveAjusteAlmacen = async (req, res) => {
         cantidad: Number(cantidad)
       }
     })
-    if (/* tieneContabilidad */ !ignorarContabilidad) {
+    if (tieneContabilidad) {
       // aquí va la contabilidad preguntar en que comprobante iria el ajuste
-      const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: fechaAjusteFormat }, fechaFin: { $gte: fechaAjusteFormat } } })
-      const mesPeriodo = moment(fechaAjusteFormat).format('YYYY/MM')
+      const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaAjuste).toDate() }, fechaFin: { $gte: moment(fechaAjuste).toDate() } } })
+      const mesPeriodo = moment(fechaAjuste).format('YYYY/MM')
       let comprobante = await getItemSD({
         nameCollection: 'comprobantes',
         enviromentClienteId: clienteId,
@@ -445,14 +448,14 @@ export const saveAjusteAlmacen = async (req, res) => {
           comprobanteId: comprobante._id,
           periodoId: perido._id,
           descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
-          fecha: fechaAjusteFormat,
+          fecha: moment(fechaAjuste).toDate(),
           debe: Number(cantidad) * Number(costoUnitario),
           haber: 0,
           fechaCreacion: moment().toDate(),
           docReferenciaAux: `MOV-AJ-${contador}`,
           documento: {
             docReferencia: `MOV-AJ-${contador}`,
-            docFecha: fechaAjusteFormat
+            docFecha: moment(fechaAjuste).toDate()
           }
         },
         {
@@ -462,14 +465,14 @@ export const saveAjusteAlmacen = async (req, res) => {
           comprobanteId: comprobante._id,
           periodoId: perido._id,
           descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
-          fecha: fechaAjusteFormat,
+          fecha: moment(fechaAjuste).toDate(),
           debe: 0,
           haber: Number(cantidad) * Number(costoUnitario),
           fechaCreacion: moment().toDate(),
           docReferenciaAux: `MOV-AJ-${contador}`,
           documento: {
             docReferencia: `MOV-AJ-${contador}`,
-            docFecha: fechaAjusteFormat
+            docFecha: moment(fechaAjuste).toDate()
           }
         }
       ]
@@ -494,7 +497,7 @@ export const saveAjusteAlmacen = async (req, res) => {
         tipoMovimiento: 'salida',
         tipo: 'ajuste',
         lote,
-        fechaVencimiento: fechaVencimientoFormat,
+        fechaVencimiento: moment(fechaVencimiento).toDate(),
         almacenOrigen: new ObjectId(almacen._id)
       }
     })
@@ -502,8 +505,8 @@ export const saveAjusteAlmacen = async (req, res) => {
       nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
       item: {
-        fecha: fechaAjusteFormat,
-        fechaVencimiento: fechaVencimientoFormat,
+        fecha: moment(fechaAjuste).toDate(),
+        fechaVencimiento: moment(fechaVencimiento).toDate(),
         tipo: 'Ajuste',
         almacenOrigen: null,
         almacenDestino: new ObjectId(almacen._id) || null,
@@ -537,10 +540,10 @@ export const saveAjusteAlmacen = async (req, res) => {
         creadoPor: new ObjectId(req.uid)
       }
     })
-    if (/* tieneContabilidad */ !ignorarContabilidad) {
+    if (tieneContabilidad) {
       // aquí va la contabilidad preguntar en que comprobante iria el ajuste
-      const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: fechaAjusteFormat }, fechaFin: { $gte: fechaAjusteFormat } } })
-      const mesPeriodo = moment(fechaAjusteFormat).format('YYYY/MM')
+      const perido = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaAjuste).toDate() }, fechaFin: { $gte: moment(fechaAjuste).toDate() } } })
+      const mesPeriodo = moment(fechaAjuste).format('YYYY/MM')
       let comprobante = await getItemSD({
         nameCollection: 'comprobantes',
         enviromentClienteId: clienteId,
@@ -626,14 +629,14 @@ export const saveAjusteAlmacen = async (req, res) => {
           comprobanteId: comprobante._id,
           periodoId: perido._id,
           descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
-          fecha: fechaAjusteFormat,
+          fecha: moment(fechaAjuste).toDate(),
           debe: Number(cantidad) * Number(costoUnitario),
           haber: 0,
           fechaCreacion: moment().toDate(),
           docReferenciaAux: `MOV-AJ-${contador}`,
           documento: {
             docReferencia: `MOV-AJ-${contador}`,
-            docFecha: fechaAjusteFormat
+            docFecha: moment(fechaAjuste).toDate()
           }
         },
         {
@@ -643,14 +646,14 @@ export const saveAjusteAlmacen = async (req, res) => {
           comprobanteId: comprobante._id,
           periodoId: perido._id,
           descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
-          fecha: fechaAjusteFormat,
+          fecha: moment(fechaAjuste).toDate(),
           debe: 0,
           haber: Number(cantidad) * Number(costoUnitario),
           fechaCreacion: moment().toDate(),
           docReferenciaAux: `MOV-AJ-${contador}`,
           documento: {
             docReferencia: `MOV-AJ-${contador}`,
-            docFecha: fechaAjusteFormat
+            docFecha: moment(fechaAjuste).toDate()
           }
         }
       ]
@@ -703,7 +706,7 @@ export const updatePrecioProducto = async (req, res) => {
   }
 }
 export const saveDataInicial = async (req, res) => {
-  const { clienteId, cantidadPorAlmacen, productoId, configuracionFecha } = req.body
+  const { clienteId, cantidadPorAlmacen, productoId } = req.body
   if (cantidadPorAlmacen[0]) {
     const datosParaAlmacen = cantidadPorAlmacen.map(e => {
       return {
@@ -715,7 +718,7 @@ export const saveDataInicial = async (req, res) => {
         lote: e.lote,
         tipoMovimiento: 'entrada',
         productoId,
-        fechaVencimiento: moment(e.fechaVencimiento, (configuracionFecha || 'YYYY/MM/DD')).toDate(),
+        fechaVencimiento: moment(e.fechaVencimiento).toDate(),
         costoUnitario: Number(e.costoUnitario),
         fechaMovimiento: moment().toDate(),
         creadoPor: new ObjectId(req.uid)

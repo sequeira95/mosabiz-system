@@ -1,6 +1,6 @@
 import moment from 'moment'
 import { dataBaseSecundaria, subDominioName } from '../../constants.js'
-import { accessToDataBase, agreggateCollectionsSD, createItemSD, deleteCollection, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { accessToDataBase, agreggateCollectionsSD, createItemSD, createManyItemsSD, deleteCollection, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import { encryptPassword } from '../../utils/hashPassword.js'
 import { senEmail } from '../../utils/nodemailsConfing.js'
 import { ObjectId } from 'mongodb'
@@ -239,6 +239,20 @@ export const createCliente = async (req, res) => {
     await senEmail(emailConfing)
     /* const cliente = await clientesCollection.findOne({ _id: clienteCol.insertedId }) */
     const cliente = await getItemSD({ nameCollection: 'clientes', filters: { _id: clienteCol.insertedId } })
+    createManyItemsSD({
+      nameCollection: 'almacenes',
+      enviromentClienteId: clienteCol.insertedId,
+      items: [
+        {
+          codigo: '1',
+          nombre: 'Transito'
+        },
+        {
+          codigo: '2',
+          nombre: 'Auditoria'
+        }
+      ]
+    })
     return res.status(200).json({ status: 'Empresa creada exitosamente', cliente })
   } catch (e) {
     console.log(e)

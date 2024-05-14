@@ -16,6 +16,7 @@ export const getProductos = async (req, res) => {
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
       pipeline: [
+        { $match: { activo: { $ne: false } } },
         {
           $lookup: {
             from: ivaCollection,

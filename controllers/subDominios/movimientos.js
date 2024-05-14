@@ -2,7 +2,7 @@ import moment from 'moment'
 import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { subDominioName, tipoMovimientosShort } from '../../constants.js'
-import { hasContabilidad } from '../../utils/hasContabilidad.js'
+import { hasContabilidad, validMovimientoPenditeEnvio } from '../../utils/hasContabilidad.js'
 export const getDataMovimientos = async (req, res) => {
   const { clienteId, estado } = req.body
   try {
@@ -195,44 +195,51 @@ export const updateEstadoMovimiento = async (req, res) => {
         updateMovimiento.estadoRecepcion = 'Con diferencia'
       }
     }
+    const tieneContabilidad = await hasContabilidad({ clienteId })
     const movimiento = await updateItemSD({
       nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) },
       update: { $set: { estado, ...updateMovimiento } }
     })
-    const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
-    const periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaEnvio).toDate() }, fechaFin: { $gte: moment(fechaEnvio).toDate() } } })
-    const mesPeriodo = moment(fechaEnvio).format('YYYY/MM')
-    let comprobante = await getItemSD({
-      nameCollection: 'comprobantes',
-      enviromentClienteId: clienteId,
-      filters: { codigo: ajusteInventario.codigoComprobanteMovimientos, periodoId: periodo._id, mesPeriodo }
-    })
-    if (!comprobante) {
-      comprobante = await upsertItemSD({
+    let comprobante = null
+    let periodo = null
+    if (tieneContabilidad) {
+      const validContabilidad = await validMovimientoPenditeEnvio({ clienteId, detalleMovimientos, almacenOrigen })
+      if (validContabilidad && validContabilidad.message) {
+        return res.status(500).json({ error: 'Error al momento de validar información contable: ' + validContabilidad.message })
+      }
+      const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
+      periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaEnvio).toDate() }, fechaFin: { $gte: moment(fechaEnvio).toDate() } } })
+      const mesPeriodo = moment(fechaEnvio).format('YYYY/MM')
+      comprobante = await getItemSD({
         nameCollection: 'comprobantes',
         enviromentClienteId: clienteId,
-        filters: { codigo: ajusteInventario.codigoComprobanteMovimientos, periodoId: periodo._id, mesPeriodo },
-        update: {
-          $set: {
-            nombre: 'Movimientos de inventario',
-            isBloqueado: false,
-            fechaCreacion: moment().toDate()
-          }
-        }
+        filters: { codigo: ajusteInventario.codigoComprobanteMovimientos, periodoId: periodo._id, mesPeriodo }
       })
+      if (!comprobante) {
+        comprobante = await upsertItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteInventario.codigoComprobanteMovimientos, periodoId: periodo._id, mesPeriodo },
+          update: {
+            $set: {
+              nombre: 'Movimientos de inventario',
+              isBloqueado: false,
+              fechaCreacion: moment().toDate()
+            }
+          }
+        })
+      }
     }
     let descripcion = ''
     if (estado === 'recepcionPendiente') {
       descripcion = 'Cambió estado a pendiente por recibir'
-      updateMovimientoSalida({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid: req.uid, comprobante, periodo, fechaEnvio, movimiento })
+      updateMovimientoSalida({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid: req.uid, comprobante, periodo, fechaEnvio, movimiento, tieneContabilidad })
     }
     if (estado === 'recibido') {
       descripcion = 'Cambió estado a recibido'
       updateMovimientoEntrada({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid: req.uid })
-    }
-    if (estado === 'recibido') {
       const newDetalle = detalleMovimientos.map(e => {
         return {
           updateOne: {
@@ -293,7 +300,7 @@ export const cancelarMovimiento = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de cancelar el movimiento ' + e.message })
   }
 }
-const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid, comprobante, periodo, fechaEnvio, movimiento }) => {
+const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid, comprobante, periodo, fechaEnvio, movimiento, tieneContabilidad }) => {
   // console.log({ detalleMovimientos, almacenOrigen, almacenDestino })
   const detallesCrear = []
   const almacenTransito = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Transito' } })
@@ -341,7 +348,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
     })
     console.log({ datosMovivientoPorProducto })
     let asientoContableHaber = {}
-    if (hasContabilidad()) {
+    if (tieneContabilidad) {
       const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(detalle.productoId) } })
       const categoriaPorAlmacen = await getItemSD({
         nameCollection: 'categoriaPorAlmacen',

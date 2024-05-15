@@ -4,19 +4,19 @@ export const dataBaseSecundaria = process.env.DB_NAME
 export const subDominioName = process.env.ENVIROMENTID
 export const lengthCodigoByNiveles = {
   1: 1,
-  2: 3,
-  3: 5,
-  4: 8,
-  5: 11,
-  6: 14
+  2: 2,
+  3: 4,
+  4: 7,
+  5: 10,
+  6: 13
 }
 export const nivelesCodigoByLength = {
   1: 1,
-  3: 2,
-  5: 3,
-  8: 4,
-  11: 5,
-  14: 6
+  2: 2,
+  4: 3,
+  7: 4,
+  10: 5,
+  13: 6
 }
 export const ObjectNumbersMonths = {
   ENERO: 1,

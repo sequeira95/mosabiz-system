@@ -184,6 +184,7 @@ export const updateEstadoMovimiento = async (req, res) => {
   try {
     const updateMovimiento = {}
     if (estado === 'recepcionPendiente') {
+      console.log(1)
       updateMovimiento.fechaEnvio = moment(fechaEnvio).toDate()
       updateMovimiento.fechaRecepcionEstimada = moment(fechaRecepcionEstimada).toDate()
     }
@@ -196,21 +197,19 @@ export const updateEstadoMovimiento = async (req, res) => {
       }
     }
     const tieneContabilidad = await hasContabilidad({ clienteId })
-    const movimiento = await updateItemSD({
-      nameCollection: 'movimientos',
-      enviromentClienteId: clienteId,
-      filters: { _id: new ObjectId(_id) },
-      update: { $set: { estado, ...updateMovimiento } }
-    })
+    console.log({ tieneContabilidad })
     let comprobante = null
     let periodo = null
     if (tieneContabilidad) {
+      console.log(2)
       const validContabilidad = await validMovimientoPenditeEnvio({ clienteId, detalleMovimientos, almacenOrigen })
+      console.log({ pa: validContabilidad.message })
       if (validContabilidad && validContabilidad.message) {
         return res.status(500).json({ error: 'Error al momento de validar información contable: ' + validContabilidad.message })
       }
       const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
       periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaEnvio).toDate() }, fechaFin: { $gte: moment(fechaEnvio).toDate() } } })
+      console.log({ periodo })
       const mesPeriodo = moment(fechaEnvio).format('YYYY/MM')
       comprobante = await getItemSD({
         nameCollection: 'comprobantes',
@@ -232,8 +231,16 @@ export const updateEstadoMovimiento = async (req, res) => {
         })
       }
     }
+    const movimiento = await updateItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: { $set: { estado, ...updateMovimiento } }
+    })
+    console.log({ movimiento })
     let descripcion = ''
     if (estado === 'recepcionPendiente') {
+      console.log('entrando')
       descripcion = 'Cambió estado a pendiente por recibir'
       updateMovimientoSalida({ detalleMovimientos, almacenOrigen, almacenDestino, clienteId, uid: req.uid, comprobante, periodo, fechaEnvio, movimiento, tieneContabilidad })
     }
@@ -306,7 +313,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
   const almacenTransito = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Transito' } })
   const asientosContables = []
   const zona = await getItemSD({ nameCollection: 'zonas', enviromentClienteId: clienteId, filters: { _id: new ObjectId(movimiento.zona) } })
-  let sumAlmacenTransito = 0
+  // let sumAlmacenTransito = 0
   for (const detalle of detalleMovimientos) {
     const datosMovivientoPorProducto = await agreggateCollectionsSD({
       nameCollection: 'productosPorAlmacen',
@@ -348,6 +355,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
     })
     console.log({ datosMovivientoPorProducto })
     let asientoContableHaber = {}
+    let asientoContableDebe = {}
     if (tieneContabilidad) {
       const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(detalle.productoId) } })
       const categoriaPorAlmacen = await getItemSD({
@@ -355,14 +363,35 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
         enviromentClienteId: clienteId,
         filters: { categoriaId: producto.categoria, almacenId: new ObjectId(almacenOrigen._id) }
       })
+      const categoriaPorAlmacenTransito = await getItemSD({
+        nameCollection: 'categoriaPorAlmacen',
+        enviromentClienteId: clienteId,
+        filters: { categoriaId: producto.categoria, almacenId: almacenTransito._id }
+      })
       const cuentaPorCategoria = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacen.cuentaId } })
+      const cuentaPorCategoriaTransito = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacenTransito.cuentaId } })
       asientoContableHaber = {
         cuentaId: new ObjectId(cuentaPorCategoria._id),
         cuentaCodigo: cuentaPorCategoria.codigo,
         cuentaNombre: cuentaPorCategoria.descripcion,
         comprobanteId: new ObjectId(comprobante._id),
         periodoId: new ObjectId(periodo._id),
-        descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} DESDE ${almacenOrigen.nombre} HASTA ${zona.nombre}`,
+        descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} DESDE ${almacenOrigen.nombre} HASTA ${zona?.nombre ? zona.nombre : almacenDestino.nombre}`,
+        fecha: moment(fechaEnvio).toDate(),
+        fechaCreacion: moment().toDate(),
+        docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+        documento: {
+          docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+          docFecha: moment(fechaEnvio).toDate()
+        }
+      }
+      asientoContableDebe = {
+        cuentaId: new ObjectId(cuentaPorCategoriaTransito._id),
+        cuentaCodigo: cuentaPorCategoriaTransito.codigo,
+        cuentaNombre: cuentaPorCategoriaTransito.descripcion,
+        comprobanteId: new ObjectId(comprobante._id),
+        periodoId: new ObjectId(periodo._id),
+        descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} DESDE ${almacenOrigen.nombre} HASTA ${zona?.nombre ? zona.nombre : almacenDestino.nombre}`,
         fecha: moment(fechaEnvio).toDate(),
         fechaCreacion: moment().toDate(),
         docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
@@ -383,7 +412,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           cantidad: Number(movimientos.cantidad),
           almacenId: new ObjectId(almacenOrigen._id),
           almacenOrigen: new ObjectId(almacenOrigen._id),
-          almacenDestino: new ObjectId(almacenDestino._id),
+          almacenDestino: new ObjectId(almacenTransito._id),
           tipo: 'movimiento',
           tipoMovimiento: 'salida',
           fechaMovimiento: moment().toDate(),
@@ -394,8 +423,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           movimientoId: new ObjectId(detalle.movimientoId),
           cantidad: Number(movimientos.cantidad),
           almacenId: new ObjectId(almacenTransito._id),
-          almacenOrigen: new ObjectId(almacenOrigen._id),
-          almacenDestino: new ObjectId(almacenDestino._id),
+          almacenOrigen: new ObjectId(almacenTransito._id),
+          almacenDestino: almacenDestino?._id ? new ObjectId(almacenDestino._id) : null,
           tipo: 'movimiento',
           tipoMovimiento: 'entrada',
           fechaMovimiento: moment().toDate(),
@@ -439,11 +468,13 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
     }
     asientoContableHaber.debe = 0
     asientoContableHaber.haber = costoProductoTotal
-    sumAlmacenTransito += costoProductoTotal
-    asientosContables.push(asientoContableHaber)
+    asientoContableDebe.debe = costoProductoTotal
+    asientoContableDebe.haber = 0
+    // sumAlmacenTransito += costoProductoTotal
+    asientosContables.push(asientoContableDebe, asientoContableHaber)
   }
-  if (hasContabilidad()) {
-    const cuentaAlmacenTransito = { almacen: 'cuando exista como se guardará almacen de transito eso es lo que irá aqui ' }
+  if (tieneContabilidad) {
+    /* const cuentaAlmacenTransito = { almacen: 'cuando exista como se guardará almacen de transito eso es lo que irá aqui ' }
     const asientoContableDebe = {
       cuentaId: new ObjectId(cuentaAlmacenTransito._id),
       cuentaCodigo: cuentaAlmacenTransito.codigo,
@@ -461,7 +492,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
         docFecha: moment(fechaEnvio).toDate()
       }
     }
-    asientosContables.unshift(asientoContableDebe)
+    asientosContables.unshift(asientoContableDebe) */
     createManyItemsSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,

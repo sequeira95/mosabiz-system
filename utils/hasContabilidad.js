@@ -29,11 +29,16 @@ export async function validAjustesContablesForAjusteProducto ({ clienteId, tipo,
 }
 export async function validMovimientoPenditeEnvio ({ clienteId, detalleMovimientos, almacenOrigen }) {
   try {
+    console.log('paso 1')
     const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
+    console.log({ ajusteInventario })
     if (ajusteInventario && !ajusteInventario.codigoComprobanteMovimientos) throw new Error('No existe en ajustes el codigo del comprobante para actualizar el movimiento')
     const categoriaPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
     const productsId = detalleMovimientos.map(e => new ObjectId(e.productoId))
     console.log({ productsId })
+    const almacenTransito = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Transito' } })
+    if (!almacenTransito) throw new Error('No existe almacen en transito')
+    console.log({ almacenTransito })
     const listaProductos = await agreggateCollectionsSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
@@ -66,10 +71,45 @@ export async function validMovimientoPenditeEnvio ({ clienteId, detalleMovimient
             as: 'detalleCategoriaPorAlmacen'
           }
         },
-        { $unwind: { path: '$detalleCategoriaPorAlmacen', preserveNullAndEmptyArrays: true } }
+        { $unwind: { path: '$detalleCategoriaPorAlmacen', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: categoriaPorAlmacenCollection,
+            let: { categoriaId: '$categoria' },
+            pipeline: [
+              {
+                $match:
+                  {
+                    $expr:
+                    {
+                      $and:
+                        [
+                          { $eq: ['$categoriaId', '$$categoriaId'] },
+                          { $eq: ['$almacenId', almacenTransito._id] }
+                        ]
+                    }
+                  }
+              },
+              {
+                $project: {
+                  cuentaId: '$cuentaId'
+                }
+              }
+            ],
+            as: 'detalleCategoriaPorAlmacenTransito'
+          }
+        },
+        { $unwind: { path: '$detalleCategoriaPorAlmacenTransito', preserveNullAndEmptyArrays: true } }
       ]
     })
-    if (!listaProductos.every(e => e.detalleCategoriaPorAlmacen.cuentaId)) throw new Error('Existen productos que no tienen una cuenta contable asignada en su categoria')
+    console.log({ listaProductos })
+    if (listaProductos && !listaProductos[0]) {
+      throw new Error('No se encontraron productos para validar la contabilidad')
+    }
+    if (listaProductos && listaProductos[0] && !listaProductos.every(e => e.detalleCategoriaPorAlmacen.cuentaId && e.detalleCategoriaPorAlmacenTransito.cuentaId)) {
+      throw new Error('Existen productos que no tienen una cuenta contable asignada en su categoria')
+    }
+    return false
   } catch (e) {
     return e
   }

@@ -82,7 +82,7 @@ export const savePeriodo = async (req, res) => {
             $set: {
               periodo: periodoFormat,
               fechaInicio: moment(periodo.fechaInitNewPeriodo).toDate(),
-              fechaFin: moment(periodo.fechaFinNewPeriodo),
+              fechaFin: moment(periodo.fechaFinNewPeriodo).toDate(),
               status: 'Activo',
               activo: true,
               periodoAnterior: new ObjectId(newPeriodo._id),

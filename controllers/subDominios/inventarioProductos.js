@@ -718,7 +718,7 @@ export const saveDataInicial = async (req, res) => {
         tipo: 'inicial',
         lote: e.lote,
         tipoMovimiento: 'entrada',
-        productoId,
+        productoId: new ObjectId(productoId),
         fechaVencimiento: moment(e.fechaVencimiento).toDate(),
         costoUnitario: Number(e.costoUnitario),
         fechaMovimiento: moment().toDate(),

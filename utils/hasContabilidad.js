@@ -114,3 +114,96 @@ export async function validMovimientoPenditeEnvio ({ clienteId, detalleMovimient
     return e
   }
 }
+export async function validMovimientoPenditeRecepcion ({ clienteId, detalleMovimientos, _id, almacenDestino }) {
+  try {
+    const movimiento = await getItemSD({ nameCollection: 'movimientos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
+    console.log('paso 1')
+    const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
+    console.log({ ajusteInventario })
+    if (ajusteInventario && !ajusteInventario.codigoComprobanteMovimientos) throw new Error('No existe en ajustes el codigo del comprobante para actualizar el movimiento')
+    const categoriaPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
+    const productsId = detalleMovimientos.map(e => new ObjectId(e.productoId))
+    console.log({ productsId })
+    const almacenTransito = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Transito' } })
+    if (!almacenTransito) throw new Error('No existe almacen en transito')
+    console.log({ almacenTransito })
+    if (movimiento.zona) {
+      const zona = await getItemSD({ nameCollection: 'zonas', enviromentClienteId: clienteId, filters: { _id: movimiento.zona } })
+      if (zona && !zona.cuentaId) throw new Error('La zona que tiene asignada el movimiento no posee una cuenta contable registrada')
+    }
+    if (almacenDestino) {
+      const listaProductos = await agreggateCollectionsSD({
+        nameCollection: 'productos',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { _id: { $in: productsId } } },
+          {
+            $lookup: {
+              from: categoriaPorAlmacenCollection,
+              let: { categoriaId: '$categoria' },
+              pipeline: [
+                {
+                  $match:
+                    {
+                      $expr:
+                      {
+                        $and:
+                          [
+                            { $eq: ['$categoriaId', '$$categoriaId'] },
+                            { $eq: ['$almacenId', new ObjectId(almacenDestino._id)] }
+                          ]
+                      }
+                    }
+                },
+                {
+                  $project: {
+                    cuentaId: '$cuentaId'
+                  }
+                }
+              ],
+              as: 'detalleCategoriaPorAlmacen'
+            }
+          },
+          { $unwind: { path: '$detalleCategoriaPorAlmacen', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: categoriaPorAlmacenCollection,
+              let: { categoriaId: '$categoria' },
+              pipeline: [
+                {
+                  $match:
+                    {
+                      $expr:
+                      {
+                        $and:
+                          [
+                            { $eq: ['$categoriaId', '$$categoriaId'] },
+                            { $eq: ['$almacenId', almacenTransito._id] }
+                          ]
+                      }
+                    }
+                },
+                {
+                  $project: {
+                    cuentaId: '$cuentaId'
+                  }
+                }
+              ],
+              as: 'detalleCategoriaPorAlmacenTransito'
+            }
+          },
+          { $unwind: { path: '$detalleCategoriaPorAlmacenTransito', preserveNullAndEmptyArrays: true } }
+        ]
+      })
+      if (listaProductos && !listaProductos[0]) {
+        throw new Error('No se encontraron productos para validar la contabilidad')
+      }
+      if (listaProductos && listaProductos[0] && !listaProductos.every(e => e.detalleCategoriaPorAlmacen.cuentaId && e.detalleCategoriaPorAlmacenTransito.cuentaId)) {
+        throw new Error('Existen productos que no tienen una cuenta contable asignada en su categoria')
+      }
+    }
+    return false
+  } catch (e) {
+    return e
+  }
+}

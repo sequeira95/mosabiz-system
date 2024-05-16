@@ -12,6 +12,7 @@ export const getProductos = async (req, res) => {
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
     const ivaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'iva' })
     const matchAlmacen = almacenOrigen ? { almacenId: new ObjectId(almacenOrigen) } : {}
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Transito', 'Auditoria'] } } })
     const productos = await agreggateCollectionsSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
@@ -41,7 +42,7 @@ export const getProductos = async (req, res) => {
             localField: '_id',
             foreignField: 'productoId',
             pipeline: [
-              { $match: { ...matchAlmacen } },
+              { $match: { ...matchAlmacen, almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } } },
               {
                 $group: {
                   _id: '$productoId',
@@ -195,12 +196,13 @@ export const saveToArray = async (req, res) => {
 export const getDetalleCantidad = async (req, res) => {
   const { clienteId, productoId } = req.body
   try {
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Transito', 'Auditoria'] } } })
     const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
     const cantidadPorALmacen = await agreggateCollectionsSD({
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { productoId: new ObjectId(productoId) } },
+        { $match: { productoId: new ObjectId(productoId), almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } } },
         {
           $group: {
             _id: '$almacenId',

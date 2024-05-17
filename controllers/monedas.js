@@ -68,6 +68,25 @@ export const getTasas = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar tasas monetarias' + e.message })
   }
 }
+export const getTasasByMonth = async (req, res) => {
+  const { date } = req.body
+  const inicio = moment(date).startOf('month').toDate()
+  const fin = moment(date).endOf('month').toDate()
+  try {
+    // await deleteItems({nameCollection: 'tasas'})
+    // await deleteItems({nameCollection: 'monedas'})
+    const tasas = await agreggateCollections({
+      nameCollection: 'tasas',
+      pipeline: [
+        { $match: { fechaValor: { $gte: inicio, $lte: fin } } }
+      ]
+    })
+    return res.status(200).json({ tasas })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar tasas monetarias' + e.message })
+  }
+}
 export const saveTasas = async (req, res) => {
   const { tasas, monedas } = req.body
   if (!monedas[0]) return res.status(500).json({ error: 'Error de servidor al momento de guardar: No Hay monedas para crear' })

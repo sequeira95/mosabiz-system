@@ -3,13 +3,15 @@ import { agreggateCollectionsSD, bulkWriteSD, createItemSD, deleteItemSD, delete
 import { deleteImg, uploadImg } from '../../utils/cloudImage.js'
 import { subDominioName } from '../../constants.js'
 export const getAlmacenes = async (req, res) => {
-  const { clienteId } = req.body
+  const { clienteId, tipo } = req.body
   try {
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+    const matchTipo = !tipo ? { nombre: { $nin: ['Transito', 'Auditoria'] } } : {}
     const almacenes = await agreggateCollectionsSD({
       nameCollection: 'almacenes',
       enviromentClienteId: clienteId,
       pipeline: [
+        { $match: { ...matchTipo } },
         {
           $lookup: {
             from: productorPorAlamcenCollection,
@@ -53,6 +55,88 @@ export const getAlmacenes = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtner datos de los alamcenes ' + e.message })
+  }
+}
+export const getDataAlmacenAuditoria = async (req, res) => {
+  const { clienteId } = req.body
+  try {
+    const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+    const productoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+    const almacen = await agreggateCollectionsSD({
+      nameCollection: 'almacenes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { nombre: 'Auditoria' } },
+        {
+          $lookup: {
+            from: productorPorAlamcenCollection,
+            localField: '_id',
+            foreignField: 'almacenId',
+            pipeline: [
+              {
+                $group: {
+                  _id: '$productoId',
+                  sobrante: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoAuditoria', 'sobrante'] }, then: '$cantidad', else: 0
+                      }
+                    }
+                  },
+                  faltante: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoAuditoria', 'faltante'] }, then: '$cantidad', else: 0
+                      }
+                    }
+                  },
+                  costoUnitario: {
+                    $sum: '$costoUnitario'
+                  }
+                }
+              },
+              {
+                $lookup: {
+                  from: productoCollection,
+                  localField: '_id',
+                  foreignField: '_id',
+                  as: 'detalleProducto'
+                }
+              },
+              { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  productoId: '$detalleProducto._id',
+                  nombre: '$detalleProducto.nombre',
+                  unidad: '$detalleProducto.unidad',
+                  codigo: '$detalleProducto.codigo',
+                  sobrante: '$sobrante',
+                  faltante: '$faltante',
+                  costoUnitario: '$costoUnitario'
+                }
+              }
+            ],
+            as: 'productoPorAlmacen'
+          }
+        },
+        { $unwind: { path: '$productoPorAlmacen', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            productoId: '$productoPorAlmacen.productoId',
+            nombre: '$productoPorAlmacen.nombre',
+            unidad: '$productoPorAlmacen.unidad',
+            codigo: '$productoPorAlmacen.codigo',
+            sobrante: '$productoPorAlmacen.sobrante',
+            faltante: '$productoPorAlmacen.faltante',
+            costoUnitario: '$productoPorAlmacen.costoUnitario'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ almacen })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtner datos del almacen de auditoria ' + e.message })
   }
 }
 export const createAlmacen = async (req, res) => {

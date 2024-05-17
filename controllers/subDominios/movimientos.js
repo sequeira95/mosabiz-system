@@ -412,7 +412,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
     for (const movimientos of datosMovivientoPorProducto) {
       if (detalle.cantidad === 0) break
       if (detalle.cantidad >= movimientos.cantidad) {
-        costoProductoTotal += movimientos.costoUnitario
+        costoProductoTotal += movimientos.costoUnitario * Number(movimientos.cantidad)
         detallesCrear.push({
           productoId: new ObjectId(detalle.productoId),
           movimientoId: new ObjectId(detalle.movimientoId),
@@ -442,7 +442,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
         continue
       }
       if (detalle.cantidad < movimientos.cantidad) {
-        costoProductoTotal += movimientos.costoUnitario
+        costoProductoTotal += movimientos.costoUnitario * detalle.cantidad
         detallesCrear.push({
           productoId: new ObjectId(detalle.productoId),
           movimientoId: new ObjectId(detalle.movimientoId),
@@ -525,18 +525,17 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { productoId: new ObjectId(detalle.productoId), movimientoId: new ObjectId(detalle.movimientoId), almacenId: almacenTransito._id /* tipoMovimiento: 'salida' */ } }
+        { $match: { productoId: new ObjectId(detalle.productoId), movimientoId: new ObjectId(detalle.movimientoId), almacenId: almacenTransito._id, tipoMovimiento: 'entrada' } }
       ]
     })
     console.log({ detallesMovimientosPorProducto })
-    let i = 0
     let costoProductosPorAlmacen = 0
     let costoAlmacenAuditoria = 0
+    let ultimoCosto = 0
     for (const movimientos of detallesMovimientosPorProducto) {
-      i++
-      console.log(i, detalle.cantidadRecibido)
+      ultimoCosto = movimientos.costoUnitario
       if (detalle.cantidadRecibido === 0 && movimientos.cantidad) {
-        costoAlmacenAuditoria += movimientos.costoUnitario
+        costoAlmacenAuditoria += movimientos.costoUnitario * Number(movimientos.cantidad)
         detallesCrear.push({
           productoId: new ObjectId(detalle.productoId),
           movimientoId: new ObjectId(detalle.movimientoId),
@@ -546,6 +545,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           almacenDestino: almacenAuditoria._id,
           tipo: 'movimiento',
           tipoMovimiento: 'entrada',
+          tipoAuditoria: 'faltante',
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           creadoPor: new ObjectId(uid)
@@ -567,20 +567,22 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
       }
       if (detalle.cantidadRecibido === 0) break
       if (detalle.cantidadRecibido >= movimientos.cantidad) {
-        costoProductosPorAlmacen += movimientos.costoUnitario
-        detallesCrear.push({
-          productoId: new ObjectId(detalle.productoId),
-          movimientoId: new ObjectId(detalle.movimientoId),
-          cantidad: Number(movimientos.cantidad),
-          almacenId: almacenDestino?._id ? new ObjectId(almacenDestino._id) : null,
-          almacenOrigen: new ObjectId(almacenTransito._id),
-          almacenDestino: almacenDestino?._id ? new ObjectId(almacenDestino._id) : null,
-          tipo: 'movimiento',
-          tipoMovimiento: 'entrada',
-          fechaMovimiento: moment().toDate(),
-          costoUnitario: movimientos.costoUnitario,
-          creadoPor: new ObjectId(uid)
-        })
+        costoProductosPorAlmacen += movimientos.costoUnitario * movimientos.cantidad
+        if (almacenDestino && almacenDestino._id) {
+          detallesCrear.push({
+            productoId: new ObjectId(detalle.productoId),
+            movimientoId: new ObjectId(detalle.movimientoId),
+            cantidad: Number(movimientos.cantidad),
+            almacenId: almacenDestino?._id ? new ObjectId(almacenDestino._id) : null,
+            almacenOrigen: new ObjectId(almacenTransito._id),
+            almacenDestino: almacenDestino?._id ? new ObjectId(almacenDestino._id) : null,
+            tipo: 'movimiento',
+            tipoMovimiento: 'entrada',
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: movimientos.costoUnitario,
+            creadoPor: new ObjectId(uid)
+          })
+        }
         detallesCrear.push({
           productoId: new ObjectId(detalle.productoId),
           movimientoId: new ObjectId(detalle.movimientoId),
@@ -598,23 +600,25 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
         continue
       }
       if (detalle.cantidadRecibido < movimientos.cantidad) {
+        if (almacenDestino && almacenDestino._id) {
+          detallesCrear.push({
+            productoId: new ObjectId(detalle.productoId),
+            movimientoId: new ObjectId(detalle.movimientoId),
+            cantidad: Number(detalle.cantidadRecibido),
+            almacenId: almacenDestino?._id ? new ObjectId(almacenDestino._id) : null,
+            almacenOrigen: new ObjectId(almacenTransito._id),
+            almacenDestino: almacenDestino?._id ? new ObjectId(almacenDestino._id) : null,
+            tipo: 'movimiento',
+            tipoMovimiento: 'entrada',
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: movimientos.costoUnitario,
+            creadoPor: new ObjectId(uid)
+          })
+        }
         detallesCrear.push({
           productoId: new ObjectId(detalle.productoId),
           movimientoId: new ObjectId(detalle.movimientoId),
           cantidad: Number(detalle.cantidadRecibido),
-          almacenId: almacenDestino?._id ? new ObjectId(almacenDestino._id) : null,
-          almacenOrigen: new ObjectId(almacenTransito._id),
-          almacenDestino: almacenDestino?._id ? new ObjectId(almacenDestino._id) : null,
-          tipo: 'movimiento',
-          tipoMovimiento: 'entrada',
-          fechaMovimiento: moment().toDate(),
-          costoUnitario: movimientos.costoUnitario,
-          creadoPor: new ObjectId(uid)
-        })
-        detallesCrear.push({
-          productoId: new ObjectId(detalle.productoId),
-          movimientoId: new ObjectId(detalle.movimientoId),
-          cantidad: Number(movimientos.cantidad),
           almacenId: new ObjectId(almacenTransito._id),
           almacenOrigen: new ObjectId(almacenTransito._id),
           almacenDestino: almacenDestino?._id ? new ObjectId(almacenDestino._id) : null,
@@ -628,7 +632,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
         costoProductosPorAlmacen += sumaRecibida
         const faltante = Number(movimientos.cantidad) - Number(detalle.cantidadRecibido)
         if (faltante > 0) {
-          costoAlmacenAuditoria += movimientos.costoUnitario
+          costoAlmacenAuditoria += movimientos.costoUnitario * Number(faltante)
           detallesCrear.push({
             productoId: new ObjectId(detalle.productoId),
             movimientoId: new ObjectId(detalle.movimientoId),
@@ -638,6 +642,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             almacenDestino: almacenAuditoria._id,
             tipo: 'movimiento',
             tipoMovimiento: 'entrada',
+            tipoAuditoria: 'faltante',
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             creadoPor: new ObjectId(uid)
@@ -645,7 +650,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           detallesCrear.push({
             productoId: new ObjectId(detalle.productoId),
             movimientoId: new ObjectId(detalle.movimientoId),
-            cantidad: Number(movimientos.cantidad),
+            cantidad: Number(faltante),
             almacenId: new ObjectId(almacenTransito._id),
             almacenOrigen: new ObjectId(almacenTransito._id),
             almacenDestino: almacenAuditoria._id,
@@ -660,7 +665,24 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
         continue
       }
     }
+    if (detalle.cantidadRecibido > 0) {
+      detallesCrear.push({
+        productoId: new ObjectId(detalle.productoId),
+        movimientoId: new ObjectId(detalle.movimientoId),
+        cantidad: Number(detalle.cantidadRecibido),
+        almacenId: almacenAuditoria._id,
+        almacenOrigen: almacenAuditoria._id,
+        almacenDestino: null,
+        tipo: 'movimiento',
+        tipoMovimiento: 'entrada',
+        tipoAuditoria: 'sobrante',
+        fechaMovimiento: moment().toDate(),
+        costoUnitario: ultimoCosto,
+        creadoPor: new ObjectId(uid)
+      })
+    }
     if (tieneContabilidad) {
+      console.log({ costoAlmacenAuditoria, costoProductosPorAlmacen })
       const categoriaPorAlmacen = await getItemSD({
         nameCollection: 'categoriaPorAlmacen',
         enviromentClienteId: clienteId,
@@ -679,7 +701,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
         cuentaEntrada = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: zona.cuentaId } })
       }
       const cuentaPorCategoriaTransito = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacenTransito.cuentaId } })
-      costoProductosPorAlmacen -= costoAlmacenAuditoria
+      // costoProductosPorAlmacen -= costoAlmacenAuditoria
       const asientoContableHaber = {
         cuentaId: new ObjectId(cuentaPorCategoriaTransito._id),
         cuentaCodigo: cuentaPorCategoriaTransito.codigo,
@@ -741,6 +763,32 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
         asientosContables.push(asientoAuditoria)
       }
       asientosContables.push(asientoContableDebe, asientoContableHaber)
+      if (detalle.cantidadRecibido > 0) {
+        const categoriaPorAlmacenAuditoria = await getItemSD({
+          nameCollection: 'categoriaPorAlmacen',
+          enviromentClienteId: clienteId,
+          filters: { categoriaId: producto.categoria, almacenId: almacenAuditoria._id }
+        })
+        const cuentaPorCategoriaAuditoria = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacenAuditoria.cuentaId } })
+        const asientoAuditoria = {
+          cuentaId: new ObjectId(cuentaPorCategoriaAuditoria._id),
+          cuentaCodigo: cuentaPorCategoriaAuditoria.codigo,
+          cuentaNombre: cuentaPorCategoriaAuditoria.descripcion,
+          comprobanteId: new ObjectId(comprobante._id),
+          periodoId: new ObjectId(periodo._id),
+          descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} DESDE ${almacenOrigen.nombre} HASTA ${zona?.nombre ? zona.nombre : almacenDestino.nombre}`,
+          fecha: moment(fechaEntrega).toDate(),
+          haber: ultimoCosto * detalle.cantidadRecibido,
+          debe: 0,
+          fechaCreacion: moment().toDate(),
+          docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+          documento: {
+            docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+            docFecha: moment(fechaEntrega).toDate()
+          }
+        }
+        asientosContables.push(asientoAuditoria)
+      }
     }
     console.log({ detallesMovimientosPorProducto })
   }

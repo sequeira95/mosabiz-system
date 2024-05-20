@@ -139,6 +139,126 @@ export const getDataAlmacenAuditoria = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de obtner datos del almacen de auditoria ' + e.message })
   }
 }
+export const detalleAlmacenAuditoria = async (req, res) => {
+  const { clienteId, productoId, almacenId } = req.body
+  const productoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+  const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
+  const movimientosPoductosPorAlmacen = await agreggateCollectionsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      { $match: { productoId: new ObjectId(productoId), almacenId: new ObjectId(almacenId)/* , tipoMovimiento: 'entrada' */ } },
+      {
+        $group: {
+          _id: '$movimientoId',
+          productoId: {
+            $first: '$productoId'
+          },
+          sobrante: {
+            $sum: {
+              $cond: {
+                if: { $eq: ['$tipoAuditoria', 'sobrante'] }, then: '$cantidad', else: 0
+              }
+            }
+          },
+          faltante: {
+            $sum: {
+              $cond: {
+                if: { $eq: ['$tipoAuditoria', 'faltante'] }, then: '$cantidad', else: 0
+              }
+            }
+          },
+          costoUnitario: {
+            $sum: {
+              $cond: {
+                if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$costoUnitario', else: 0
+              }
+            }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: productoCollection,
+          localField: 'productoId',
+          foreignField: '_id',
+          as: 'detalleProducto'
+        }
+      },
+      { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: movimientosCollection,
+          localField: '_id',
+          foreignField: '_id',
+          as: 'detalleMovimiento'
+        }
+      },
+      { $unwind: { path: '$detalleMovimiento', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          productoId: '$detalleProducto._id',
+          nombre: '$detalleProducto.nombre',
+          unidad: '$detalleProducto.unidad',
+          codigo: '$detalleProducto.codigo',
+          movimientoId: '$_id',
+          sobrante: '$sobrante',
+          faltante: '$faltante',
+          // tipoAuditoria: '$tipoAuditoria',
+          costoUnitario: '$costoUnitario',
+          numeroMovimiento: '$detalleMovimiento.numeroMovimiento',
+          tipoMovimiento: '$detalleMovimiento.tipo'
+        }
+      }
+    ]
+  })
+  return res.status(200).json({ movimientosPoductosPorAlmacen })
+}
+export const detalleMovimientoAuditado = async (req, res) => {
+  const { clienteId, productoId, movimientoId } = req.body
+  const almacenAuditoria = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Auditoria' } })
+  const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
+  const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+  const detalleMovimientoAuditado = await agreggateCollectionsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      { $match: { productoId: new ObjectId(productoId), almacenId: almacenAuditoria._id, movimientoId: new ObjectId(movimientoId) } },
+      {
+        $lookup: {
+          from: movimientosCollection,
+          localField: 'movimientoId',
+          foreignField: '_id',
+          as: 'detalleMovimiento'
+        }
+      },
+      { $unwind: { path: '$detalleMovimiento', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup:
+          {
+            from: `${subDominioPersonasCollectionsName}`,
+            localField: 'creadoPor',
+            foreignField: 'usuarioId',
+            as: 'personas'
+          }
+      },
+      { $unwind: { path: '$personas', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          movimientoId: '$movimientoId',
+          cantidad: '$cantidad',
+          almacenDestinoNombre: '$almacenDestinoNombre',
+          tipo: '$tipo',
+          costoUnitario: '$costoUnitario',
+          numeroMovimiento: '$detalleMovimiento.numeroMovimiento',
+          creadoPor: '$personas.nombre',
+          fechaMovimiento: '$fechaMovimiento'
+        }
+      }
+    ]
+  })
+  return res.status(200).json({ detalleMovimientoAuditado })
+}
 export const createAlmacen = async (req, res) => {
   const { codigo, nombre, size, direccion, observacion, clienteId } = req.body
   console.log(req.body)

@@ -306,23 +306,6 @@ export const saveAjusteAlmacen = async (req, res) => {
   if (!contador) contador = 1
   const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: new ObjectId(productoId) })
   if (tipo === 'Ingreso') {
-    await createItemSD({
-      nameCollection: 'productosPorAlmacen',
-      enviromentClienteId: clienteId,
-      item: {
-        productoId: new ObjectId(productoId),
-        almacenId: new ObjectId(almacen._id),
-        cantidad: Number(cantidad),
-        costoUnitario: Number(costoUnitario),
-        tipoMovimiento: 'entrada',
-        tipo: 'ajuste',
-        lote,
-        fechaVencimiento: moment(fechaVencimiento).toDate(),
-        almacenDestino: new ObjectId(almacen._id),
-        creadoPor: new ObjectId(req.uid),
-        fechaCreacion: moment().toDate()
-      }
-    })
     const movimiento = await createItemSD({
       nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
@@ -333,7 +316,26 @@ export const saveAjusteAlmacen = async (req, res) => {
         almacenOrigen: null,
         almacenDestino: new ObjectId(almacen._id) || null,
         zona: null,
-        numeroMovimiento: contador
+        numeroMovimiento: contador,
+        creadoPor: new ObjectId(req.uid)
+      }
+    })
+    createItemSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      item: {
+        productoId: new ObjectId(productoId),
+        almacenId: new ObjectId(almacen._id),
+        cantidad: Number(cantidad),
+        costoUnitario: Number(costoUnitario),
+        movimientoId: movimiento.insertedId,
+        tipoMovimiento: 'entrada',
+        tipo: 'ajuste',
+        lote,
+        fechaVencimiento: moment(fechaVencimiento).toDate(),
+        almacenDestino: new ObjectId(almacen._id),
+        creadoPor: new ObjectId(req.uid),
+        fechaCreacion: moment().toDate()
       }
     })
     createItemSD({

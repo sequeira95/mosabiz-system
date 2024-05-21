@@ -90,8 +90,57 @@ export const getDataAlmacenAuditoria = async (req, res) => {
                       }
                     }
                   },
+                  ajusteSobrante: {
+                    $sum: {
+                      $cond: {
+                        if: {
+                          $and:
+                          [
+                            { $eq: ['$tipoAuditoria', 'sobrante'] },
+                            {
+                              $or:
+                            [
+                              { $eq: ['$afecta', 'Perdida'] },
+                              { $eq: ['$afecta', 'Ganancia'] },
+                              { $eq: ['$afecta', 'Almacen'] }
+                            ]
+                            }
+                          ]
+                        },
+                        then: '$cantidad',
+                        else: 0
+                      }
+                    }
+                  },
+                  ajusteFaltante: {
+                    $sum: {
+                      $cond: {
+                        if: {
+                          $and:
+                          [
+                            { $eq: ['$tipoAuditoria', 'faltante'] },
+                            {
+                              $or:
+                            [
+                              { $eq: ['$afecta', 'Perdida'] },
+                              { $eq: ['$afecta', 'Ganancia'] },
+                              { $eq: ['$afecta', 'Almacen'] }
+                            ]
+                            }
+                          ]
+                        },
+                        then: '$cantidad',
+                        else: 0
+                      }
+                    }
+
+                  },
                   costoUnitario: {
-                    $sum: '$costoUnitario'
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipo', 'movimiento'] }, then: '$costoUnitario', else: 0
+                      }
+                    }
                   }
                 }
               },
@@ -112,6 +161,8 @@ export const getDataAlmacenAuditoria = async (req, res) => {
                   codigo: '$detalleProducto.codigo',
                   sobrante: '$sobrante',
                   faltante: '$faltante',
+                  ajusteFaltante: '$ajusteFaltante',
+                  ajusteSobrante: '$ajusteSobrante',
                   costoUnitario: '$costoUnitario'
                 }
               }
@@ -128,7 +179,9 @@ export const getDataAlmacenAuditoria = async (req, res) => {
             codigo: '$productoPorAlmacen.codigo',
             sobrante: '$productoPorAlmacen.sobrante',
             faltante: '$productoPorAlmacen.faltante',
-            costoUnitario: '$productoPorAlmacen.costoUnitario'
+            costoUnitario: '$productoPorAlmacen.costoUnitario',
+            ajusteFaltante: '$productoPorAlmacen.ajusteFaltante',
+            ajusteSobrante: '$productoPorAlmacen.ajusteSobrante'
           }
         }
       ]
@@ -143,11 +196,12 @@ export const detalleAlmacenAuditoria = async (req, res) => {
   const { clienteId, productoId, almacenId } = req.body
   const productoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
   const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
+  const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
   const movimientosPoductosPorAlmacen = await agreggateCollectionsSD({
     nameCollection: 'productosPorAlmacen',
     enviromentClienteId: clienteId,
     pipeline: [
-      { $match: { productoId: new ObjectId(productoId), almacenId: new ObjectId(almacenId)/* , tipoMovimiento: 'entrada' */ } },
+      { $match: { productoId: new ObjectId(productoId), almacenId: new ObjectId(almacenId), movimientoAfectado: { $exists: false }/* , tipoMovimiento: 'entrada' */ } },
       {
         $group: {
           _id: '$movimientoId',
@@ -179,6 +233,36 @@ export const detalleAlmacenAuditoria = async (req, res) => {
       },
       {
         $lookup: {
+          from: productorPorAlamcenCollection,
+          let: { movimientoId: '$_id' },
+          pipeline: [
+            {
+              $match:
+                {
+                  $expr:
+                  {
+                    $and:
+                      [
+                        { $eq: ['$movimientoAfectado', '$$movimientoId'] }
+                      ]
+                  }
+                }
+            },
+            {
+              $group: {
+                _id: '$movimientoAfectado',
+                ajustes: {
+                  $sum: '$cantidad'
+                }
+              }
+            }
+          ],
+          as: 'detalleAjusteAuditoria'
+        }
+      },
+      { $unwind: { path: '$detalleAjusteAuditoria', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
           from: productoCollection,
           localField: 'productoId',
           foreignField: '_id',
@@ -207,7 +291,8 @@ export const detalleAlmacenAuditoria = async (req, res) => {
           // tipoAuditoria: '$tipoAuditoria',
           costoUnitario: '$costoUnitario',
           numeroMovimiento: '$detalleMovimiento.numeroMovimiento',
-          tipoMovimiento: '$detalleMovimiento.tipo'
+          tipoMovimiento: '$detalleMovimiento.tipo',
+          ajustes: '$detalleAjusteAuditoria.ajustes'
         }
       }
     ]
@@ -223,7 +308,18 @@ export const detalleMovimientoAuditado = async (req, res) => {
     nameCollection: 'productosPorAlmacen',
     enviromentClienteId: clienteId,
     pipeline: [
-      { $match: { productoId: new ObjectId(productoId), almacenId: almacenAuditoria._id, movimientoId: new ObjectId(movimientoId) } },
+      {
+        $match:
+        {
+          productoId: new ObjectId(productoId),
+          almacenId: almacenAuditoria._id,
+          $or:
+          [
+            { movimientoId: new ObjectId(movimientoId) },
+            { movimientoAfectado: new ObjectId(movimientoId) }
+          ]
+        }
+      },
       {
         $lookup: {
           from: movimientosCollection,
@@ -252,7 +348,8 @@ export const detalleMovimientoAuditado = async (req, res) => {
           costoUnitario: '$costoUnitario',
           numeroMovimiento: '$detalleMovimiento.numeroMovimiento',
           creadoPor: '$personas.nombre',
-          fechaMovimiento: '$fechaMovimiento'
+          fechaMovimiento: '$fechaMovimiento',
+          afecta: '$afecta'
         }
       }
     ]

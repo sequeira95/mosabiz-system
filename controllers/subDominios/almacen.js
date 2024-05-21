@@ -79,14 +79,34 @@ export const getDataAlmacenAuditoria = async (req, res) => {
                   sobrante: {
                     $sum: {
                       $cond: {
-                        if: { $eq: ['$tipoAuditoria', 'sobrante'] }, then: '$cantidad', else: 0
+                        if: {
+                          $and:
+                          [
+                            { $eq: ['$tipoAuditoria', 'sobrante'] },
+                            { $ne: ['$afecta', 'Perdida'] },
+                            { $ne: ['$afecta', 'Ganancia'] },
+                            { $ne: ['$afecta', 'Almacen'] }
+                          ]
+                        },
+                        then: '$cantidad',
+                        else: 0
                       }
                     }
                   },
                   faltante: {
                     $sum: {
                       $cond: {
-                        if: { $eq: ['$tipoAuditoria', 'faltante'] }, then: '$cantidad', else: 0
+                        if: {
+                          $and:
+                          [
+                            { $eq: ['$tipoAuditoria', 'faltante'] },
+                            { $ne: ['$afecta', 'Perdida'] },
+                            { $ne: ['$afecta', 'Ganancia'] },
+                            { $ne: ['$afecta', 'Almacen'] }
+                          ]
+                        },
+                        then: '$cantidad',
+                        else: 0
                       }
                     }
                   },
@@ -183,7 +203,8 @@ export const getDataAlmacenAuditoria = async (req, res) => {
             ajusteFaltante: '$productoPorAlmacen.ajusteFaltante',
             ajusteSobrante: '$productoPorAlmacen.ajusteSobrante'
           }
-        }
+        },
+        { $sort: { codigo: 1 } }
       ]
     })
     return res.status(200).json({ almacen })

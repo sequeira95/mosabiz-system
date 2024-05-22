@@ -81,7 +81,7 @@ export const getTasasByMonth = async (req, res) => {
         { $match: { fechaValor: { $gte: inicio, $lte: fin } } }
       ]
     })
-    return res.status(200).json({ tasas })
+    return res.status(200).json({ tasas: tasas[0] })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar tasas monetarias' + e.message })

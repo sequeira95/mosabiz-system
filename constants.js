@@ -97,5 +97,6 @@ export const ListIndexesClient = [
 export const tipoMovimientosShort = {
   solicitudInterna: 'SI',
   solicitudCompra: 'SC',
-  transferencia: 'TR'
+  transferencia: 'TR',
+  Ajuste: 'AJ'
 }

@@ -156,7 +156,7 @@ export const getDataAlmacenAuditoria = async (req, res) => {
 
                   },
                   costoUnitario: {
-                    $sum: {
+                    $addToSet: {
                       $cond: {
                         if: { $eq: ['$tipo', 'movimiento'] }, then: '$costoUnitario', else: 0
                       }
@@ -183,7 +183,7 @@ export const getDataAlmacenAuditoria = async (req, res) => {
                   faltante: '$faltante',
                   ajusteFaltante: '$ajusteFaltante',
                   ajusteSobrante: '$ajusteSobrante',
-                  costoUnitario: '$costoUnitario'
+                  costoUnitario: { $sum: '$costoUnitario' }
                 }
               }
             ],
@@ -197,11 +197,22 @@ export const getDataAlmacenAuditoria = async (req, res) => {
             nombre: '$productoPorAlmacen.nombre',
             unidad: '$productoPorAlmacen.unidad',
             codigo: '$productoPorAlmacen.codigo',
-            sobrante: '$productoPorAlmacen.sobrante',
-            faltante: '$productoPorAlmacen.faltante',
+            // sobrante: '$productoPorAlmacen.sobrante',
+            // faltante: '$productoPorAlmacen.faltante',
             costoUnitario: '$productoPorAlmacen.costoUnitario',
-            ajusteFaltante: '$productoPorAlmacen.ajusteFaltante',
-            ajusteSobrante: '$productoPorAlmacen.ajusteSobrante'
+            // ajusteFaltante: '$productoPorAlmacen.ajusteFaltante',
+            // ajusteSobrante: '$productoPorAlmacen.ajusteSobrante',
+            sobrante: { $subtract: ['$productoPorAlmacen.sobrante', '$productoPorAlmacen.ajusteSobrante'] },
+            faltante: { $subtract: ['$productoPorAlmacen.faltante', '$productoPorAlmacen.ajusteFaltante'] }
+          }
+        },
+        {
+          $match:
+          {
+            $or: [
+              { sobrante: { $gt: 0 } },
+              { faltante: { $gt: 0 } }
+            ]
           }
         },
         { $sort: { codigo: 1 } }
@@ -249,6 +260,9 @@ export const detalleAlmacenAuditoria = async (req, res) => {
                 if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$costoUnitario', else: 0
               }
             }
+          },
+          tipoAuditoria: {
+            $first: '$tipoAuditoria'
           }
         }
       },
@@ -313,17 +327,36 @@ export const detalleAlmacenAuditoria = async (req, res) => {
           costoUnitario: '$costoUnitario',
           numeroMovimiento: '$detalleMovimiento.numeroMovimiento',
           tipoMovimiento: '$detalleMovimiento.tipo',
-          ajustes: '$detalleAjusteAuditoria.ajustes'
+          ajustes: '$detalleAjusteAuditoria.ajustes',
+          totalSobrante: { $subtract: ['$sobrante', '$detalleAjusteAuditoria.ajustes'] },
+          totalFaltante: { $subtract: ['$faltante', '$detalleAjusteAuditoria.ajustes'] },
+          tipoAuditoria: '$tipoAuditoria'
+        }
+      },
+      {
+        $match:
+        {
+          $or: [
+            { totalSobrante: { $gt: 0 } },
+            { totalFaltante: { $gt: 0 } },
+            { totalSobrante: { $in: [null, undefined] } },
+            { totalFaltante: { $in: [null, undefined] } }
+
+          ]
         }
       }
     ]
   })
+  // const movimientosValidos = movimientosPoductosPorAlmacen.filter(item => (item.totalSobrante > 0 || item.totalSobrante === null) || (item.totalFaltante > 0 || item.totalFaltante))
   return res.status(200).json({ movimientosPoductosPorAlmacen })
 }
 export const detalleMovimientoAuditado = async (req, res) => {
   const { clienteId, productoId, movimientoId } = req.body
   const almacenAuditoria = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Auditoria' } })
   const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
+  const zonasZollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
+  const almacenColection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+  const detalleMovimientosColection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleMovimientos' })
   const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
   const detalleMovimientoAuditado = await agreggateCollectionsSD({
     nameCollection: 'productosPorAlmacen',
@@ -346,6 +379,48 @@ export const detalleMovimientoAuditado = async (req, res) => {
           from: movimientosCollection,
           localField: 'movimientoId',
           foreignField: '_id',
+          pipeline:
+          [
+            {
+              $lookup:
+                {
+                  from: zonasZollection,
+                  localField: 'zona',
+                  foreignField: '_id',
+                  as: 'zona'
+                }
+            },
+            { $unwind: { path: '$zona', preserveNullAndEmptyArrays: true } },
+            {
+              $lookup:
+                {
+                  from: almacenColection,
+                  localField: 'almacenOrigen',
+                  foreignField: '_id',
+                  as: 'almacenOrigen'
+                }
+            },
+            { $unwind: { path: '$almacenOrigen', preserveNullAndEmptyArrays: true } },
+            {
+              $lookup:
+                {
+                  from: almacenColection,
+                  localField: 'almacenDestino',
+                  foreignField: '_id',
+                  as: 'almacenDestino'
+                }
+            },
+            { $unwind: { path: '$almacenDestino', preserveNullAndEmptyArrays: true } },
+            {
+              $lookup:
+                {
+                  from: detalleMovimientosColection,
+                  localField: '_id',
+                  foreignField: 'movimientoId',
+                  as: 'detalleMovimientos'
+                }
+            }
+          ],
           as: 'detalleMovimiento'
         }
       },
@@ -370,7 +445,9 @@ export const detalleMovimientoAuditado = async (req, res) => {
           numeroMovimiento: '$detalleMovimiento.numeroMovimiento',
           creadoPor: '$personas.nombre',
           fechaMovimiento: '$fechaMovimiento',
-          afecta: '$afecta'
+          afecta: '$afecta',
+          tipoAuditoria: '$tipoAuditoria',
+          movimiento: '$detalleMovimiento'
         }
       }
     ]

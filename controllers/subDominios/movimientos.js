@@ -63,7 +63,7 @@ export const getMovimientosAjustes = async (req, res) => {
   try {
     const productosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
     const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
-    const personasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'personas' })
+    const personasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const movimientosAjustes = await agreggateCollectionsSD({
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
@@ -200,6 +200,7 @@ export const updateEstadoMovimiento = async (req, res) => {
     let comprobante = null
     let periodo = null
     if (tieneContabilidad) {
+      console.log({ estado })
       if (estado === 'recepcionPendiente') {
         const validContabilidad = await validMovimientoPenditeEnvio({ clienteId, detalleMovimientos, almacenOrigen })
         console.log({ pa: validContabilidad.message })
@@ -837,7 +838,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
     createItemSD({
       nameCollection: 'detalleMovimientos',
       enviromentClienteId: clienteId,
-      items: {
+      item: {
         movimientoId: movimiento.insertedId,
         productoId: new ObjectId(productoId),
         codigo: producto.codigo,
@@ -943,48 +944,96 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
           enviromentClienteId: clienteId,
           filters: { _id: categoriaALmacen.cuentaId }
         })
-        const cuentaAlmacenDestino = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaALmacenDestino._id } })
-        const detalleComprobante = [
-          {
-            cuentaId: cuentaCategoria._id,
-            cuentaCodigo: cuentaCategoria.codigo,
-            cuentaNombre: cuentaCategoria.descripcion,
-            comprobanteId: comprobante._id,
-            periodoId: periodo._id,
-            descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
-            fecha: moment(fechaRegistro).toDate(),
-            debe: Number(cantidad) * Number(costoUnitario),
-            haber: 0,
-            fechaCreacion: moment().toDate(),
-            docReferenciaAux: `MOV-AJ-${contador}`,
-            documento: {
-              docReferencia: `MOV-AJ-${contador}`,
-              docFecha: moment(fechaRegistro).toDate()
+        const cuentaAlmacenDestino = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaALmacenDestino.cuentaId } })
+        /*
+        Si es faltante aumentamos destino y disminuimos auditoria y si es sobrante al revez.
+        */
+        if (tipoAuditoria === 'faltante') {
+          const detalleComprobante = [
+            {
+              cuentaId: cuentaAlmacenDestino._id,
+              cuentaCodigo: cuentaAlmacenDestino.codigo,
+              cuentaNombre: cuentaAlmacenDestino.descripcion,
+              comprobanteId: comprobante._id,
+              periodoId: periodo._id,
+              descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
+              fecha: moment(fechaRegistro).toDate(),
+              debe: Number(cantidad) * Number(costoUnitario),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `MOV-AJ-${contador}`,
+              documento: {
+                docReferencia: `MOV-AJ-${contador}`,
+                docFecha: moment(fechaRegistro).toDate()
+              }
+            },
+            {
+              cuentaId: cuentaCategoria.cuentaId,
+              cuentaCodigo: cuentaCategoria.cuentaCodigo,
+              cuentaNombre: cuentaCategoria.cuentaNombre,
+              comprobanteId: comprobante._id,
+              periodoId: periodo._id,
+              descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
+              fecha: moment(fechaRegistro).toDate(),
+              debe: 0,
+              haber: Number(cantidad) * Number(costoUnitario),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `MOV-AJ-${contador}`,
+              documento: {
+                docReferencia: `MOV-AJ-${contador}`,
+                docFecha: moment(fechaRegistro).toDate()
+              }
             }
-          },
-          {
-            cuentaId: cuentaAlmacenDestino.cuentaId,
-            cuentaCodigo: cuentaAlmacenDestino.cuentaCodigo,
-            cuentaNombre: cuentaAlmacenDestino.cuentaNombre,
-            comprobanteId: comprobante._id,
-            periodoId: periodo._id,
-            descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
-            fecha: moment(fechaRegistro).toDate(),
-            debe: 0,
-            haber: Number(cantidad) * Number(costoUnitario),
-            fechaCreacion: moment().toDate(),
-            docReferenciaAux: `MOV-AJ-${contador}`,
-            documento: {
-              docReferencia: `MOV-AJ-${contador}`,
-              docFecha: moment(fechaRegistro).toDate()
+          ]
+          createManyItemsSD({
+            nameCollection: 'detalleComprobantes',
+            enviromentClienteId: clienteId,
+            items: detalleComprobante
+          })
+        }
+        if (tipoAuditoria === 'sobrante') {
+          const detalleComprobante = [
+            {
+              cuentaId: cuentaCategoria._id,
+              cuentaCodigo: cuentaCategoria.codigo,
+              cuentaNombre: cuentaCategoria.descripcion,
+              comprobanteId: comprobante._id,
+              periodoId: periodo._id,
+              descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
+              fecha: moment(fechaRegistro).toDate(),
+              debe: Number(cantidad) * Number(costoUnitario),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `MOV-AJ-${contador}`,
+              documento: {
+                docReferencia: `MOV-AJ-${contador}`,
+                docFecha: moment(fechaRegistro).toDate()
+              }
+            },
+            {
+              cuentaId: cuentaAlmacenDestino.cuentaId,
+              cuentaCodigo: cuentaAlmacenDestino.cuentaCodigo,
+              cuentaNombre: cuentaAlmacenDestino.cuentaNombre,
+              comprobanteId: comprobante._id,
+              periodoId: periodo._id,
+              descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
+              fecha: moment(fechaRegistro).toDate(),
+              debe: 0,
+              haber: Number(cantidad) * Number(costoUnitario),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `MOV-AJ-${contador}`,
+              documento: {
+                docReferencia: `MOV-AJ-${contador}`,
+                docFecha: moment(fechaRegistro).toDate()
+              }
             }
-          }
-        ]
-        createManyItemsSD({
-          nameCollection: 'detalleComprobantes',
-          enviromentClienteId: clienteId,
-          items: detalleComprobante
-        })
+          ]
+          createManyItemsSD({
+            nameCollection: 'detalleComprobantes',
+            enviromentClienteId: clienteId,
+            items: detalleComprobante
+          })
+        }
       }
       if (tipoAjuste === 'Perdida') {
         const movimientoAfectado = await getItemSD({
@@ -1075,8 +1124,8 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             periodoId: periodo._id,
             descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
             fecha: moment(fechaRegistro).toDate(),
-            debe: Number(cantidad) * Number(costoUnitario),
             haber: 0,
+            debe: Number(cantidad) * Number(costoUnitario),
             fechaCreacion: moment().toDate(),
             docReferenciaAux: `MOV-AJ-${contador}`,
             documento: {
@@ -1092,8 +1141,8 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             periodoId: periodo._id,
             descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
             fecha: moment(fechaRegistro).toDate(),
-            debe: 0,
             haber: Number(cantidad) * Number(costoUnitario),
+            debe: 0,
             fechaCreacion: moment().toDate(),
             docReferenciaAux: `MOV-AJ-${contador}`,
             documento: {
@@ -1116,9 +1165,709 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
         movimientoAfectado: new ObjectId(movimientoId), productoId: new ObjectId(productoId)
       }
     })
+    upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'ajuste' }, update: { $set: { contador } } })
     return res.status(200).json({ status: 'Movimiento guardado exitosamente', productoAfectadoAuditoria })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de realizar el movimiento de ajuste ' + e.message })
+  }
+}
+export const updateCostoMovimiento = async (req, res) => {
+  console.log(req.body)
+  const { clienteId, productoId, costoAnterior, tipoAjusteCosto, nuevoCosto, movimientoId, productoNombre } = req.body
+  const almacenAuditoria = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Auditoria' } })
+  const tieneContabilidad = hasContabilidad({ clienteId })
+  const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
+  const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
+  const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: new ObjectId(productoId) })
+  const detalleMovimientoAuditado = await agreggateCollectionsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      {
+        $match:
+        {
+          productoId: new ObjectId(productoId),
+          almacenId: almacenAuditoria._id,
+          $or:
+          [
+            { movimientoId: new ObjectId(movimientoId) },
+            { movimientoAfectado: new ObjectId(movimientoId) }
+          ]
+        }
+      },
+      {
+        $lookup: {
+          from: movimientosCollection,
+          localField: 'movimientoId',
+          foreignField: '_id',
+          as: 'detalleMovimiento'
+        }
+      },
+      { $unwind: { path: '$detalleMovimiento', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          movimientoId: '$movimientoId',
+          cantidad: '$cantidad',
+          almacenDestinoNombre: '$almacenDestinoNombre',
+          tipo: '$tipo',
+          costoUnitario: '$costoUnitario',
+          creadoPor: '$personas.nombre',
+          fechaMovimiento: '$fechaMovimiento',
+          afecta: '$afecta',
+          movimientoAfectado: '$movimientoAfectado',
+          tipoAuditoria: '$tipoAuditoria',
+          productoId: '$productoId',
+          almacenId: '$almacenId',
+          detalleMovimiento: '$detalleMovimiento',
+          tipoMovimiento: '$tipoMovimiento',
+          almacenDestino: '$almacenDestino'
+        }
+      }
+    ]
+  })
+  const asientosContables = []
+  const bulkWriteProdutoPorAlmacen = []
+  const cantidadAlmacenAuditoria = detalleMovimientoAuditado.reduce((acumulado, e) => {
+    if (e.tipo === 'movimiento') {
+      return acumulado + e.cantidad
+    } else {
+      return acumulado - e.cantidad
+    }
+  }, 0)
+  console.log(cantidadAlmacenAuditoria)
+  let comprobante = null
+  let periodo = null
+  console.log(detalleMovimientoAuditado)
+  if (tieneContabilidad) {
+    periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment().toDate() }, fechaFin: { $gte: moment().toDate() } } })
+    const mesPeriodo = moment().format('YYYY/MM')
+    comprobante = await getItemSD({
+      nameCollection: 'comprobantes',
+      enviromentClienteId: clienteId,
+      filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: periodo._id, mesPeriodo }
+    })
+    if (!comprobante) {
+      comprobante = await upsertItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: ajusteInventario.codigoComprobanteAjuste, periodoId: periodo._id, mesPeriodo },
+        update: {
+          $set: {
+            nombre: 'Ajuste de inventario',
+            isBloqueado: false,
+            fechaCreacion: moment().toDate()
+          }
+        }
+      })
+    }
+  }
+  let movimientoPrincipal = null
+  for (const detalle of detalleMovimientoAuditado) {
+    if (detalle.tipo === 'movimiento') {
+      movimientoPrincipal = detalle
+    }
+    if (detalle.tipoAuditoria === 'faltante') {
+      if (tipoAjusteCosto === 'perdida') {
+        if (detalle.afecta === 'Perdida') {
+          if (tieneContabilidad) {
+            const cuentaAjuste = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(ajusteInventario.cuentaPerdidasAjusteInventario) }
+            })
+            const costoAnteriorMovimiento = detalle.cantidad * costoAnterior
+            const costoNuevoMovimiento = detalle.cantidad * nuevoCosto
+            const asientos = [
+              {
+                cuentaId: cuentaAjuste._id,
+                cuentaCodigo: cuentaAjuste.codigo,
+                cuentaNombre: cuentaAjuste.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                haber: 0,
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              }
+            ]
+            asientosContables.push(...asientos)
+          }
+          bulkWriteProdutoPorAlmacen.push({
+            updateOne: {
+              filter: { _id: detalle._id },
+              update: {
+                $set: {
+                  costoUnitario: nuevoCosto
+                }
+              }
+            }
+          })
+        }
+        if (detalle.afecta === 'Almacen') {
+          if (tieneContabilidad) {
+            const cuentaAjuste = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(ajusteInventario.cuentaPerdidasAjusteInventario) }
+            })
+            const categoriaPorAlmacen = await getItemSD({
+              nameCollection: 'categoriaPorAlmacen',
+              enviromentClienteId: clienteId,
+              filters: { categoriaId: producto.categoria, almacenId: detalle.almacenDestino }
+            })
+            const cuentaCategoria = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(categoriaPorAlmacen.cuentaId) }
+            })
+            const costoAnteriorMovimiento = detalle.cantidad * costoAnterior
+            const costoNuevoMovimiento = detalle.cantidad * nuevoCosto
+            const asientos = [
+              {
+                cuentaId: cuentaAjuste._id,
+                cuentaCodigo: cuentaAjuste.codigo,
+                cuentaNombre: cuentaAjuste.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                haber: 0,
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              },
+              {
+                cuentaId: cuentaCategoria._id,
+                cuentaCodigo: cuentaCategoria.codigo,
+                cuentaNombre: cuentaCategoria.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: 0,
+                haber: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              }
+            ]
+            asientosContables.push(...asientos)
+          }
+        }
+      }
+      if (tipoAjusteCosto === 'ganancia') {
+        if (detalle.afecta === 'Perdida') {
+          if (tieneContabilidad) {
+            const cuentaAjuste = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(ajusteInventario.cuentaPerdidasAjusteInventario) }
+            })
+            const costoAnteriorMovimiento = detalle.cantidad * costoAnterior
+            const costoNuevoMovimiento = detalle.cantidad * nuevoCosto
+            const asientos = [
+              {
+                cuentaId: cuentaAjuste._id,
+                cuentaCodigo: cuentaAjuste.codigo,
+                cuentaNombre: cuentaAjuste.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                haber: 0,
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              }
+            ]
+            asientosContables.push(...asientos)
+          }
+          bulkWriteProdutoPorAlmacen.push({
+            updateOne: {
+              filter: { _id: detalle._id },
+              update: {
+                $set: {
+                  costoUnitario: nuevoCosto
+                }
+              }
+            }
+          })
+        }
+        if (detalle.afecta === 'Almacen') {
+          if (tieneContabilidad) {
+            const cuentaAjuste = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(ajusteInventario.cuentaPerdidasAjusteInventario) }
+            })
+            const categoriaPorAlmacen = await getItemSD({
+              nameCollection: 'categoriaPorAlmacen',
+              enviromentClienteId: clienteId,
+              filters: { categoriaId: producto.categoria, almacenId: detalle.almacenDestino }
+            })
+            const cuentaCategoria = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(categoriaPorAlmacen.cuentaId) }
+            })
+            const costoAnteriorMovimiento = detalle.cantidad * costoAnterior
+            const costoNuevoMovimiento = detalle.cantidad * nuevoCosto
+            const asientos = [
+              {
+                cuentaId: cuentaAjuste._id,
+                cuentaCodigo: cuentaAjuste.codigo,
+                cuentaNombre: cuentaAjuste.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                haber: 0,
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              },
+              {
+                cuentaId: cuentaCategoria._id,
+                cuentaCodigo: cuentaCategoria.codigo,
+                cuentaNombre: cuentaCategoria.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: 0,
+                haber: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              }
+            ]
+            asientosContables.push(...asientos)
+          }
+        }
+      }
+    }
+    if (detalle.tipoAuditoria === 'sobrante') {
+      if (tipoAjusteCosto === 'perdida') {
+        if (detalle.afecta === 'Ganancia') {
+          if (tieneContabilidad) {
+            const cuentaAjuste = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(ajusteInventario.cuentaUtilidadAjusteInventario) }
+            })
+            const costoAnteriorMovimiento = detalle.cantidad * costoAnterior
+            const costoNuevoMovimiento = detalle.cantidad * nuevoCosto
+            const asientos = [
+              {
+                cuentaId: cuentaAjuste._id,
+                cuentaCodigo: cuentaAjuste.codigo,
+                cuentaNombre: cuentaAjuste.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                haber: 0,
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              }
+            ]
+            asientosContables.push(...asientos)
+          }
+          bulkWriteProdutoPorAlmacen.push({
+            updateOne: {
+              filter: { _id: detalle._id },
+              update: {
+                $set: {
+                  costoUnitario: nuevoCosto
+                }
+              }
+            }
+          })
+        }
+        if (detalle.afecta === 'Almacen') {
+          if (tieneContabilidad) {
+            const cuentaAjuste = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(ajusteInventario.cuentaPerdidasAjusteInventario) }
+            })
+            const categoriaPorAlmacen = await getItemSD({
+              nameCollection: 'categoriaPorAlmacen',
+              enviromentClienteId: clienteId,
+              filters: { categoriaId: producto.categoria, almacenId: detalle.almacenDestino }
+            })
+            const cuentaCategoria = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(categoriaPorAlmacen.cuentaId) }
+            })
+            const costoAnteriorMovimiento = detalle.cantidad * costoAnterior
+            const costoNuevoMovimiento = detalle.cantidad * nuevoCosto
+            const asientos = [
+              {
+                cuentaId: cuentaAjuste._id,
+                cuentaCodigo: cuentaAjuste.codigo,
+                cuentaNombre: cuentaAjuste.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                haber: 0,
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              },
+              {
+                cuentaId: cuentaCategoria._id,
+                cuentaCodigo: cuentaCategoria.codigo,
+                cuentaNombre: cuentaCategoria.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: 0,
+                haber: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              }
+            ]
+            asientosContables.push(...asientos)
+          }
+        }
+      }
+      if (tipoAjusteCosto === 'ganancia') {
+        if (detalle.afecta === 'Ganancia') {
+          if (tieneContabilidad) {
+            const cuentaAjuste = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(ajusteInventario.cuentaUtilidadAjusteInventario) }
+            })
+            const costoAnteriorMovimiento = detalle.cantidad * costoAnterior
+            const costoNuevoMovimiento = detalle.cantidad * nuevoCosto
+            const asientos = [
+              {
+                cuentaId: cuentaAjuste._id,
+                cuentaCodigo: cuentaAjuste.codigo,
+                cuentaNombre: cuentaAjuste.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: 0,
+                haber: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              }
+            ]
+            asientosContables.push(...asientos)
+          }
+          bulkWriteProdutoPorAlmacen.push({
+            updateOne: {
+              filter: { _id: detalle._id },
+              update: {
+                $set: {
+                  costoUnitario: nuevoCosto
+                }
+              }
+            }
+          })
+        }
+        if (detalle.afecta === 'Almacen') {
+          if (tieneContabilidad) {
+            const cuentaAjuste = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(ajusteInventario.cuentaUtilidadAjusteInventario) }
+            })
+            const categoriaPorAlmacen = await getItemSD({
+              nameCollection: 'categoriaPorAlmacen',
+              enviromentClienteId: clienteId,
+              filters: { categoriaId: producto.categoria, almacenId: detalle.almacenDestino }
+            })
+            const cuentaCategoria = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(categoriaPorAlmacen.cuentaId) }
+            })
+            const costoAnteriorMovimiento = detalle.cantidad * costoAnterior
+            const costoNuevoMovimiento = detalle.cantidad * nuevoCosto
+            const asientos = [
+              {
+                cuentaId: cuentaAjuste._id,
+                cuentaCodigo: cuentaAjuste.codigo,
+                cuentaNombre: cuentaAjuste.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: 0,
+                haber: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              },
+              {
+                cuentaId: cuentaCategoria._id,
+                cuentaCodigo: cuentaCategoria.codigo,
+                cuentaNombre: cuentaCategoria.descripcion,
+                comprobanteId: comprobante._id,
+                periodoId: periodo._id,
+                descripcion: `
+                Ajuste de costo unitario ${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+                fecha: moment().toDate(),
+                debe: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+                haber: 0,
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `AJ-COSTO-${tipoMovimientosShort[detalle.detalleMovimiento.tipo]}-${detalle.detalleMovimiento.numeroMovimiento}`,
+                  docFecha: moment().toDate()
+                }
+              }
+            ]
+            asientosContables.push(...asientos)
+          }
+        }
+      }
+    }
+  }
+  if (movimientoPrincipal) {
+    if (tieneContabilidad) {
+      if (movimientoPrincipal.tipoAuditoria === 'faltante') {
+        if (tipoAjusteCosto === 'perdida') {
+          const categoriaPorAlmacen = await getItemSD({
+            nameCollection: 'categoriaPorAlmacen',
+            enviromentClienteId: clienteId,
+            filters: { categoriaId: producto.categoria, almacenId: almacenAuditoria._id }
+          })
+          const cuentaCategoria = await getItemSD({
+            nameCollection: 'planCuenta',
+            enviromentClienteId: clienteId,
+            filters: { _id: new ObjectId(categoriaPorAlmacen.cuentaId) }
+          })
+          const cuentaAjuste = await getItemSD({
+            nameCollection: 'planCuenta',
+            enviromentClienteId: clienteId,
+            filters: { _id: new ObjectId(ajusteInventario.cuentaPerdidasAjusteInventario) }
+          })
+          const costoAnteriorMovimiento = cantidadAlmacenAuditoria * costoAnterior
+          const costoNuevoMovimiento = cantidadAlmacenAuditoria * nuevoCosto
+          const asientos = [
+            {
+              cuentaId: cuentaAjuste._id,
+              cuentaCodigo: cuentaAjuste.codigo,
+              cuentaNombre: cuentaAjuste.descripcion,
+              comprobanteId: comprobante._id,
+              periodoId: periodo._id,
+              descripcion: `
+              Ajuste de costo unitario ${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+              fecha: moment().toDate(),
+              debe: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+              documento: {
+                docReferencia: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+                docFecha: moment().toDate()
+              }
+            },
+            {
+              cuentaId: cuentaCategoria._id,
+              cuentaCodigo: cuentaCategoria.codigo,
+              cuentaNombre: cuentaCategoria.descripcion,
+              comprobanteId: comprobante._id,
+              periodoId: periodo._id,
+              descripcion: `
+              Ajuste de costo unitario ${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+              fecha: moment().toDate(),
+              debe: 0,
+              haber: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+              documento: {
+                docReferencia: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+                docFecha: moment().toDate()
+              }
+            }
+          ]
+          asientosContables.push(...asientos)
+        }
+        if (tipoAjusteCosto === 'ganancia') {
+          const categoriaPorAlmacen = await getItemSD({
+            nameCollection: 'categoriaPorAlmacen',
+            enviromentClienteId: clienteId,
+            filters: { categoriaId: producto.categoria, almacenId: almacenAuditoria._id }
+          })
+          const cuentaCategoria = await getItemSD({
+            nameCollection: 'planCuenta',
+            enviromentClienteId: clienteId,
+            filters: { _id: new ObjectId(categoriaPorAlmacen.cuentaId) }
+          })
+          const cuentaAjuste = await getItemSD({
+            nameCollection: 'planCuenta',
+            enviromentClienteId: clienteId,
+            filters: { _id: new ObjectId(ajusteInventario.cuentaPerdidasAjusteInventario) }
+          })
+          const costoAnteriorMovimiento = cantidadAlmacenAuditoria * costoAnterior
+          const costoNuevoMovimiento = cantidadAlmacenAuditoria * nuevoCosto
+          const asientos = [
+            {
+              cuentaId: cuentaAjuste._id,
+              cuentaCodigo: cuentaAjuste.codigo,
+              cuentaNombre: cuentaAjuste.descripcion,
+              comprobanteId: comprobante._id,
+              periodoId: periodo._id,
+              descripcion: `
+              Ajuste de costo unitario ${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+              fecha: moment().toDate(),
+              haber: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+              debe: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+              documento: {
+                docReferencia: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+                docFecha: moment().toDate()
+              }
+            },
+            {
+              cuentaId: cuentaCategoria._id,
+              cuentaCodigo: cuentaCategoria.codigo,
+              cuentaNombre: cuentaCategoria.descripcion,
+              comprobanteId: comprobante._id,
+              periodoId: periodo._id,
+              descripcion: `
+              Ajuste de costo unitario ${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+              fecha: moment().toDate(),
+              haber: 0,
+              debe: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+              documento: {
+                docReferencia: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+                docFecha: moment().toDate()
+              }
+            }
+          ]
+          asientosContables.push(...asientos)
+        }
+      }
+      if (movimientoPrincipal.tipoAuditoria === 'sobrante') {
+        if (tipoAjusteCosto === 'perdida') {
+          const categoriaPorAlmacen = await getItemSD({
+            nameCollection: 'categoriaPorAlmacen',
+            enviromentClienteId: clienteId,
+            filters: { categoriaId: producto.categoria, almacenId: almacenAuditoria._id }
+          })
+          const cuentaCategoria = await getItemSD({
+            nameCollection: 'planCuenta',
+            enviromentClienteId: clienteId,
+            filters: { _id: new ObjectId(categoriaPorAlmacen.cuentaId) }
+          })
+          const cuentaAjuste = await getItemSD({
+            nameCollection: 'planCuenta',
+            enviromentClienteId: clienteId,
+            filters: { _id: new ObjectId(ajusteInventario.cuentaPerdidasAjusteInventario) }
+          })
+          const costoAnteriorMovimiento = cantidadAlmacenAuditoria * costoAnterior
+          const costoNuevoMovimiento = cantidadAlmacenAuditoria * nuevoCosto
+          const asientos = [
+            {
+              cuentaId: cuentaAjuste._id,
+              cuentaCodigo: cuentaAjuste.codigo,
+              cuentaNombre: cuentaAjuste.descripcion,
+              comprobanteId: comprobante._id,
+              periodoId: periodo._id,
+              descripcion: `
+              Ajuste de costo unitario ${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+              fecha: moment().toDate(),
+              haber: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+              debe: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+              documento: {
+                docReferencia: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+                docFecha: moment().toDate()
+              }
+            },
+            {
+              cuentaId: cuentaCategoria._id,
+              cuentaCodigo: cuentaCategoria.codigo,
+              cuentaNombre: cuentaCategoria.descripcion,
+              comprobanteId: comprobante._id,
+              periodoId: periodo._id,
+              descripcion: `
+              Ajuste de costo unitario ${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento} del ${productoNombre}`,
+              fecha: moment().toDate(),
+              haber: 0,
+              debe: Math.abs(costoAnteriorMovimiento - costoNuevoMovimiento),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+              documento: {
+                docReferencia: `AJ-COSTO-${tipoMovimientosShort[movimientoPrincipal.detalleMovimiento.tipo]}-${movimientoPrincipal.detalleMovimiento.numeroMovimiento}`,
+                docFecha: moment().toDate()
+              }
+            }
+          ]
+          asientosContables.push(...asientos)
+        }
+      }
+    }
   }
 }

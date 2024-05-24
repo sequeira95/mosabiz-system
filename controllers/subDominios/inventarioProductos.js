@@ -12,7 +12,7 @@ export const getProductos = async (req, res) => {
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
     const ivaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'iva' })
     const matchAlmacen = almacenOrigen ? { almacenId: new ObjectId(almacenOrigen) } : {}
-    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Transito', 'Auditoria'] } } })
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria'] } } })
     const productos = await agreggateCollectionsSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
@@ -196,7 +196,7 @@ export const saveToArray = async (req, res) => {
 export const getDetalleCantidad = async (req, res) => {
   const { clienteId, productoId } = req.body
   try {
-    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Transito', 'Auditoria'] } } })
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria'] } } })
     const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
     const cantidadPorALmacen = await agreggateCollectionsSD({
       nameCollection: 'productosPorAlmacen',
@@ -205,7 +205,10 @@ export const getDetalleCantidad = async (req, res) => {
         { $match: { productoId: new ObjectId(productoId), almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } } },
         {
           $group: {
-            _id: '$almacenId',
+            _id: {
+              almacenId: '$almacenId',
+              lote: '$lote'
+            },
             entrada: {
               $sum: {
                 $cond: {
@@ -223,6 +226,20 @@ export const getDetalleCantidad = async (req, res) => {
           }
         },
         {
+          $addFields: {
+            matchCantidad: { $subtract: ['$entrada', '$salida'] }
+          }
+        },
+        { $match: { matchCantidad: { $gt: 0 } } },
+        {
+          $group: {
+            _id: '$_id.almacenId',
+            entrada: { $sum: '$entrada' },
+            salida: { $sum: '$salida' },
+            lotes: { $sum: 1 }
+          }
+        },
+        {
           $lookup: {
             from: almacenesCollection,
             localField: '_id',
@@ -236,7 +253,8 @@ export const getDetalleCantidad = async (req, res) => {
             cantidad: { $subtract: ['$entrada', '$salida'] },
             almacenNombre: '$detalleAlmacen.nombre',
             entrada: '$entrada',
-            salida: '$salida'
+            salida: '$salida',
+            lotes: '$lotes'
           }
         }
       ]

@@ -57,6 +57,56 @@ export const getAlmacenes = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de obtner datos de los alamcenes ' + e.message })
   }
 }
+export const getDetalleLotePorAlmacen = async (req, res) => {
+  const { clienteId, almacenId, productoId } = req.body
+  try {
+    const lotesPorAlmacen = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { productoId: new ObjectId(productoId), almacenId: new ObjectId(almacenId) } },
+        {
+          $group: {
+            _id: '$lote',
+            almacenId: { $first: '$almacenId' },
+            fechaVencimiento: { $first: '$fechaVencimiento' },
+            entrada: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                }
+              }
+            },
+            salida: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                }
+              }
+            },
+            costoUnitario: { $first: '$costoUnitario' }
+          }
+        },
+        {
+          $project: {
+            cantidad: { $subtract: ['$entrada', '$salida'] },
+            entrada: '$entrada',
+            salida: '$salida',
+            fechaVencimiento: '$fechaVencimiento',
+            costoUnitario: '$costoUnitario',
+            almacenId: '$almacenId'
+          }
+        },
+        { $match: { cantidad: { $gt: 0 } } },
+        { $sort: { _id: 1 } }
+      ]
+    })
+    return res.status(200).json({ lotesPorAlmacen })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtner el detalle del producto' + e.message })
+  }
+}
 export const getDataAlmacenAuditoria = async (req, res) => {
   const { clienteId } = req.body
   try {
@@ -236,7 +286,10 @@ export const detalleAlmacenAuditoria = async (req, res) => {
       { $match: { productoId: new ObjectId(productoId), almacenId: new ObjectId(almacenId), movimientoAfectado: { $exists: false }/* , tipoMovimiento: 'entrada' */ } },
       {
         $group: {
-          _id: '$movimientoId',
+          _id: {
+            movimientoId: '$movimientoId',
+            lote: '$lote'
+          },
           productoId: {
             $first: '$productoId'
           },
@@ -263,13 +316,16 @@ export const detalleAlmacenAuditoria = async (req, res) => {
           },
           tipoAuditoria: {
             $first: '$tipoAuditoria'
+          },
+          fechaVencimiento: {
+            $first: '$fechaVencimiento'
           }
         }
       },
       {
         $lookup: {
           from: productorPorAlamcenCollection,
-          let: { movimientoId: '$_id' },
+          let: { movimientoId: '$_id.movimientoId', lote: '$_id.lote' },
           pipeline: [
             {
               $match:
@@ -278,7 +334,8 @@ export const detalleAlmacenAuditoria = async (req, res) => {
                   {
                     $and:
                       [
-                        { $eq: ['$movimientoAfectado', '$$movimientoId'] }
+                        { $eq: ['$movimientoAfectado', '$$movimientoId'] },
+                        { $eq: ['$lote', '$$lote'] }
                       ]
                   }
                 }
@@ -308,7 +365,7 @@ export const detalleAlmacenAuditoria = async (req, res) => {
       {
         $lookup: {
           from: movimientosCollection,
-          localField: '_id',
+          localField: '_id.movimientoId',
           foreignField: '_id',
           as: 'detalleMovimiento'
         }
@@ -320,7 +377,7 @@ export const detalleAlmacenAuditoria = async (req, res) => {
           nombre: '$detalleProducto.nombre',
           unidad: '$detalleProducto.unidad',
           codigo: '$detalleProducto.codigo',
-          movimientoId: '$_id',
+          movimientoId: '$_id.movimientoId',
           sobrante: '$sobrante',
           faltante: '$faltante',
           // tipoAuditoria: '$tipoAuditoria',
@@ -330,7 +387,9 @@ export const detalleAlmacenAuditoria = async (req, res) => {
           ajustes: '$detalleAjusteAuditoria.ajustes',
           totalSobrante: { $subtract: ['$sobrante', '$detalleAjusteAuditoria.ajustes'] },
           totalFaltante: { $subtract: ['$faltante', '$detalleAjusteAuditoria.ajustes'] },
-          tipoAuditoria: '$tipoAuditoria'
+          tipoAuditoria: '$tipoAuditoria',
+          lote: '$_id.lote',
+          fechaVencimiento: '$fechaVencimiento'
         }
       },
       {
@@ -351,7 +410,8 @@ export const detalleAlmacenAuditoria = async (req, res) => {
   return res.status(200).json({ movimientosPoductosPorAlmacen })
 }
 export const detalleMovimientoAuditado = async (req, res) => {
-  const { clienteId, productoId, movimientoId } = req.body
+  const { clienteId, productoId, movimientoId, lote } = req.body
+  console.log('hola')
   const almacenAuditoria = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Auditoria' } })
   const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
   const zonasZollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
@@ -367,10 +427,12 @@ export const detalleMovimientoAuditado = async (req, res) => {
         {
           productoId: new ObjectId(productoId),
           almacenId: almacenAuditoria._id,
+          lote,
           $or:
           [
             { movimientoId: new ObjectId(movimientoId) },
-            { movimientoAfectado: new ObjectId(movimientoId) }
+            { movimientoAfectado: new ObjectId(movimientoId) },
+            { lote }
           ]
         }
       },

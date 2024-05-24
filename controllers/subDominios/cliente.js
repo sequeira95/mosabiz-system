@@ -1,6 +1,6 @@
 import moment from 'moment'
 import { dataBaseSecundaria, subDominioName } from '../../constants.js'
-import { accessToDataBase, agreggateCollectionsSD, createItemSD, deleteCollection, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { accessToDataBase, agreggateCollectionsSD, createItemSD, createManyItemsSD, deleteCollection, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import { encryptPassword } from '../../utils/hashPassword.js'
 import { senEmail } from '../../utils/nodemailsConfing.js'
 import { ObjectId } from 'mongodb'
@@ -115,12 +115,15 @@ export const createCliente = async (req, res) => {
     estado,
     pais,
     codPostal,
+    timeZone,
     tipoEmpresa,
     clasificacionContribuyente,
     primerPeriodoFiscal,
     limiteUsuarios,
     modulos,
-    periodoActual
+    periodoActual,
+    periodoInit,
+    periodoEnd
   } = req.body
   try {
     const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
@@ -166,6 +169,7 @@ export const createCliente = async (req, res) => {
         estado,
         pais,
         codPostal,
+        timeZone,
         tipoEmpresa,
         primerPeriodoFiscalFechas,
         clasificacionContribuyente,
@@ -179,14 +183,14 @@ export const createCliente = async (req, res) => {
     })
     // creamos el primer periodo activo segun los datos del periodo actual
     if (periodoActual) {
-      const [periodoActualFrom, periodoActualto] = periodoActual.split('/')
+      // const [periodoActualFrom, periodoActualto] = periodoActual.split('/')
       createItemSD({
         nameCollection: 'periodos',
         enviromentClienteId: clienteCol.insertedId,
         item: {
           periodo: periodoActual,
-          fechaInicio: moment(periodoActualFrom, 'yyyy-MM').startOf('month').toDate(),
-          fechaFin: moment(periodoActualto, 'yyyy-MM').endOf('month').toDate(),
+          fechaInicio: moment(periodoInit).toDate(),
+          fechaFin: moment(periodoEnd).toDate(),
           activo: true,
           status: 'Activo'
         }
@@ -237,6 +241,20 @@ export const createCliente = async (req, res) => {
     await senEmail(emailConfing)
     /* const cliente = await clientesCollection.findOne({ _id: clienteCol.insertedId }) */
     const cliente = await getItemSD({ nameCollection: 'clientes', filters: { _id: clienteCol.insertedId } })
+    createManyItemsSD({
+      nameCollection: 'almacenes',
+      enviromentClienteId: clienteCol.insertedId,
+      items: [
+        {
+          codigo: '1',
+          nombre: 'Transito'
+        },
+        {
+          codigo: '2',
+          nombre: 'Auditoria'
+        }
+      ]
+    })
     return res.status(200).json({ status: 'Empresa creada exitosamente', cliente })
   } catch (e) {
     console.log(e)
@@ -257,6 +275,7 @@ export const updateCliente = async (req, res) => {
     pais,
     estado,
     codPostal,
+    timeZone,
     tipoEmpresa,
     clasificacionContribuyente,
     primerPeriodoFiscal,
@@ -277,6 +296,7 @@ export const updateCliente = async (req, res) => {
           primerPeriodoFiscalFechas,
           estado,
           pais,
+          timeZone,
           codPostal,
           tipoEmpresa,
           tipoDocumento,

@@ -36,9 +36,10 @@ export const savePeriodo = async (req, res) => {
         filters: { periodoAnterior: new ObjectId(periodo.periodoAnterior._id) },
         update: {
           $set: {
-            periodo: periodo.periodo ? periodo.periodo : `${periodo.fechaInicio.replace('/', '-')}/${periodo.fechaFin.replace('/', '-')}`,
-            fechaInicio: moment(periodo.fechaInicio, 'YYYY/MM').toDate(),
-            fechaFin: moment(periodo.fechaFin, 'YYYY/MM').toDate(),
+            // periodo: periodo.periodo ? periodo.periodo : `${periodo.fechaInicio.replace('/', '-')}/${periodo.fechaFin.replace('/', '-')}`,
+            periodo: `${moment(periodo.fechaInicio).format('YYYY-MM')}/${moment(periodo.fechaFin).format('YYYY-MM')}`,
+            fechaInicio: moment(periodo.fechaInicio).toDate(),
+            fechaFin: moment(periodo.fechaFin).toDate(),
             status: !verifyPeriodoActivo ? statusOptionsPeriodos.activo : periodo.status,
             activo: periodo.status === 'Activo' || periodo.status === 'Pre-cierre',
             // periodoAnterior: periodo.periodoAnterior?._id ? new ObjectId(periodo.periodoAnterior._id) : null,
@@ -72,10 +73,7 @@ export const savePeriodo = async (req, res) => {
       cerrarPeriodo({ clienteId, periodo: newPeriodo })
       const verifyPeriodoAPreCierre = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { status: statusOptionsPeriodos.preCierre, periodoAnterior: newPeriodo._id } })
       if (!verifyPeriodoAPreCierre) {
-        const periodoInit = moment(periodo.fechaFin).add(1, 'month')
-        const periodoFin = moment(periodoInit).add(11, 'month')
-        const periodoFormat = `${moment(periodoInit).format('YYYY-MM')} / ${moment(periodoFin).format('YYYY-MM')}`
-        console.log({ periodoInit, periodoFin, periodoFormat })
+        const periodoFormat = `${moment(periodo.fechaInitNewPeriodo).format('YYYY-MM')}/${moment(periodo.fechaFinNewPeriodo).format('YYYY-MM')}`
         const preCierrePeriodo1 = await upsertItemSD({
           nameCollection: 'periodos',
           enviromentClienteId: clienteId,
@@ -83,8 +81,8 @@ export const savePeriodo = async (req, res) => {
           update: {
             $set: {
               periodo: periodoFormat,
-              fechaInicio: moment(periodoInit).startOf('month').toDate(),
-              fechaFin: moment(periodoFin).endOf('month').toDate(),
+              fechaInicio: moment(periodo.fechaInitNewPeriodo).toDate(),
+              fechaFin: moment(periodo.fechaFinNewPeriodo).toDate(),
               status: 'Activo',
               activo: true,
               periodoAnterior: new ObjectId(newPeriodo._id),

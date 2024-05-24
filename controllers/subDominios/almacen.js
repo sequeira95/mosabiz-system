@@ -3,13 +3,15 @@ import { agreggateCollectionsSD, bulkWriteSD, createItemSD, deleteItemSD, delete
 import { deleteImg, uploadImg } from '../../utils/cloudImage.js'
 import { subDominioName } from '../../constants.js'
 export const getAlmacenes = async (req, res) => {
-  const { clienteId } = req.body
+  const { clienteId, tipo } = req.body
   try {
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+    const matchTipo = !tipo ? { nombre: { $nin: ['Transito', 'Auditoria'] } } : {}
     const almacenes = await agreggateCollectionsSD({
       nameCollection: 'almacenes',
       enviromentClienteId: clienteId,
       pipeline: [
+        { $match: { ...matchTipo } },
         {
           $lookup: {
             from: productorPorAlamcenCollection,
@@ -54,6 +56,465 @@ export const getAlmacenes = async (req, res) => {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtner datos de los alamcenes ' + e.message })
   }
+}
+export const getDetalleLotePorAlmacen = async (req, res) => {
+  const { clienteId, almacenId, productoId } = req.body
+  try {
+    const lotesPorAlmacen = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { productoId: new ObjectId(productoId), almacenId: new ObjectId(almacenId) } },
+        {
+          $group: {
+            _id: '$lote',
+            almacenId: { $first: '$almacenId' },
+            fechaVencimiento: { $first: '$fechaVencimiento' },
+            entrada: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                }
+              }
+            },
+            salida: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                }
+              }
+            },
+            costoUnitario: { $first: '$costoUnitario' }
+          }
+        },
+        {
+          $project: {
+            cantidad: { $subtract: ['$entrada', '$salida'] },
+            entrada: '$entrada',
+            salida: '$salida',
+            fechaVencimiento: '$fechaVencimiento',
+            costoUnitario: '$costoUnitario',
+            almacenId: '$almacenId'
+          }
+        },
+        { $match: { cantidad: { $gt: 0 } } },
+        { $sort: { _id: 1 } }
+      ]
+    })
+    return res.status(200).json({ lotesPorAlmacen })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtner el detalle del producto' + e.message })
+  }
+}
+export const getDataAlmacenAuditoria = async (req, res) => {
+  const { clienteId } = req.body
+  try {
+    const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+    const productoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+    const almacen = await agreggateCollectionsSD({
+      nameCollection: 'almacenes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { nombre: 'Auditoria' } },
+        {
+          $lookup: {
+            from: productorPorAlamcenCollection,
+            localField: '_id',
+            foreignField: 'almacenId',
+            pipeline: [
+              {
+                $group: {
+                  _id: '$productoId',
+                  sobrante: {
+                    $sum: {
+                      $cond: {
+                        if: {
+                          $and:
+                          [
+                            { $eq: ['$tipoAuditoria', 'sobrante'] },
+                            { $ne: ['$afecta', 'Perdida'] },
+                            { $ne: ['$afecta', 'Ganancia'] },
+                            { $ne: ['$afecta', 'Almacen'] }
+                          ]
+                        },
+                        then: '$cantidad',
+                        else: 0
+                      }
+                    }
+                  },
+                  faltante: {
+                    $sum: {
+                      $cond: {
+                        if: {
+                          $and:
+                          [
+                            { $eq: ['$tipoAuditoria', 'faltante'] },
+                            { $ne: ['$afecta', 'Perdida'] },
+                            { $ne: ['$afecta', 'Ganancia'] },
+                            { $ne: ['$afecta', 'Almacen'] }
+                          ]
+                        },
+                        then: '$cantidad',
+                        else: 0
+                      }
+                    }
+                  },
+                  ajusteSobrante: {
+                    $sum: {
+                      $cond: {
+                        if: {
+                          $and:
+                          [
+                            { $eq: ['$tipoAuditoria', 'sobrante'] },
+                            {
+                              $or:
+                            [
+                              { $eq: ['$afecta', 'Perdida'] },
+                              { $eq: ['$afecta', 'Ganancia'] },
+                              { $eq: ['$afecta', 'Almacen'] }
+                            ]
+                            }
+                          ]
+                        },
+                        then: '$cantidad',
+                        else: 0
+                      }
+                    }
+                  },
+                  ajusteFaltante: {
+                    $sum: {
+                      $cond: {
+                        if: {
+                          $and:
+                          [
+                            { $eq: ['$tipoAuditoria', 'faltante'] },
+                            {
+                              $or:
+                            [
+                              { $eq: ['$afecta', 'Perdida'] },
+                              { $eq: ['$afecta', 'Ganancia'] },
+                              { $eq: ['$afecta', 'Almacen'] }
+                            ]
+                            }
+                          ]
+                        },
+                        then: '$cantidad',
+                        else: 0
+                      }
+                    }
+
+                  },
+                  costoUnitario: {
+                    $addToSet: {
+                      $cond: {
+                        if: { $eq: ['$tipo', 'movimiento'] }, then: '$costoUnitario', else: 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                $lookup: {
+                  from: productoCollection,
+                  localField: '_id',
+                  foreignField: '_id',
+                  as: 'detalleProducto'
+                }
+              },
+              { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  productoId: '$detalleProducto._id',
+                  nombre: '$detalleProducto.nombre',
+                  unidad: '$detalleProducto.unidad',
+                  codigo: '$detalleProducto.codigo',
+                  sobrante: '$sobrante',
+                  faltante: '$faltante',
+                  ajusteFaltante: '$ajusteFaltante',
+                  ajusteSobrante: '$ajusteSobrante',
+                  costoUnitario: { $sum: '$costoUnitario' }
+                }
+              }
+            ],
+            as: 'productoPorAlmacen'
+          }
+        },
+        { $unwind: { path: '$productoPorAlmacen', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            productoId: '$productoPorAlmacen.productoId',
+            nombre: '$productoPorAlmacen.nombre',
+            unidad: '$productoPorAlmacen.unidad',
+            codigo: '$productoPorAlmacen.codigo',
+            // sobrante: '$productoPorAlmacen.sobrante',
+            // faltante: '$productoPorAlmacen.faltante',
+            costoUnitario: '$productoPorAlmacen.costoUnitario',
+            // ajusteFaltante: '$productoPorAlmacen.ajusteFaltante',
+            // ajusteSobrante: '$productoPorAlmacen.ajusteSobrante',
+            sobrante: { $subtract: ['$productoPorAlmacen.sobrante', '$productoPorAlmacen.ajusteSobrante'] },
+            faltante: { $subtract: ['$productoPorAlmacen.faltante', '$productoPorAlmacen.ajusteFaltante'] }
+          }
+        },
+        {
+          $match:
+          {
+            $or: [
+              { sobrante: { $gt: 0 } },
+              { faltante: { $gt: 0 } }
+            ]
+          }
+        },
+        { $sort: { codigo: 1 } }
+      ]
+    })
+    return res.status(200).json({ almacen })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtner datos del almacen de auditoria ' + e.message })
+  }
+}
+export const detalleAlmacenAuditoria = async (req, res) => {
+  const { clienteId, productoId, almacenId } = req.body
+  const productoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+  const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
+  const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+  const movimientosPoductosPorAlmacen = await agreggateCollectionsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      { $match: { productoId: new ObjectId(productoId), almacenId: new ObjectId(almacenId), movimientoAfectado: { $exists: false }/* , tipoMovimiento: 'entrada' */ } },
+      {
+        $group: {
+          _id: {
+            movimientoId: '$movimientoId',
+            lote: '$lote'
+          },
+          productoId: {
+            $first: '$productoId'
+          },
+          sobrante: {
+            $sum: {
+              $cond: {
+                if: { $eq: ['$tipoAuditoria', 'sobrante'] }, then: '$cantidad', else: 0
+              }
+            }
+          },
+          faltante: {
+            $sum: {
+              $cond: {
+                if: { $eq: ['$tipoAuditoria', 'faltante'] }, then: '$cantidad', else: 0
+              }
+            }
+          },
+          costoUnitario: {
+            $sum: {
+              $cond: {
+                if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$costoUnitario', else: 0
+              }
+            }
+          },
+          tipoAuditoria: {
+            $first: '$tipoAuditoria'
+          },
+          fechaVencimiento: {
+            $first: '$fechaVencimiento'
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: productorPorAlamcenCollection,
+          let: { movimientoId: '$_id.movimientoId', lote: '$_id.lote' },
+          pipeline: [
+            {
+              $match:
+                {
+                  $expr:
+                  {
+                    $and:
+                      [
+                        { $eq: ['$movimientoAfectado', '$$movimientoId'] },
+                        { $eq: ['$lote', '$$lote'] }
+                      ]
+                  }
+                }
+            },
+            {
+              $group: {
+                _id: '$movimientoAfectado',
+                ajustes: {
+                  $sum: '$cantidad'
+                }
+              }
+            }
+          ],
+          as: 'detalleAjusteAuditoria'
+        }
+      },
+      { $unwind: { path: '$detalleAjusteAuditoria', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: productoCollection,
+          localField: 'productoId',
+          foreignField: '_id',
+          as: 'detalleProducto'
+        }
+      },
+      { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: movimientosCollection,
+          localField: '_id.movimientoId',
+          foreignField: '_id',
+          as: 'detalleMovimiento'
+        }
+      },
+      { $unwind: { path: '$detalleMovimiento', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          productoId: '$detalleProducto._id',
+          nombre: '$detalleProducto.nombre',
+          unidad: '$detalleProducto.unidad',
+          codigo: '$detalleProducto.codigo',
+          movimientoId: '$_id.movimientoId',
+          sobrante: '$sobrante',
+          faltante: '$faltante',
+          // tipoAuditoria: '$tipoAuditoria',
+          costoUnitario: '$costoUnitario',
+          numeroMovimiento: '$detalleMovimiento.numeroMovimiento',
+          tipoMovimiento: '$detalleMovimiento.tipo',
+          ajustes: '$detalleAjusteAuditoria.ajustes',
+          totalSobrante: { $subtract: ['$sobrante', '$detalleAjusteAuditoria.ajustes'] },
+          totalFaltante: { $subtract: ['$faltante', '$detalleAjusteAuditoria.ajustes'] },
+          tipoAuditoria: '$tipoAuditoria',
+          lote: '$_id.lote',
+          fechaVencimiento: '$fechaVencimiento'
+        }
+      },
+      {
+        $match:
+        {
+          $or: [
+            { totalSobrante: { $gt: 0 } },
+            { totalFaltante: { $gt: 0 } },
+            { totalSobrante: { $in: [null, undefined] } },
+            { totalFaltante: { $in: [null, undefined] } }
+
+          ]
+        }
+      }
+    ]
+  })
+  // const movimientosValidos = movimientosPoductosPorAlmacen.filter(item => (item.totalSobrante > 0 || item.totalSobrante === null) || (item.totalFaltante > 0 || item.totalFaltante))
+  return res.status(200).json({ movimientosPoductosPorAlmacen })
+}
+export const detalleMovimientoAuditado = async (req, res) => {
+  const { clienteId, productoId, movimientoId, lote } = req.body
+  console.log('hola')
+  const almacenAuditoria = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Auditoria' } })
+  const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
+  const zonasZollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
+  const almacenColection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+  const detalleMovimientosColection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleMovimientos' })
+  const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+  const detalleMovimientoAuditado = await agreggateCollectionsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      {
+        $match:
+        {
+          productoId: new ObjectId(productoId),
+          almacenId: almacenAuditoria._id,
+          lote,
+          $or:
+          [
+            { movimientoId: new ObjectId(movimientoId) },
+            { movimientoAfectado: new ObjectId(movimientoId) },
+            { lote }
+          ]
+        }
+      },
+      {
+        $lookup: {
+          from: movimientosCollection,
+          localField: 'movimientoId',
+          foreignField: '_id',
+          pipeline:
+          [
+            {
+              $lookup:
+                {
+                  from: zonasZollection,
+                  localField: 'zona',
+                  foreignField: '_id',
+                  as: 'zona'
+                }
+            },
+            { $unwind: { path: '$zona', preserveNullAndEmptyArrays: true } },
+            {
+              $lookup:
+                {
+                  from: almacenColection,
+                  localField: 'almacenOrigen',
+                  foreignField: '_id',
+                  as: 'almacenOrigen'
+                }
+            },
+            { $unwind: { path: '$almacenOrigen', preserveNullAndEmptyArrays: true } },
+            {
+              $lookup:
+                {
+                  from: almacenColection,
+                  localField: 'almacenDestino',
+                  foreignField: '_id',
+                  as: 'almacenDestino'
+                }
+            },
+            { $unwind: { path: '$almacenDestino', preserveNullAndEmptyArrays: true } },
+            {
+              $lookup:
+                {
+                  from: detalleMovimientosColection,
+                  localField: '_id',
+                  foreignField: 'movimientoId',
+                  as: 'detalleMovimientos'
+                }
+            }
+          ],
+          as: 'detalleMovimiento'
+        }
+      },
+      { $unwind: { path: '$detalleMovimiento', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup:
+          {
+            from: `${subDominioPersonasCollectionsName}`,
+            localField: 'creadoPor',
+            foreignField: 'usuarioId',
+            as: 'personas'
+          }
+      },
+      { $unwind: { path: '$personas', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          movimientoId: '$movimientoId',
+          cantidad: '$cantidad',
+          almacenDestinoNombre: '$almacenDestinoNombre',
+          tipo: '$tipo',
+          costoUnitario: '$costoUnitario',
+          numeroMovimiento: '$detalleMovimiento.numeroMovimiento',
+          creadoPor: '$personas.nombre',
+          fechaMovimiento: '$fechaMovimiento',
+          afecta: '$afecta',
+          tipoAuditoria: '$tipoAuditoria',
+          movimiento: '$detalleMovimiento'
+        }
+      }
+    ]
+  })
+  return res.status(200).json({ detalleMovimientoAuditado })
 }
 export const createAlmacen = async (req, res) => {
   const { codigo, nombre, size, direccion, observacion, clienteId } = req.body

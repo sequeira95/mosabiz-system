@@ -500,7 +500,7 @@ export const saveAjusteAlmacen = async (req, res) => {
         }
       ]
       createManyItemsSD({
-        nameCollection: 'detalleComprobantes',
+        nameCollection: 'detallesComprobantes',
         enviromentClienteId: clienteId,
         items: detalleComprobante
       })
@@ -681,7 +681,7 @@ export const saveAjusteAlmacen = async (req, res) => {
         }
       ]
       createManyItemsSD({
-        nameCollection: 'detalleComprobantes',
+        nameCollection: 'detallesComprobantes',
         enviromentClienteId: clienteId,
         items: detalleComprobante
       })
@@ -730,8 +730,32 @@ export const updatePrecioProducto = async (req, res) => {
 }
 export const saveDataInicial = async (req, res) => {
   const { clienteId, cantidadPorAlmacen, productoId } = req.body
+  const datosParaAlmacen = []
   if (cantidadPorAlmacen[0]) {
-    const datosParaAlmacen = cantidadPorAlmacen.map(e => {
+    for (const cantidad of cantidadPorAlmacen) {
+      const verifyLote = await getItemSD({
+        nameCollection: 'productosPorAlmacen',
+        enviromentClienteId: clienteId,
+        filters: { productoId: new ObjectId(productoId), lote: cantidad.lote }
+      })
+      if (verifyLote) return res.status(400).json({ error: 'Ya se encuentra un lote con el mismo codigo guardado en este producto' })
+      datosParaAlmacen.push({
+        cantidad: Number(cantidad.cantidad),
+        almacenDestino: cantidad.almacen._id ? new ObjectId(cantidad.almacen._id) : null,
+        almacenDestinoNombre: cantidad.almacen._id ? cantidad.almacen.nombre : null,
+        almacenId: cantidad.almacen._id ? new ObjectId(cantidad.almacen._id) : null,
+        tipo: 'inicial',
+        lote: cantidad.lote,
+        tipoMovimiento: 'entrada',
+        productoId: new ObjectId(productoId),
+        fechaVencimiento: moment(cantidad.fechaVencimiento).toDate(),
+        fechaIngreso: moment(cantidad.fechaIngreso).toDate(),
+        costoUnitario: Number(cantidad.costoUnitario),
+        fechaMovimiento: moment().toDate(),
+        creadoPor: new ObjectId(req.uid)
+      })
+    }
+    /* const datosParaAlmacen = cantidadPorAlmacen.map(e => {
       return {
         cantidad: Number(e.cantidad),
         almacenDestino: e.almacen._id ? new ObjectId(e.almacen._id) : null,
@@ -742,11 +766,12 @@ export const saveDataInicial = async (req, res) => {
         tipoMovimiento: 'entrada',
         productoId: new ObjectId(productoId),
         fechaVencimiento: moment(e.fechaVencimiento).toDate(),
+        fechaIngreso: moment(e.fechaIngreso).toDate(),
         costoUnitario: Number(e.costoUnitario),
         fechaMovimiento: moment().toDate(),
         creadoPor: new ObjectId(req.uid)
       }
-    })
+    }) */
     await createManyItemsSD({ nameCollection: 'productosPorAlmacen', enviromentClienteId: clienteId, items: datosParaAlmacen })
   }
   return res.status(200).json({ status: 'Datos iniciales guardados exitosamente' })

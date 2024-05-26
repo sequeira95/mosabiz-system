@@ -70,6 +70,7 @@ export const getDetalleLotePorAlmacen = async (req, res) => {
             _id: '$lote',
             almacenId: { $first: '$almacenId' },
             fechaVencimiento: { $first: '$fechaVencimiento' },
+            fechaIngreso: { $first: '$fechaIngreso' },
             entrada: {
               $sum: {
                 $cond: {
@@ -93,6 +94,7 @@ export const getDetalleLotePorAlmacen = async (req, res) => {
             entrada: '$entrada',
             salida: '$salida',
             fechaVencimiento: '$fechaVencimiento',
+            fechaIngreso: '$fechaIngreso',
             costoUnitario: '$costoUnitario',
             almacenId: '$almacenId'
           }
@@ -125,7 +127,10 @@ export const getDataAlmacenAuditoria = async (req, res) => {
             pipeline: [
               {
                 $group: {
-                  _id: '$productoId',
+                  _id: {
+                    productoId: '$productoId',
+                    lote: '$lote'
+                  },
                   sobrante: {
                     $sum: {
                       $cond: {
@@ -206,12 +211,38 @@ export const getDataAlmacenAuditoria = async (req, res) => {
 
                   },
                   costoUnitario: {
-                    $addToSet: {
+                    $first: '$costoUnitario'
+                    /* $addToSet: {
                       $cond: {
                         if: { $eq: ['$tipo', 'movimiento'] }, then: '$costoUnitario', else: 0
                       }
-                    }
+                    } */
                   }
+                }
+              },
+              {
+                $addFields: {
+                  totalSobrante: { $subtract: ['$sobrante', '$ajusteSobrante'] },
+                  totalFaltante: { $subtract: ['$faltante', '$ajusteFaltante'] }
+                }
+              },
+              {
+                $addFields: {
+                  totalCostoSobrante: {
+                    $multiply: ['$totalSobrante', '$costoUnitario']
+                  },
+                  totalCostoFaltante: {
+                    $multiply: ['$totalFaltante', '$costoUnitario']
+                  }
+                }
+              },
+              {
+                $group: {
+                  _id: '$_id.productoId',
+                  costoSobrante: { $sum: '$totalCostoSobrante' },
+                  costoFaltante: { $sum: '$totalCostoFaltante' },
+                  sobrante: { $sum: '$totalSobrante' },
+                  faltante: { $sum: '$totalFaltante' }
                 }
               },
               {
@@ -231,9 +262,11 @@ export const getDataAlmacenAuditoria = async (req, res) => {
                   codigo: '$detalleProducto.codigo',
                   sobrante: '$sobrante',
                   faltante: '$faltante',
-                  ajusteFaltante: '$ajusteFaltante',
-                  ajusteSobrante: '$ajusteSobrante',
-                  costoUnitario: { $sum: '$costoUnitario' }
+                  costoSobrante: '$costoSobrante',
+                  costoFaltante: '$costoFaltante'
+                  // ajusteFaltante: '$ajusteFaltante',
+                  // ajusteSobrante: '$ajusteSobrante',
+                  // costoUnitario: { $sum: '$costoUnitario' }
                 }
               }
             ],
@@ -252,8 +285,13 @@ export const getDataAlmacenAuditoria = async (req, res) => {
             costoUnitario: '$productoPorAlmacen.costoUnitario',
             // ajusteFaltante: '$productoPorAlmacen.ajusteFaltante',
             // ajusteSobrante: '$productoPorAlmacen.ajusteSobrante',
-            sobrante: { $subtract: ['$productoPorAlmacen.sobrante', '$productoPorAlmacen.ajusteSobrante'] },
-            faltante: { $subtract: ['$productoPorAlmacen.faltante', '$productoPorAlmacen.ajusteFaltante'] }
+            // sobrante: { $subtract: ['$productoPorAlmacen.sobrante', '$productoPorAlmacen.ajusteSobrante'] },
+            // faltante: { $subtract: ['$productoPorAlmacen.faltante', '$productoPorAlmacen.ajusteFaltante'] },
+            sobrante: '$productoPorAlmacen.sobrante',
+            faltante: '$productoPorAlmacen.faltante',
+            CostoSobrante: '$productoPorAlmacen.costoSobrante',
+            CostoFaltante: '$productoPorAlmacen.costoFaltante'
+            // productoPorAlmacen: '$productoPorAlmacen'
           }
         },
         {
@@ -268,6 +306,7 @@ export const getDataAlmacenAuditoria = async (req, res) => {
         { $sort: { codigo: 1 } }
       ]
     })
+    console.log(almacen)
     return res.status(200).json({ almacen })
   } catch (e) {
     console.log(e)
@@ -319,6 +358,9 @@ export const detalleAlmacenAuditoria = async (req, res) => {
           },
           fechaVencimiento: {
             $first: '$fechaVencimiento'
+          },
+          fechaIngreso: {
+            $first: '$fechaIngreso'
           }
         }
       },
@@ -389,7 +431,8 @@ export const detalleAlmacenAuditoria = async (req, res) => {
           totalFaltante: { $subtract: ['$faltante', '$detalleAjusteAuditoria.ajustes'] },
           tipoAuditoria: '$tipoAuditoria',
           lote: '$_id.lote',
-          fechaVencimiento: '$fechaVencimiento'
+          fechaVencimiento: '$fechaVencimiento',
+          fechaIngreso: '$fechaIngreso'
         }
       },
       {
@@ -411,7 +454,7 @@ export const detalleAlmacenAuditoria = async (req, res) => {
 }
 export const detalleMovimientoAuditado = async (req, res) => {
   const { clienteId, productoId, movimientoId, lote } = req.body
-  console.log('hola')
+  console.log(req.body)
   const almacenAuditoria = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Auditoria' } })
   const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
   const zonasZollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
@@ -425,14 +468,21 @@ export const detalleMovimientoAuditado = async (req, res) => {
       {
         $match:
         {
-          productoId: new ObjectId(productoId),
-          almacenId: almacenAuditoria._id,
-          lote,
           $or:
           [
-            { movimientoId: new ObjectId(movimientoId) },
-            { movimientoAfectado: new ObjectId(movimientoId) },
-            { lote }
+            // { movimientoId: new ObjectId(movimientoId) },
+            {
+              almacenId: almacenAuditoria._id,
+              movimientoAfectado: new ObjectId(movimientoId),
+              productoId: new ObjectId(productoId),
+              lote
+            },
+            {
+              productoId: new ObjectId(productoId),
+              almacenId: almacenAuditoria._id,
+              movimientoId: new ObjectId(movimientoId),
+              lote
+            }
           ]
         }
       },
@@ -511,9 +561,41 @@ export const detalleMovimientoAuditado = async (req, res) => {
           tipoAuditoria: '$tipoAuditoria',
           movimiento: '$detalleMovimiento'
         }
+      },
+      { $sort: { numeroMovimiento: 1 } }
+    ]
+  })
+  const prueba1 = await agreggateCollectionsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      {
+        $match:
+        {
+          almacenId: almacenAuditoria._id,
+          movimientoAfectado: new ObjectId(movimientoId),
+          productoId: new ObjectId(productoId),
+          lote
+        }
       }
     ]
   })
+  const prueba2 = await agreggateCollectionsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      {
+        $match:
+        {
+          productoId: new ObjectId(productoId),
+          almacenId: almacenAuditoria._id,
+          movimientoId: new ObjectId(movimientoId),
+          lote
+        }
+      }
+    ]
+  })
+  console.log({ prueba1, prueba2 })
   return res.status(200).json({ detalleMovimientoAuditado })
 }
 export const createAlmacen = async (req, res) => {
@@ -826,5 +908,107 @@ export const saveToArray = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar los Almacenes' + e.message })
+  }
+}
+export const getProductosPorAlmacen = async (req, res) => {
+  const { clienteId, almacenOrigen } = req.body
+  console.log(req.body)
+  try {
+    const productoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+    const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    const productosPorAlmacen = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { almacenId: new ObjectId(almacenOrigen) } },
+        {
+          $group:
+          {
+            _id: '$productoId',
+            entrada: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                }
+              }
+            },
+            salida: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                }
+              }
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: productoCollection,
+            localField: '_id',
+            foreignField: '_id',
+            pipeline: [
+              {
+                $lookup: {
+                  from: categoriasCollection,
+                  localField: 'categoria',
+                  foreignField: '_id',
+                  as: 'detalleCategoria'
+                }
+              },
+              { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  codigo: '$codigo',
+                  nombre: '$nombre',
+                  descripcion: '$descripcion',
+                  unidad: '$unidad',
+                  categoriaId: '$categoria',
+                  categoria: '$detalleCategoria.nombre',
+                  descuento: '$detalleCategoria.descuento',
+                  hasDescuento: '$detalleCategoria.hasDescuento',
+                  utilidad: '$detalleCategoria.utilidad',
+                  tipoDescuento: '$detalleCategoria.tipoDescuento',
+                  observacion: '$observacion',
+                  moneda: '$moneda',
+                  isExento: '$isExento',
+                  precioVenta: '$precioVenta',
+                  ivaId: '$iva',
+                  iva: '$detalleIva.iva'
+                }
+              }
+            ],
+            as: 'detalleProducto'
+          }
+        },
+        { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            codigo: '$detalleProducto.codigo',
+            nombre: '$detalleProducto.nombre',
+            descripcion: '$detalleProducto.descripcion',
+            unidad: '$detalleProducto.unidad',
+            categoriaId: '$detalleProducto.categoria',
+            categoria: '$detalleProducto.nombre',
+            descuento: '$detalleProducto.descuento',
+            hasDescuento: '$detalleProducto.hasDescuento',
+            utilidad: '$detalleProducto.utilidad',
+            tipoDescuento: '$detalleProducto.tipoDescuento',
+            observacion: '$detalleProducto.observacion',
+            cantidad: { $subtract: ['$entrada', '$salida'] },
+            entrada: '$entrada',
+            salida: '$salida',
+            moneda: '$detalleProducto.moneda',
+            isExento: '$detalleProducto.isExento',
+            precioVenta: '$detalleProducto.precioVenta',
+            ivaId: '$detalleProducto.iva'
+          }
+        }
+      ]
+    })
+    console.log({ productosPorAlmacen })
+    return res.status(200).json({ productosPorAlmacen })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la lista de productos por almacen ' + e.message })
   }
 }

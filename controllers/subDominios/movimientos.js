@@ -1962,3 +1962,171 @@ export const updateCostoMovimiento = async (req, res) => {
     }
   }
 }
+export const getMovimientosParaDevoluciones = async (req, res) => {
+  console.log(req.body)
+  try {
+    const { clienteId, fechaDesde, fechaHasta, numeroMovimiento, tipoMovimiento, itemsPorPagina, pagina } = req.body
+    const fechaInit = fechaDesde ? moment(fechaDesde).startOf('day').toDate() : moment().startOf('month').toDate()
+    const fechaEnd = fechaHasta ? moment(fechaHasta).endOf('day').toDate() : moment().endOf('month').toDate()
+    const detalleMovimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleMovimientos' })
+    const zonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
+    const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const configMatch = {
+      fecha: { $gte: fechaInit, $lte: fechaEnd },
+      estado: 'recibido'
+    }
+    if (numeroMovimiento) {
+      configMatch.numeroMovimiento = { $eq: Number(numeroMovimiento) }
+    }
+    if (tipoMovimiento) {
+      configMatch.tipo = { $eq: tipoMovimiento }
+    }
+    console.log(configMatch)
+    const movimientos = await agreggateCollectionsSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: configMatch },
+        { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+        { $limit: Number(itemsPorPagina) },
+        {
+          $lookup: {
+            from: detalleMovimientosCollection,
+            localField: '_id',
+            foreignField: 'movimientoId',
+            as: 'detalleMovimientos'
+          }
+        },
+        {
+          $lookup: {
+            from: zonaCollection,
+            localField: 'zona',
+            foreignField: '_id',
+            as: 'zona'
+          }
+        },
+        { $unwind: { path: '$zona', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: almacenCollection,
+            localField: 'almacenOrigen',
+            foreignField: '_id',
+            as: 'almacenOrigen'
+          }
+        },
+        { $unwind: { path: '$almacenOrigen', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: almacenCollection,
+            localField: 'almacenDestino',
+            foreignField: '_id',
+            as: 'almacenDestino'
+          }
+        },
+        { $unwind: { path: '$almacenDestino', preserveNullAndEmptyArrays: true } }
+      ]
+    })
+    const countMovimientos = await agreggateCollectionsSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: configMatch },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ movimientos, countMovimientos: countMovimientos.length ? countMovimientos[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de bucar datos de los movimientos ' + e.message })
+  }
+}
+export const createDevolucion = async (req, res) => {
+  try {
+    console.log(req.body)
+    const { clienteId, fechaDevolucion, fecha, zonaOrigen, almacenDestino, almacenOrigen, movimientoAfectado, detalleMovimiento } = req.body
+    const updateDetalleMovimientoAfectado = detalleMovimiento.map(e => {
+      return {
+        updateOne: {
+          filter: { _id: new ObjectId(e._id) },
+          update: {
+            $set: {
+              cantidadDevuelto: Number(e.cantidadDevolver)
+            }
+          }
+        }
+      }
+    })
+    let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'devolucion' } }))?.contador
+    // console.log(contador)
+    if (contador) ++contador
+    if (!contador) contador = 1
+    const devolucion = await createItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      item: {
+        fecha: moment(fecha).toDate(),
+        fechaDevolucion: moment(fechaDevolucion).toDate(),
+        tipo: 'devolucion',
+        almacenOrigen: almacenOrigen ? new ObjectId(almacenOrigen._id) : null,
+        almacenDestino: almacenDestino ? new ObjectId(almacenDestino._id) : null,
+        zonaOrigen: zonaOrigen ? new ObjectId(zonaOrigen._id) : null,
+        estado: 'devolucion',
+        numeroMovimiento: contador,
+        movimientoDevolucion: new ObjectId(movimientoAfectado._id),
+        creadoPor: new ObjectId(req.uid)
+      }
+    })
+    upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'devolucion' }, update: { $set: { contador } } })
+    const detalle = detalleMovimiento.map(e => {
+      return {
+        movimientoId: devolucion.insertedId,
+        productoId: new ObjectId(e._id),
+        codigo: e.codigo,
+        descripcion: e.descripcion,
+        nombre: e.nombre,
+        observacion: e.observacion,
+        unidad: e.unidad,
+        cantidad: Number(e.cantidadDevolver)
+      }
+    })
+    bulkWriteSD({
+      nameCollection: 'detalleMovimientos',
+      enviromentClienteId: clienteId,
+      pipeline: updateDetalleMovimientoAfectado
+    })
+    createManyItemsSD({
+      nameCollection: 'detalleMovimientos',
+      enviromentClienteId: clienteId,
+      items: [
+        ...detalle
+      ]
+    })
+    createItemSD({
+      nameCollection: 'historial',
+      enviromentClienteId: clienteId,
+      item: {
+        idMovimiento: devolucion.insertedId,
+        categoria: 'creado',
+        tipo: 'Movimiento',
+        fecha: moment().toDate(),
+        descripcion: `Movimiento ${tipoMovimientosShort.devolucion}-${contador} creado`,
+        creadoPor: new ObjectId(req.uid)
+      }
+    })
+    createItemSD({
+      nameCollection: 'historial',
+      enviromentClienteId: clienteId,
+      item: {
+        idMovimiento: new ObjectId(movimientoAfectado),
+        categoria: 'editado',
+        tipo: 'Movimiento',
+        fecha: moment().toDate(),
+        descripcion: `Devolucion ${tipoMovimientosShort.devolucion}-${contador} efectuada.`,
+        creadoPor: new ObjectId(req.uid)
+      }
+    })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de bucar datos de los movimientos ' + e.message })
+  }
+}

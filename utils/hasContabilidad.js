@@ -280,3 +280,112 @@ export async function validMovimientoAuditoria ({ clienteId, tipoAjuste, almacen
     if (!cuentaAlmacenDestino) throw new Error('No existe una cuenta asignada para la categoria en el almacen ' + almacen.nombre)
   }
 }
+export async function validUpdateCostoPorLoteProducto ({ clienteId, productoId, lote }) {
+  const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
+  if (!ajusteInventario) throw new Error('No existe en ajustes de inventario')
+  if (ajusteInventario && !ajusteInventario.codigoComprobanteAjuste) throw new Error('No existe en ajustes el codigo del comprobante para realizar ajuste')
+  if (ajusteInventario && !ajusteInventario.cuentaUtilidadAjusteInventario) throw new Error('No existe en ajustes una cuenta de utilidad seleccionada para poder realizar el ajuste')
+  if (ajusteInventario && !ajusteInventario.cuentaPerdidasAjusteInventario) throw new Error('No existe en ajustes una cuenta de perdida seleccionada para poder realizar el ajuste')
+  const productosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+  const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+  const categoriaPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
+  const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+  const datosMovivientoPorProducto = await agreggateCollectionsSD({
+    nameCollection: 'productosPorAlmacen',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      { $match: { productoId: new ObjectId(productoId), lote } },
+      {
+        $group: {
+          _id: {
+            costoUnitario: '$costoUnitario',
+            productoId: '$productoId',
+            almacenId: '$almacenId'
+          },
+          lote: { $first: '$lote' },
+          entrada: {
+            $sum: {
+              $cond: {
+                if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+              }
+            }
+          },
+          salida: {
+            $sum: {
+              $cond: {
+                if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+              }
+            }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: productosCollection,
+          localField: '_id.productoId',
+          foreignField: '_id',
+          as: 'detalleProducto'
+        }
+      },
+      { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: almacenesCollection,
+          localField: '_id.almacenId',
+          foreignField: '_id',
+          as: 'detalleAlmacen'
+        }
+      },
+      { $unwind: { path: '$detalleAlmacen', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: categoriaPorAlmacenCollection,
+          let: { categoriaId: '$detalleProducto.categoria', almacenId: '$_id.almacenId' },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ['$categoriaId', '$$categoriaId'] }, { $eq: ['$almacenId', '$$almacenId'] }] } } },
+            { $project: { cuentaId: 1 } }
+          ],
+          as: 'detalleCategoriaPorAlmacen'
+        }
+      },
+      { $unwind: { path: '$detalleCategoriaPorAlmacen', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: planCuentaCollection,
+          localField: 'detalleCategoriaPorAlmacen.cuentaId',
+          foreignField: '_id',
+          pipeline: [
+            {
+              $project: {
+                descripcion: 1,
+                codigo: 1
+              }
+            }
+          ],
+          as: 'detalleCuenta'
+        }
+      },
+      { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          lote: '$lote',
+          costoUnitario: '$_id.costoUnitario',
+          productoId: '$_id.productoId',
+          almacenId: '$_id.almacenId',
+          cantidad: { $subtract: ['$entrada', '$salida'] }, // cantidad de producto en el almacen de origen
+          productoCategoria: '$detalleProducto.categoria',
+          productoNombre: '$detalleProducto.nombre',
+          cuentaId: '$detalleCuenta._id',
+          cuentaNombre: '$detalleCuenta.descripcion',
+          cuentaCodigo: '$detalleCuenta.codigo',
+          almacenNombre: '$detalleAlmacen.nombre'
+        }
+      },
+      { $match: { cantidad: { $gt: 0 } } }
+    ]
+  })
+  for (const item of datosMovivientoPorProducto) {
+    if (!item.cuentaId) throw new Error('No existe una cuenta asignada para la categoria en el almacen ' + item.almacenNombre)
+  }
+}

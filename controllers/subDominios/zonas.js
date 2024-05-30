@@ -251,9 +251,8 @@ export const listCategoriasPorZonas = async (req, res) => {
 }
 export const saveCategoriasPorZonas = async (req, res) => {
   const { clienteId, tipo, categoriasPorZona, zonaId } = req.body
-  console.log(categoriasPorZona)
   try {
-    saveCategoriasPorZona({ clienteId, tipo, categoriasPorZona, zonaId })
+    await saveCategoriasPorZona({ clienteId, tipo, categoriasPorZona, zonaId })
     return res.status(200).json({ status: 'Categorias guardadas exitosamente' })
   } catch (e) {
     console.log(e)
@@ -265,6 +264,58 @@ const saveCategoriasPorZona = async ({ clienteId, tipo, categoriasPorZona, zonaI
   const periodoActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
   try {
     for (const categoriaZona of categoriasPorZona) {
+      // verificar que las cuentas de la categoria son unicas para esa categoria
+      const cuentasVerificar = ['cuentaId', 'cuentaDepreciacionAcumuladaId', 'cuentaGastosDepreciacionId']
+      const orVerificar = []
+      cuentasVerificar.forEach(e => {
+        if (!categoriaZona[e]) return
+        orVerificar.push({ cuentaId: { $eq: new ObjectId(categoriaZona[e]) } },
+          { cuentaDepreciacionAcumuladaId: { $eq: new ObjectId(categoriaZona[e]) } },
+          { cuentaGastosDepreciacionId: { $eq: new ObjectId(categoriaZona[e]) } })
+      })
+      console.log(orVerificar)
+      const [CuentaRepetida] = await agreggateCollectionsSD({
+        nameCollection: 'categoriaPorZona',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          {
+            $match: {
+              categoriaId: { $ne: new ObjectId(categoriaZona.categoriaId) },
+              $or: orVerificar
+            }
+          },
+          {
+            $limit: 1
+          }
+        ]
+      })
+      console.log({categoriaZona, CuentaRepetida})
+      if (CuentaRepetida) {
+        let cuenta = ''
+        const codigoByProp = {
+          cuentaId: 'cuentaCodigo',
+          cuentaDepreciacionAcumuladaId: 'cuentaDepreciacionAcumulada',
+          cuentaGastosDepreciacionId: 'cuentaGastosDepreciacion'
+        }
+        cuentasVerificar.forEach(e => {
+          if (categoriaZona[e] && String(CuentaRepetida[e]) === String(categoriaZona[e])) {
+            const prop = codigoByProp[e]
+            cuenta = categoriaZona[prop]
+          }
+        })
+        const categoria = await getItemSD({
+          nameCollection: 'categorias',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(CuentaRepetida.categoriaId) }
+        })
+        const zona = await getItemSD({
+          nameCollection: 'zonas',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(CuentaRepetida.zonaId) }
+        })
+
+        throw new Error(`La cuenta ${cuenta} esta repetida en la categoria: ${categoria.nombre} de la zona: ${zona.nombre}`)
+      }
       const dataAnterior = await getItemSD({
         nameCollection: 'categoriaPorZona',
         enviromentClienteId: clienteId,
@@ -418,6 +469,6 @@ const saveCategoriasPorZona = async ({ clienteId, tipo, categoriasPorZona, zonaI
     if (bulkWrite[0]) await bulkWriteSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, pipeline: bulkWrite })
   } catch (e) {
     console.log(e)
-    return e
+    throw e
   }
 }

@@ -1177,7 +1177,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
           })
         }
       }
-      if (tipoAjuste === 'Perdida') {
+      if (tipoAjuste === 'Faltante') {
         const movimientoAfectado = await getItemSD({
           nameCollection: 'movimientos',
           enviromentClienteId: clienteId,
@@ -1240,7 +1240,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
           items: detalleComprobante
         })
       }
-      if (tipoAjuste === 'Ganancia') {
+      if (tipoAjuste === 'Sobrante') {
         const movimientoAfectado = await getItemSD({
           nameCollection: 'movimientos',
           enviromentClienteId: clienteId,
@@ -2176,7 +2176,7 @@ export const createDevolucion = async (req, res) => {
         zonaOrigen: zonaOrigen ? new ObjectId(zonaOrigen._id) : null,
         estado: 'devolucion',
         numeroMovimiento: contador,
-        movimientoDevolucion: new ObjectId(movimientoAfectado._id),
+        movimientoDevolucion: new ObjectId(movimientoAfectado),
         creadoPor: new ObjectId(req.uid)
       }
     })
@@ -2470,6 +2470,70 @@ export const createDevolucion = async (req, res) => {
       }
     })
     return res.status(200).json({ message: 'Devolucion creada correctamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de bucar datos de los movimientos ' + e.message })
+  }
+}
+export const getDevoluciones = async (req, res) => {
+  const { clienteId } = req.body
+  try {
+    const detalleMovimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleMovimientos' })
+    const zonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
+    const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
+    const movimientos = await agreggateCollectionsSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { estado: 'devolucion' } },
+        {
+          $lookup: {
+            from: detalleMovimientosCollection,
+            localField: '_id',
+            foreignField: 'movimientoId',
+            as: 'detalleMovimientos'
+          }
+        },
+        {
+          $lookup: {
+            from: zonaCollection,
+            localField: 'zonaOrigen',
+            foreignField: '_id',
+            as: 'zonaOrigen'
+          }
+        },
+        { $unwind: { path: '$zonaOrigen', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: almacenCollection,
+            localField: 'almacenOrigen',
+            foreignField: '_id',
+            as: 'almacenOrigen'
+          }
+        },
+        { $unwind: { path: '$almacenOrigen', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: almacenCollection,
+            localField: 'almacenDestino',
+            foreignField: '_id',
+            as: 'almacenDestino'
+          }
+        },
+        { $unwind: { path: '$almacenDestino', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: movimientosCollection,
+            localField: 'movimientoDevolucion',
+            foreignField: '_id',
+            as: 'movimientoAfectado'
+          }
+        },
+        { $unwind: { path: '$movimientoAfectado', preserveNullAndEmptyArrays: true } }
+      ]
+    })
+    return res.status(200).json({ movimientos })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de bucar datos de los movimientos ' + e.message })

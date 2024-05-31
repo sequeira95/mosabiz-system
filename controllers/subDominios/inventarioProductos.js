@@ -1222,8 +1222,8 @@ export const updateCostoPorLote = async (req, res) => {
                 },
                 {
                   cuentaId: cuentaUtilidad._id,
-                  cuentaCodigo: cuentaPerdida.codigo,
-                  cuentaNombre: cuentaPerdida.descripcion,
+                  cuentaCodigo: cuentaUtilidad.codigo,
+                  cuentaNombre: cuentaUtilidad.descripcion,
                   comprobanteId: comprobante._id,
                   periodoId: periodo._id,
                   descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} lote ${lote} en almacen ${movimientoAuditoria.almacenNombre}`,

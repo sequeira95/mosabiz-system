@@ -138,7 +138,6 @@ export const deleteZonas = async (req, res) => {
 }
 export const listCategoriasPorZonas = async (req, res) => {
   const { clienteId, zonaId, tipo } = req.body
-  console.log(req.body)
   try {
     const categoriaZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
@@ -243,7 +242,35 @@ export const listCategoriasPorZonas = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ listCategorias })
+    const [cuentasUsadas] = await agreggateCollectionsSD({
+      nameCollection: 'categoriaPorZona',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipo: 'activoFijo'
+          }
+        },
+        {
+          $group: {
+            _id: 0,
+            cuentaId: {
+              $push: { cuenta: '$cuentaId', categoria: '$categoriaId', zona: '$zonaId', tipo: 'cuentaId' }
+            },
+            cuentaDepreciacionAcumulada: {
+              $push: { cuenta: '$cuentaDepreciacionAcumulada', categoria: '$categoriaId', zona: '$zonaId', tipo: 'cuentaDepreciacionAcumuladaId' }
+            },
+            cuentaGastosDepreciacion: {
+              $push: { cuenta: '$cuentaGastosDepreciacion', categoria: '$categoriaId', zona: '$zonaId', tipo: 'cuentaGastosDepreciacionId' }
+            }
+          }
+        }
+      ]
+    })
+    const cuentas = (cuentasUsadas?.cuentaId || []).concat(cuentasUsadas?.cuentaDepreciacionAcumulada || []).concat(cuentasUsadas?.cuentaGastosDepreciacion || [])
+    const cuentasObject = {}
+    cuentas.forEach(e => { if (e.cuenta) cuentasObject[e.cuenta] = e })
+    return res.status(200).json({ listCategorias, cuentas: cuentasObject })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la lista de categorías por zonas ' + e.message })
@@ -264,58 +291,6 @@ const saveCategoriasPorZona = async ({ clienteId, tipo, categoriasPorZona, zonaI
   const periodoActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
   try {
     for (const categoriaZona of categoriasPorZona) {
-      // verificar que las cuentas de la categoria son unicas para esa categoria
-      const cuentasVerificar = ['cuentaId', 'cuentaDepreciacionAcumuladaId', 'cuentaGastosDepreciacionId']
-      const orVerificar = []
-      cuentasVerificar.forEach(e => {
-        if (!categoriaZona[e]) return
-        orVerificar.push({ cuentaId: { $eq: new ObjectId(categoriaZona[e]) } },
-          { cuentaDepreciacionAcumuladaId: { $eq: new ObjectId(categoriaZona[e]) } },
-          { cuentaGastosDepreciacionId: { $eq: new ObjectId(categoriaZona[e]) } })
-      })
-      console.log(orVerificar)
-      const [CuentaRepetida] = await agreggateCollectionsSD({
-        nameCollection: 'categoriaPorZona',
-        enviromentClienteId: clienteId,
-        pipeline: [
-          {
-            $match: {
-              categoriaId: { $ne: new ObjectId(categoriaZona.categoriaId) },
-              $or: orVerificar
-            }
-          },
-          {
-            $limit: 1
-          }
-        ]
-      })
-      console.log({categoriaZona, CuentaRepetida})
-      if (CuentaRepetida) {
-        let cuenta = ''
-        const codigoByProp = {
-          cuentaId: 'cuentaCodigo',
-          cuentaDepreciacionAcumuladaId: 'cuentaDepreciacionAcumulada',
-          cuentaGastosDepreciacionId: 'cuentaGastosDepreciacion'
-        }
-        cuentasVerificar.forEach(e => {
-          if (categoriaZona[e] && String(CuentaRepetida[e]) === String(categoriaZona[e])) {
-            const prop = codigoByProp[e]
-            cuenta = categoriaZona[prop]
-          }
-        })
-        const categoria = await getItemSD({
-          nameCollection: 'categorias',
-          enviromentClienteId: clienteId,
-          filters: { _id: new ObjectId(CuentaRepetida.categoriaId) }
-        })
-        const zona = await getItemSD({
-          nameCollection: 'zonas',
-          enviromentClienteId: clienteId,
-          filters: { _id: new ObjectId(CuentaRepetida.zonaId) }
-        })
-
-        throw new Error(`La cuenta ${cuenta} esta repetida en la categoria: ${categoria.nombre} de la zona: ${zona.nombre}`)
-      }
       const dataAnterior = await getItemSD({
         nameCollection: 'categoriaPorZona',
         enviromentClienteId: clienteId,
@@ -380,6 +355,17 @@ const saveCategoriasPorZona = async ({ clienteId, tipo, categoriasPorZona, zonaI
             }
           }
         })
+      } else if (!categoriaZona.cuentaId) {
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaId: ''
+              }
+            }
+          }
+        })
       }
       if (dataAnterior.cuentaDepreciacionAcumulada && categoriaZona.cuentaDepreciacionAcumuladaId && dataAnterior.cuentaDepreciacionAcumulada.toJSON() !== categoriaZona.cuentaDepreciacionAcumuladaId) {
         console.log('entrando cuentaDepreciacionAcumulada primer if', dataAnterior.cuentaDepreciacionAcumulada.toJSON(), categoriaZona.cuentaDepreciacionAcumuladaId)
@@ -422,6 +408,17 @@ const saveCategoriasPorZona = async ({ clienteId, tipo, categoriasPorZona, zonaI
             }
           }
         })
+      } else if (!categoriaZona.cuentaDepreciacionAcumuladaId) {
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaDepreciacionAcumuladaId: ''
+              }
+            }
+          }
+        })
       }
       if (dataAnterior.cuentaGastosDepreciacion && categoriaZona.cuentaGastosDepreciacionId && dataAnterior.cuentaGastosDepreciacion.toJSON() !== categoriaZona.cuentaGastosDepreciacionId) {
         console.log('entrando cuentaGastosDepreciacionId primer if', dataAnterior.cuentaGastosDepreciacion.toJSON(), categoriaZona.cuentaGastosDepreciacionId)
@@ -460,6 +457,17 @@ const saveCategoriasPorZona = async ({ clienteId, tipo, categoriasPorZona, zonaI
             update: {
               $set: {
                 cuentaGastosDepreciacion: new ObjectId(categoriaZona.cuentaGastosDepreciacionId)
+              }
+            }
+          }
+        })
+      } else if (!categoriaZona.cuentaGastosDepreciacionId) {
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaGastosDepreciacionId: ''
               }
             }
           }

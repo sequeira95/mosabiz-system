@@ -1123,7 +1123,7 @@ export const saveCalculosDepreciacion = async (req, res) => {
 }
 
 const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => {
-  /*const periodoActual = (await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })).fechaInicio
+  /* const periodoActual = (await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })).fechaInicio
   const categoriaPorZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
   const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
   const detalleComprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
@@ -1231,7 +1231,6 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
         // si acumulado esta cuadrado, y gastos no, utilizar la ceunta de diferencia
         // si los dos estan malos, cuadrarse entre ellos magicamente y
         // diferencia a la cuenta e diferencia
-       
       {
         $lookup: {
           from: detalleComprobantesCollection,

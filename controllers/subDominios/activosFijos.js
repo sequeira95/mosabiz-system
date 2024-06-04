@@ -1813,13 +1813,25 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
               totalContabilidadAcum: '$detalleComprobantes.totalAcum',
               totalContabilidadGasto: '$detalleComprobantes.totalGasto'
             }
+          },
+          {
+            $group: {
+              _id: 0,
+              totalCalculoAcum: {
+                $sum: '$totalCalculoAcum'
+              },
+              totalContabilidadAcum: {
+                $sum: '$totalContabilidadAcum'
+              },
+              totalContabilidadGasto: {
+                $sum: '$totalContabilidadGasto'
+              }
+            }
           }
-
-        ],
+        ]
       } }
     ]
   })
-  
   const datos = Array(12).fill({
     nombre: 0,
     acumuladaCalculo: 0,
@@ -1833,14 +1845,6 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
   if (!datosActivos) return []
   const meses = datosActivos.meses[0] || {}
   const acumulado = datosActivos.acumulado[0] || {}
-  const data = {}
-  data.nombre = 'Acumulado'
-  data.acumuladaCalculo = acumulado.totalCalculoAcum || 0
-  data.gastosCalculo = 0
-  data.acumuladaContabilidad = acumulado.totalContabilidadAcum || 0
-  data.gastosContabilidad = acumulado.totalContabilidadGasto || 0
-  data.acumuladaDiferencia = data.acumuladaCalculo - data.acumuladaContabilidad
-  data.gastosDiferencia = 0
   datos.unshift({
     nombre: 'Acumulado',
     acumuladaCalculo: acumulado.totalCalculoAcum || 0,

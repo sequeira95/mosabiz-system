@@ -138,7 +138,6 @@ export const deleteZonas = async (req, res) => {
 }
 export const listCategoriasPorZonas = async (req, res) => {
   const { clienteId, zonaId, tipo } = req.body
-  console.log(req.body)
   try {
     const categoriaZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
@@ -243,7 +242,35 @@ export const listCategoriasPorZonas = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ listCategorias })
+    const [cuentasUsadas] = await agreggateCollectionsSD({
+      nameCollection: 'categoriaPorZona',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipo: 'activoFijo'
+          }
+        },
+        {
+          $group: {
+            _id: 0,
+            cuentaId: {
+              $push: { cuenta: '$cuentaId', categoria: '$categoriaId', zona: '$zonaId', tipo: 'cuentaId' }
+            },
+            cuentaDepreciacionAcumulada: {
+              $push: { cuenta: '$cuentaDepreciacionAcumulada', categoria: '$categoriaId', zona: '$zonaId', tipo: 'cuentaDepreciacionAcumuladaId' }
+            },
+            cuentaGastosDepreciacion: {
+              $push: { cuenta: '$cuentaGastosDepreciacion', categoria: '$categoriaId', zona: '$zonaId', tipo: 'cuentaGastosDepreciacionId' }
+            }
+          }
+        }
+      ]
+    })
+    const cuentas = (cuentasUsadas?.cuentaId || []).concat(cuentasUsadas?.cuentaDepreciacionAcumulada || []).concat(cuentasUsadas?.cuentaGastosDepreciacion || [])
+    const cuentasObject = {}
+    cuentas.forEach(e => { if (e.cuenta) cuentasObject[e.cuenta] = e })
+    return res.status(200).json({ listCategorias, cuentas: cuentasObject })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la lista de categorías por zonas ' + e.message })
@@ -251,9 +278,8 @@ export const listCategoriasPorZonas = async (req, res) => {
 }
 export const saveCategoriasPorZonas = async (req, res) => {
   const { clienteId, tipo, categoriasPorZona, zonaId } = req.body
-  console.log(categoriasPorZona)
   try {
-    saveCategoriasPorZona({ clienteId, tipo, categoriasPorZona, zonaId })
+    await saveCategoriasPorZona({ clienteId, tipo, categoriasPorZona, zonaId })
     return res.status(200).json({ status: 'Categorias guardadas exitosamente' })
   } catch (e) {
     console.log(e)
@@ -329,6 +355,17 @@ const saveCategoriasPorZona = async ({ clienteId, tipo, categoriasPorZona, zonaI
             }
           }
         })
+      } else if (!categoriaZona.cuentaId) {
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaId: ''
+              }
+            }
+          }
+        })
       }
       if (dataAnterior.cuentaDepreciacionAcumulada && categoriaZona.cuentaDepreciacionAcumuladaId && dataAnterior.cuentaDepreciacionAcumulada.toJSON() !== categoriaZona.cuentaDepreciacionAcumuladaId) {
         console.log('entrando cuentaDepreciacionAcumulada primer if', dataAnterior.cuentaDepreciacionAcumulada.toJSON(), categoriaZona.cuentaDepreciacionAcumuladaId)
@@ -367,6 +404,17 @@ const saveCategoriasPorZona = async ({ clienteId, tipo, categoriasPorZona, zonaI
             update: {
               $set: {
                 cuentaDepreciacionAcumulada: new ObjectId(categoriaZona.cuentaDepreciacionAcumuladaId)
+              }
+            }
+          }
+        })
+      } else if (!categoriaZona.cuentaDepreciacionAcumuladaId) {
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaDepreciacionAcumuladaId: ''
               }
             }
           }
@@ -413,11 +461,22 @@ const saveCategoriasPorZona = async ({ clienteId, tipo, categoriasPorZona, zonaI
             }
           }
         })
+      } else if (!categoriaZona.cuentaGastosDepreciacionId) {
+        bulkWrite.push({
+          updateOne: {
+            filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+            update: {
+              $set: {
+                cuentaGastosDepreciacionId: ''
+              }
+            }
+          }
+        })
       }
     }
     if (bulkWrite[0]) await bulkWriteSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, pipeline: bulkWrite })
   } catch (e) {
     console.log(e)
-    return e
+    throw e
   }
 }

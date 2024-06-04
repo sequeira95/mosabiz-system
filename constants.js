@@ -98,5 +98,6 @@ export const tipoMovimientosShort = {
   solicitudInterna: 'SI',
   solicitudCompra: 'SC',
   transferencia: 'TR',
-  Ajuste: 'AJ'
+  Ajuste: 'AJ',
+  devolucion: 'DEV'
 }

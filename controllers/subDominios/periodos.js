@@ -1,16 +1,70 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
-import { statusOptionsPeriodos } from '../../constants.js'
+import { statusOptionsPeriodos, subDominioName } from '../../constants.js'
 import { cerrarPeriodo, preCierrePeriodo } from '../../utils/periodoFuctrions.js'
 
 export const getListPeriodo = async (req, res) => {
   const { clienteId } = req.body
   if (!clienteId) return res.status(400).json({ error: 'El clienteId es requerido' })
   try {
+    const comprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'comprobantes' })
+    const detallesComprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
     const periodos = await agreggateCollectionsSD({
       nameCollection: 'periodos',
-      enviromentClienteId: clienteId
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $lookup: {
+            from: comprobantesCollection,
+            localField: '_id',
+            foreignField: 'periodoId',
+            pipeline: [
+              { $match: { isPreCierre: { $eq: true } } },
+              {
+                $lookup: {
+                  from: detallesComprobantesCollection,
+                  localField: '_id',
+                  foreignField: 'comprobanteId',
+                  pipeline: [
+                    { $limit: 1 }
+                  ],
+                  as: 'detalleComprobante'
+                }
+              },
+              { $unwind: { path: '$detalleComprobante', preserveNullAndEmptyArrays: true } },
+              { $project: { _id: 1, detalleComprobante: '$detalleComprobante._id' } }
+            ],
+            as: 'comprobantePreCierre'
+          }
+        },
+        { $unwind: { path: '$comprobantePreCierre', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: comprobantesCollection,
+            localField: '_id',
+            foreignField: 'periodoId',
+            pipeline: [
+              { $match: { isCierre: { $eq: true } } },
+              {
+                $lookup: {
+                  from: detallesComprobantesCollection,
+                  localField: '_id',
+                  foreignField: 'comprobanteId',
+                  pipeline: [
+                    { $limit: 1 }
+                  ],
+                  as: 'detalleComprobante'
+                }
+              },
+              { $unwind: { path: '$detalleComprobante', preserveNullAndEmptyArrays: true } },
+              { $project: { _id: 1, detalleComprobante: '$detalleComprobante._id' } }
+            ],
+            as: 'comprobanteCierre'
+          }
+        },
+        { $unwind: { path: '$comprobanteCierre', preserveNullAndEmptyArrays: true } }
+      ]
     })
     return res.status(200).json({ periodos })
   } catch (e) {
@@ -20,6 +74,8 @@ export const getListPeriodo = async (req, res) => {
 export const savePeriodo = async (req, res) => {
   const { clienteId, periodo } = req.body
   if (!clienteId) return res.status(400).json({ error: 'El clienteId es requerido' })
+  const ajustesContables = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
+  if (!ajustesContables.cuentaSuperAvitAcum || !ajustesContables.cuentaPerdidaAcum) return res.status(400).json({ error: 'Por favor seleccione cuentas contables para el resultado acumulado en los ajustes.' })
   // if (periodo.status === statusOptionsPeriodos.preCierre && !periodo.periodoAnterior) return res.status(400).json({ error: 'El periodo anterior es requerido para efectuar un pre-cierre' })
   /* if (periodo.status === statusOptionsPeriodos.activo) {
     // validamos que solo exista un periodo activo
@@ -29,7 +85,9 @@ export const savePeriodo = async (req, res) => {
   console.log({ body: req.body })
   try {
     if (periodo.status === statusOptionsPeriodos.preCierre) {
+      console.log({ 1: periodo.status === statusOptionsPeriodos.preCierre })
       const verifyPeriodoActivo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { status: statusOptionsPeriodos.activo } })
+      console.log({ verifyPeriodoActivo })
       const newPeriodo = await upsertItemSD({
         nameCollection: 'periodos',
         enviromentClienteId: clienteId,
@@ -37,7 +95,7 @@ export const savePeriodo = async (req, res) => {
         update: {
           $set: {
             // periodo: periodo.periodo ? periodo.periodo : `${periodo.fechaInicio.replace('/', '-')}/${periodo.fechaFin.replace('/', '-')}`,
-            periodo: `${moment(periodo.fechaInicio).format('YYYY-MM')}/${moment(periodo.fechaFin).format('YYYY-MM')}`,
+            periodo: periodo.periodo,
             fechaInicio: moment(periodo.fechaInicio).toDate(),
             fechaFin: moment(periodo.fechaFin).toDate(),
             status: !verifyPeriodoActivo ? statusOptionsPeriodos.activo : periodo.status,
@@ -70,17 +128,17 @@ export const savePeriodo = async (req, res) => {
     })
     if (newPeriodo.status === statusOptionsPeriodos.cerrado) {
       console.log('creear o actualizar el comprobante para el nuevo periodo de cierre y tambien pre cierre')
-      cerrarPeriodo({ clienteId, periodo: newPeriodo })
+      await cerrarPeriodo({ clienteId, periodo: newPeriodo })
       const verifyPeriodoAPreCierre = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { status: statusOptionsPeriodos.preCierre, periodoAnterior: newPeriodo._id } })
       if (!verifyPeriodoAPreCierre) {
-        const periodoFormat = `${moment(periodo.fechaInitNewPeriodo).format('YYYY-MM')}/${moment(periodo.fechaFinNewPeriodo).format('YYYY-MM')}`
+        // const periodoFormat = `${moment(periodo.fechaInitNewPeriodo).format('YYYY-MM')}/${moment(periodo.fechaFinNewPeriodo).format('YYYY-MM')}`
         const preCierrePeriodo1 = await upsertItemSD({
           nameCollection: 'periodos',
           enviromentClienteId: clienteId,
           filters: { periodoAnterior: newPeriodo._id },
           update: {
             $set: {
-              periodo: periodoFormat,
+              periodo: periodo.newPeriodoFormat,
               fechaInicio: moment(periodo.fechaInitNewPeriodo).toDate(),
               fechaFin: moment(periodo.fechaFinNewPeriodo).toDate(),
               status: 'Activo',

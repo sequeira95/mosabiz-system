@@ -389,3 +389,11 @@ export async function validUpdateCostoPorLoteProducto ({ clienteId, productoId, 
     if (!item.cuentaId) throw new Error('No existe una cuenta asignada para la categoria en el almacen ' + item.almacenNombre)
   }
 }
+export async function validComprobantesDescuadre ({ clienteId, periodoId }) {
+  try {
+    const verifyComprobantes = await getItemSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { periodoId: new ObjectId(periodoId), descuadre: true } })
+    if (verifyComprobantes) throw new Error('Existen comprobantes con saldos descuadros.')
+  } catch (e) {
+    return e
+  }
+}

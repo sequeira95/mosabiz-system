@@ -138,8 +138,8 @@ export const getDataAlmacenAuditoria = async (req, res) => {
                           $and:
                           [
                             { $eq: ['$tipoAuditoria', 'sobrante'] },
-                            { $ne: ['$afecta', 'Perdida'] },
-                            { $ne: ['$afecta', 'Ganancia'] },
+                            { $ne: ['$afecta', 'Faltante'] },
+                            { $ne: ['$afecta', 'Sobrante'] },
                             { $ne: ['$afecta', 'Almacen'] }
                           ]
                         },
@@ -155,8 +155,8 @@ export const getDataAlmacenAuditoria = async (req, res) => {
                           $and:
                           [
                             { $eq: ['$tipoAuditoria', 'faltante'] },
-                            { $ne: ['$afecta', 'Perdida'] },
-                            { $ne: ['$afecta', 'Ganancia'] },
+                            { $ne: ['$afecta', 'Faltante'] },
+                            { $ne: ['$afecta', 'Sobrante'] },
                             { $ne: ['$afecta', 'Almacen'] }
                           ]
                         },
@@ -175,8 +175,8 @@ export const getDataAlmacenAuditoria = async (req, res) => {
                             {
                               $or:
                             [
-                              { $eq: ['$afecta', 'Perdida'] },
-                              { $eq: ['$afecta', 'Ganancia'] },
+                              { $eq: ['$afecta', 'Faltante'] },
+                              { $eq: ['$afecta', 'Sobrante'] },
                               { $eq: ['$afecta', 'Almacen'] }
                             ]
                             }
@@ -197,8 +197,8 @@ export const getDataAlmacenAuditoria = async (req, res) => {
                             {
                               $or:
                             [
-                              { $eq: ['$afecta', 'Perdida'] },
-                              { $eq: ['$afecta', 'Ganancia'] },
+                              { $eq: ['$afecta', 'Faltante'] },
+                              { $eq: ['$afecta', 'Sobrante'] },
                               { $eq: ['$afecta', 'Almacen'] }
                             ]
                             }

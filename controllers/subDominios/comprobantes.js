@@ -196,7 +196,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
         comprobanteId: new ObjectId(comprobanteId),
         periodoId: new ObjectId(periodoId),
         descripcion: e.descripcion,
-        fecha: moment(e.fecha, formatFecha).toDate(),
+        fecha: moment(e.fecha).toDate(),
         debe: e.debe ? parseFloat(e.debe) : 0,
         haber: e.haber ? parseFloat(e.haber) : 0,
         cCosto: e.cCosto,
@@ -206,12 +206,12 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
         docReferenciaAux: e.documento.docReferencia,
         documento: {
           docReferencia: e.documento.docReferencia,
-          docFecha: e.documento.docFecha ? moment(e.documento.docFecha, formatFecha).toDate() : null,
+          docFecha: e.documento.docFecha ? moment(e.documento.docFecha).toDate() : null,
           docTipo: e.documento.docTipo,
           docObservacion: e.documento.docObservacion,
           documento: e.documento.documento
         },
-        fechaDolar: e?.fechaDolar,
+        fechaDolar: e.fechaDolar ? moment(e.fechaDolar).toDate() : e.fechaDolar,
         cantidad: e?.cantidad,
         monedasUsar: e?.monedasUsar,
         tasa: e?.tasa,
@@ -253,7 +253,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
                 docObservacion: e.documento.docObservacion,
                 documento: e.documento.documento
               },
-              fechaDolar: e?.fechaDolar,
+              fechaDolar: e.fechaDolar ? moment(e.fechaDolar).toDate() : e.fechaDolar,
               cantidad: e?.cantidad,
               monedasUsar: e?.monedasUsar,
               tasa: e?.tasa,

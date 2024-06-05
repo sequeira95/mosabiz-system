@@ -391,7 +391,11 @@ export async function validUpdateCostoPorLoteProducto ({ clienteId, productoId, 
 }
 export async function validComprobantesDescuadre ({ clienteId, periodoId }) {
   try {
-    const verifyComprobantes = await getItemSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { periodoId: new ObjectId(periodoId), descuadre: true } })
+    const verifyComprobantes = await getItemSD({
+      nameCollection: 'comprobantes',
+      enviromentClienteId: clienteId,
+      filters: { periodoId: new ObjectId(periodoId), descuadre: { $nin: [null, undefined, 0, ''] } }
+    })
     if (verifyComprobantes) throw new Error('Existen comprobantes con saldos descuadros.')
   } catch (e) {
     return e

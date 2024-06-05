@@ -74,7 +74,7 @@ export const getListPeriodo = async (req, res) => {
 }
 export const savePeriodo = async (req, res) => {
   const { clienteId, periodo } = req.body
-  if (periodo.status === statusOptionsPeriodos.preCierre) {
+  /* if (periodo.status === statusOptionsPeriodos.preCierre) {
     const validComprobantes = await validComprobantesDescuadre({ clienteId, periodoId: periodo.periodoAnterior._id })
     if (validComprobantes && validComprobantes.message) {
       return res.status(500).json({ error: 'Error al momento de validar datos para el pre-cierre: ' + validComprobantes.message })
@@ -85,7 +85,7 @@ export const savePeriodo = async (req, res) => {
     if (validComprobantes && validComprobantes.message) {
       return res.status(500).json({ error: 'Error al momento de validar datos para el cierre: ' + validComprobantes.message })
     }
-  }
+  } */
   if (!clienteId) return res.status(400).json({ error: 'El clienteId es requerido' })
   const ajustesContables = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
   if (!ajustesContables.cuentaSuperAvitAcum || !ajustesContables.cuentaPerdidaAcum) return res.status(400).json({ error: 'Por favor seleccione cuentas contables para el resultado acumulado en los ajustes.' })

@@ -390,7 +390,7 @@ export const saveAjusteAlmacen = async (req, res) => {
     createItemSD({
       nameCollection: 'detalleMovimientos',
       enviromentClienteId: clienteId,
-      items: {
+      item: {
         movimientoId: movimiento.insertedId,
         productoId: new ObjectId(productoId),
         codigo: producto.codigo,
@@ -568,7 +568,7 @@ export const saveAjusteAlmacen = async (req, res) => {
     createItemSD({
       nameCollection: 'detalleMovimientos',
       enviromentClienteId: clienteId,
-      items: {
+      item: {
         movimientoId: movimiento.insertedId,
         productoId: new ObjectId(productoId),
         codigo: producto.codigo,

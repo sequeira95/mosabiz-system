@@ -1,9 +1,9 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { statusOptionsPeriodos, subDominioName } from '../../constants.js'
 import { cerrarPeriodo, preCierrePeriodo } from '../../utils/periodoFuctrions.js'
-import { validComprobantesDescuadre } from '../../utils/hasContabilidad.js'
+// import { validComprobantesDescuadre } from '../../utils/hasContabilidad.js'
 
 export const getListPeriodo = async (req, res) => {
   const { clienteId } = req.body
@@ -182,5 +182,16 @@ export const savePeriodo = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar este periodo ' + e.message })
+  }
+}
+export const deletePeriodo = async (req, res) => {
+  const { clienteId, _id } = req.body
+  try {
+    await deleteItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
+    deleteManyItemsSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { periodoId: new ObjectId(_id) } })
+    deleteManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { periodoId: new ObjectId(_id) } })
+    return res.status(200).json({ status: 'periodo eliminado' })
+  } catch (e) {
+    return res.status(500).json({ error: '' + e.message })
   }
 }

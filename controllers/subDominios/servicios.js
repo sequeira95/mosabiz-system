@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { subDominioName } from '../../constants.js'
 
@@ -123,6 +123,33 @@ export const saveServicios = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar este servicio' + e.message })
+  }
+}
+export const saveToArrayServicios = async (req, res) => {
+  const { clienteId, servicios, tipo } = req.body
+  try {
+    if (!servicios[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de proveedores' })
+    const verifyServicios = await agreggateCollectionsSD({
+      nameCollection: 'servicios',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { codigo: { $in: servicios.map(e => e.codigo), tipo } } }
+      ]
+    })
+    if (verifyServicios[0]) return res.status(400).json({ error: 'Existen codigos de servicios que ya se encuentran registrados' })
+    const bulkWrite = servicios.map(e => {
+      return {
+        ...e,
+        categoria: e.categoria ? new ObjectId(e.categoria) : null,
+        tipo,
+        fechaCreacion: moment().toDate()
+      }
+    })
+    createManyItemsSD({ nameCollection: 'servicios', enviromentClienteId: clienteId, items: bulkWrite })
+    return res.status(200).json({ status: 'Servicios guardados exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar los servicios' + e.message })
   }
 }
 export const deleteServicio = async (req, res) => {

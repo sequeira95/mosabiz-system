@@ -62,14 +62,17 @@ export const getCategoriasForVentas = async (req, res) => {
   }
 }
 export const getCategoriasForCompras = async (req, res) => {
-  const { clienteId } = req.body
+  const { clienteId, tipo } = req.body
   try {
+    let matchConfig = { tipo: { $in: ['compras/proveedor', 'compras/servicio'] } }
+    if (tipo === 'compras/proveedor') matchConfig = { tipo: 'compras/proveedor' }
+    if (tipo === 'compras/servicio') matchConfig = { tipo: 'compras/servicio' }
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
     const categorias = await agreggateCollectionsSD({
       nameCollection: 'categorias',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipo: 'compras' } },
+        { $match: matchConfig },
         {
           $lookup: {
             from: planCuentaCollection,
@@ -246,6 +249,7 @@ export const saveCategoriasForCompras = async (req, res) => {
         $set: {
           nombre,
           observacion,
+          tipo,
           cuentaId: cuentaId ? new ObjectId(cuentaId) : null,
           fechaCreacion: moment().toDate()
         }

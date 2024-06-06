@@ -8,6 +8,8 @@ import SubDominiosRouter from './routes/subDominios.js'
 import authRouter from './routes/auth.js'
 import rolsRouter from './routes/rols.js'
 import monedasRouters from './routes/moneda.js'
+import bancosRouters from './routes/bancos.js'
+import ivaRouter from './routes/iva.js'
 import mantenedorModulosRouter from './routes/mantenedorModulos.js'
 import userRouter from './routes/user.js'
 import fileUpload from 'express-fileupload'
@@ -70,6 +72,8 @@ app.use('/v1/rols', rolsRouter)
 app.use('/v1/modulos', mantenedorModulosRouter)
 app.use('/v1/users', userRouter)
 app.use('/v1/monedas', monedasRouters)
+app.use('/v1/bancos', bancosRouters)
+app.use('/v1/iva', ivaRouter)
 
 // endPoints SD
 

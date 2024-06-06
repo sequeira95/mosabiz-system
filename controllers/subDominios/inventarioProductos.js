@@ -275,7 +275,12 @@ export const getListCostos = async (req, res) => {
         { $match: { productoId: new ObjectId(productoId), almacenId: new ObjectId(almacenId) } },
         {
           $group: {
-            _id: '$costoUnitario',
+            _id: {
+              costoUnitario: '$costoUnitario',
+              lote: '$lote',
+              fechaIngreso: '$fechaIngreso',
+              fechaVencimiento: '$fechaVencimiento'
+            },
             entrada: {
               $sum: {
                 $cond: {
@@ -295,7 +300,10 @@ export const getListCostos = async (req, res) => {
         {
           $project: {
             cantidad: { $subtract: ['$entrada', '$salida'] },
-            costosUnitarios: '$_id'
+            costoUnitario: '$_id.costoUnitario',
+            fechaIngreso: '$_id.fechaIngreso',
+            fechaVencimiento: '$_id.fechaVencimiento',
+            lote: '$_id.lote'
           }
         }
       ]
@@ -307,7 +315,16 @@ export const getListCostos = async (req, res) => {
   }
 }
 export const saveAjusteAlmacen = async (req, res) => {
-  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo, lote, fechaAjuste, fechaVencimiento } = req.body
+  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo, lote, fechaAjuste, fechaVencimiento, fechaIngreso } = req.body
+  console.log({ body: req.body })
+  if (tipo === 'Ingreso') {
+    const validProductoPorAlmacen = await getItemSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      filters: { productoId: new ObjectId(productoId), lote }
+    })
+    if (validProductoPorAlmacen) return res.status(400).json({ error: 'Ya existe el lote en este producto.' })
+  }
   // console.log(req.body)
   const tieneContabilidad = await hasContabilidad({ clienteId })
   const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
@@ -350,7 +367,9 @@ export const saveAjusteAlmacen = async (req, res) => {
         tipoMovimiento: 'entrada',
         tipo: 'ajuste',
         lote,
+        fechaIngreso: moment(fechaIngreso).toDate(),
         fechaVencimiento: moment(fechaVencimiento).toDate(),
+        fechaMovimiento: moment(fechaAjuste).toDate(),
         almacenDestino: new ObjectId(almacen._id),
         creadoPor: new ObjectId(req.uid),
         fechaCreacion: moment().toDate()
@@ -427,6 +446,9 @@ export const saveAjusteAlmacen = async (req, res) => {
               from: categoriasPorAlmacenCollection,
               localField: 'categoria',
               foreignField: 'categoriaId',
+              pipeline: [
+                { $match: { almacenId: new ObjectId(almacen._id) } }
+              ],
               as: 'detalleCategoriaPorAlmacen'
             }
           },
@@ -434,7 +456,7 @@ export const saveAjusteAlmacen = async (req, res) => {
           {
             $lookup: {
               from: planCuentaCollection,
-              localField: 'detalleCategoria.cuentaId',
+              localField: 'detalleCategoriaPorAlmacen.cuentaId',
               foreignField: '_id',
               as: 'detalleCuenta'
             }
@@ -462,6 +484,7 @@ export const saveAjusteAlmacen = async (req, res) => {
         enviromentClienteId: clienteId,
         filters: { almacenId: new ObjectId(almacen._id), categoriaId: producto.categoria }
       }) */
+      // console.log({ dataParaDetalle })
       const cuentaAjuste = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: ajusteInventario.cuentaUtilidadAjusteInventario } })
       const detalleComprobante = [
         {
@@ -509,21 +532,6 @@ export const saveAjusteAlmacen = async (req, res) => {
     return res.status(200).json({ status: 'Ajuste guardado exitosamente' })
   }
   if (tipo === 'Salida') {
-    await createItemSD({
-      nameCollection: 'productosPorAlmacen',
-      enviromentClienteId: clienteId,
-      item: {
-        productoId: new ObjectId(productoId),
-        almacenId: new ObjectId(almacen._id),
-        cantidad: Number(cantidad),
-        costoUnitario: Number(costoUnitario.costosUnitarios),
-        tipoMovimiento: 'salida',
-        tipo: 'ajuste',
-        lote,
-        fechaVencimiento: moment(fechaVencimiento).toDate(),
-        almacenOrigen: new ObjectId(almacen._id)
-      }
-    })
     const movimiento = await createItemSD({
       nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
@@ -535,6 +543,26 @@ export const saveAjusteAlmacen = async (req, res) => {
         almacenDestino: new ObjectId(almacen._id) || null,
         zona: null,
         numeroMovimiento: contador
+      }
+    })
+    await createItemSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      item: {
+        productoId: new ObjectId(productoId),
+        almacenId: new ObjectId(almacen._id),
+        movimientoId: movimiento.insertedId,
+        cantidad: Number(cantidad),
+        costoUnitario: Number(costoUnitario),
+        tipoMovimiento: 'salida',
+        tipo: 'ajuste',
+        lote: lote.lote,
+        fechaIngreso: moment(fechaIngreso).toDate(),
+        fechaVencimiento: moment(fechaVencimiento).toDate(),
+        fechaMovimiento: moment(fechaAjuste).toDate(),
+        almacenOrigen: new ObjectId(almacen._id),
+        creadoPor: new ObjectId(req.uid),
+        fechaCreacion: moment().toDate()
       }
     })
     createItemSD({
@@ -608,6 +636,9 @@ export const saveAjusteAlmacen = async (req, res) => {
               from: categoriasPorAlmacenCollection,
               localField: 'categoria',
               foreignField: 'categoriaId',
+              pipeline: [
+                { $match: { almacenId: new ObjectId(almacen._id) } }
+              ],
               as: 'detalleCategoriaPorAlmacen'
             }
           },
@@ -615,7 +646,7 @@ export const saveAjusteAlmacen = async (req, res) => {
           {
             $lookup: {
               from: planCuentaCollection,
-              localField: 'detalleCategoria.cuentaId',
+              localField: 'detalleCategoriaPorAlmacen.cuentaId',
               foreignField: '_id',
               as: 'detalleCuenta'
             }

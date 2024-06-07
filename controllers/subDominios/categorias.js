@@ -63,6 +63,7 @@ export const getCategoriasForVentas = async (req, res) => {
 }
 export const getCategoriasForCompras = async (req, res) => {
   const { clienteId, tipo } = req.body
+  console.log(req.body)
   try {
     let matchConfig = { tipo: { $in: ['compras/proveedor', 'compras/servicio'] } }
     if (tipo === 'compras/proveedor') matchConfig = { tipo: 'compras/proveedor' }

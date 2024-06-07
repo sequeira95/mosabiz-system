@@ -7,7 +7,7 @@ export const getProveedores = async (req, res) => {
   const { clienteId } = req.body
   try {
     const metodosPagosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'metodosPagos' })
-    const bancosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'bancos' })
+    // const bancosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'bancos' })
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const proveedores = await agreggateCollectionsSD({
       nameCollection: 'proveedores',
@@ -19,7 +19,7 @@ export const getProveedores = async (req, res) => {
             localField: '_id',
             foreignField: 'proveedorId',
             pipeline: [
-              {
+              /* {
                 $lookup: {
                   from: bancosCollection,
                   localField: 'banco',
@@ -33,14 +33,14 @@ export const getProveedores = async (req, res) => {
               { $unwind: { path: '$detalleBanco', preserveNullAndEmptyArrays: true } },
               {
                 $project: {
-                  bancoId: '$banco',
-                  banco: '$detalleBanco.nombre',
+                  // bancoId: '$banco',
+                  banco: 1,
                   numeroCuenta: 1,
                   identificacion: 1,
                   telefono: 1,
                   proveedorId: 1
                 }
-              }
+              } */
             ],
             as: 'metodosPagos'
           }
@@ -64,6 +64,7 @@ export const getProveedores = async (req, res) => {
 }
 export const saveProveedor = async (req, res) => {
   const { clienteId, proveedor, metodosPago } = req.body
+  console.log(metodosPago)
   try {
     if (!proveedor._id) {
       const saveProveedor = await upsertItemSD({
@@ -82,7 +83,7 @@ export const saveProveedor = async (req, res) => {
             categoria: proveedor.categoria && proveedor.categoria._id ? new ObjectId(proveedor.categoria._id) : null,
             credito: proveedor.credito ? Number(proveedor.credito) : null,
             duracionCredito: proveedor.duracionCredito ? Number(proveedor.duracionCredito) : null,
-            moneda: proveedor.moneda ? new ObjectId(proveedor.moneda) : null,
+            moneda: proveedor.moneda ? proveedor.moneda : null,
             fechaCreacion: moment().toDate()
           }
         }
@@ -94,11 +95,12 @@ export const saveProveedor = async (req, res) => {
               filter: { _id: new ObjectId(e._id) },
               update: {
                 $set: {
-                  banco: new ObjectId(e.banco._id),
+                  banco: e.banco,
                   numeroCuenta: e.numeroCuenta,
                   identificacion: e.identificacion,
                   telefono: e.telefono,
-                  proveedorId: saveProveedor._id
+                  proveedorId: saveProveedor._id,
+                  tipo: e.tipo
                 }
               },
               upsert: true
@@ -124,7 +126,8 @@ export const saveProveedor = async (req, res) => {
           formaPago: proveedor.formaPago,
           credito: proveedor.credito ? Number(proveedor.credito) : null,
           duracionCredito: proveedor.duracionCredito ? Number(proveedor.duracionCredito) : null,
-          moneda: proveedor.moneda ? new ObjectId(proveedor.moneda) : null
+          categoria: proveedor.categoria && proveedor.categoria._id ? new ObjectId(proveedor.categoria._id) : null,
+          moneda: proveedor.moneda ? proveedor.moneda : null
         }
       }
     })
@@ -134,11 +137,12 @@ export const saveProveedor = async (req, res) => {
           filter: { _id: new ObjectId(e._id) },
           update: {
             $set: {
-              banco: new ObjectId(e.banco._id),
+              banco: e.banco,
               numeroCuenta: e.numeroCuenta,
               identificacion: e.identificacion,
               telefono: e.telefono,
-              proveedorId: saveProveedor._id
+              proveedorId: saveProveedor._id,
+              tipo: e.tipo
             }
           },
           upsert: true
@@ -196,5 +200,39 @@ export const deleteProveedor = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar este proveedor ' + e.message })
+  }
+}
+
+export const saveMetodosPagos = async (req, res) => {
+  const { clienteId, proveedor, metodosPago } = req.body
+  try {
+    const metodosPagoBulk = metodosPago.map(e => {
+      return {
+        updateOne: {
+          filter: { _id: new ObjectId(e._id) },
+          update: {
+            $set: {
+              banco: e.banco,
+              numeroCuenta: e.numeroCuenta,
+              identificacion: e.identificacion,
+              telefono: e.telefono,
+              proveedorId: new ObjectId(proveedor._id),
+              tipo: e.tipo
+            }
+          },
+          upsert: true
+        }
+      }
+    })
+    await bulkWriteSD({ nameCollection: 'metodosPagos', enviromentClienteId: clienteId, pipeline: metodosPagoBulk })
+    const newMetodosPagos = await agreggateCollectionsSD({
+      nameCollection: 'metodosPagos',
+      enviromentClienteId: clienteId,
+      pipeline: [{ $match: { proveedorId: new ObjectId(proveedor._id) } }]
+    })
+    return res.status(200).json({ status: 'Metodos de pago guardos exitosamente', metodosPagos: newMetodosPagos })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar los metodos de pagos' + e.message })
   }
 }

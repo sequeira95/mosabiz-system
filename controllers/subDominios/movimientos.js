@@ -981,50 +981,180 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
         cantidad: Number(cantidad)
       }
     })
-    const detallesCrear = [
-      {
-        productoId: new ObjectId(productoId),
-        movimientoId: movimiento.insertedId,
-        cantidad: Number(cantidad),
-        almacenId: almacenAuditoria._id,
-        almacenOrigen: almacenAuditoria._id,
-        almacenDestino: almacen ? new ObjectId(almacen._id) : null,
-        tipoAuditoria,
-        tipo: 'ajuste',
-        tipoMovimiento: 'salida',
-        lote,
-        fechaVencimiento: moment(fechaVencimiento).toDate(),
-        fechaIngreso: moment(fechaIngreso).toDate(),
-        fechaMovimiento: moment().toDate(),
-        costoUnitario: Number(costoUnitario),
-        movimientoAfectado: new ObjectId(movimientoId),
-        afecta: tipoAjuste,
-        creadoPor: new ObjectId(req.uid)
-      }
-    ]
-    if (almacen) {
-      detallesCrear.push({
-        productoId: new ObjectId(productoId),
-        movimientoId: new ObjectId(movimiento.insertedId),
-        cantidad: Number(cantidad),
-        almacenId: new ObjectId(almacen._id),
-        almacenOrigen: almacenAuditoria._id,
-        almacenDestino: new ObjectId(almacen._id),
-        tipo: 'ajuste',
-        tipoMovimiento: 'entrada',
-        lote,
-        fechaVencimiento: moment(fechaVencimiento).toDate(),
-        fechaIngreso: moment(fechaIngreso).toDate(),
-        fechaMovimiento: moment().toDate(),
-        costoUnitario: Number(costoUnitario),
-        creadoPor: new ObjectId(req.uid)
-      })
-    }
-    createManyItemsSD({
-      nameCollection: 'productosPorAlmacen',
+    const detalleMovimientoAfectado = await getItemSD({
+      nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
-      items: detallesCrear
+      filters: { _id: new ObjectId(movimientoId) }
     })
+    if (tipoAuditoria === 'sobrante') {
+      if (tipoAjuste === 'Almacen') {
+        const detallesCrear = [
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: movimiento.insertedId,
+            cantidad: Number(cantidad),
+            almacenId: almacenAuditoria._id,
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: almacen ? new ObjectId(almacen._id) : null,
+            tipoAuditoria,
+            tipo: 'ajuste',
+            tipoMovimiento: 'salida',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            movimientoAfectado: new ObjectId(movimientoId),
+            afecta: tipoAjuste,
+            creadoPor: new ObjectId(req.uid)
+          },
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: movimiento.insertedId,
+            cantidad: Number(cantidad),
+            almacenId: detalleMovimientoAfectado.almacenDestino,
+            almacenOrigen: detalleMovimientoAfectado.almacenDestino,
+            almacenDestino: almacen ? new ObjectId(almacen._id) : null,
+            tipoAuditoria,
+            tipo: 'ajuste',
+            tipoMovimiento: 'salida',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            movimientoAfectado: new ObjectId(movimientoId),
+            afecta: tipoAjuste,
+            creadoPor: new ObjectId(req.uid)
+          }
+        ]
+        createManyItemsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          items: detallesCrear
+        })
+      }
+      if (tipoAjuste === 'Sobrante') {
+        const detallesCrear = [
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: movimiento.insertedId,
+            cantidad: Number(cantidad),
+            almacenId: almacenAuditoria._id,
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: almacen ? new ObjectId(almacen._id) : null,
+            tipoAuditoria,
+            tipo: 'ajuste',
+            tipoMovimiento: 'salida',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            movimientoAfectado: new ObjectId(movimientoId),
+            afecta: tipoAjuste,
+            creadoPor: new ObjectId(req.uid)
+          }
+        ]
+        createManyItemsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          items: detallesCrear
+        })
+      }
+    }
+    if (tipoAuditoria === 'faltante') {
+      if (tipoAjuste === 'Almacen') {
+        const detallesCrear = [
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: movimiento.insertedId,
+            cantidad: Number(cantidad),
+            almacenId: almacenAuditoria._id,
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: almacen ? new ObjectId(almacen._id) : null,
+            tipoAuditoria,
+            tipo: 'ajuste',
+            tipoMovimiento: 'salida',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            movimientoAfectado: new ObjectId(movimientoId),
+            afecta: tipoAjuste,
+            creadoPor: new ObjectId(req.uid)
+          },
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: new ObjectId(movimiento.insertedId),
+            cantidad: Number(cantidad),
+            almacenId: new ObjectId(almacen._id),
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: new ObjectId(almacen._id),
+            tipo: 'ajuste',
+            tipoMovimiento: 'entrada',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            creadoPor: new ObjectId(req.uid)
+          }
+        ]
+        createManyItemsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          items: detallesCrear
+        })
+        if (almacen) {
+          detallesCrear.push({
+            productoId: new ObjectId(productoId),
+            movimientoId: new ObjectId(movimiento.insertedId),
+            cantidad: Number(cantidad),
+            almacenId: new ObjectId(almacen._id),
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: new ObjectId(almacen._id),
+            tipo: 'ajuste',
+            tipoMovimiento: 'entrada',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            creadoPor: new ObjectId(req.uid)
+          })
+        }
+      }
+      if (tipoAjuste === 'Faltante') {
+        const detallesCrear = [
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: movimiento.insertedId,
+            cantidad: Number(cantidad),
+            almacenId: almacenAuditoria._id,
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: almacen ? new ObjectId(almacen._id) : null,
+            tipoAuditoria,
+            tipo: 'ajuste',
+            tipoMovimiento: 'salida',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            movimientoAfectado: new ObjectId(movimientoId),
+            afecta: tipoAjuste,
+            creadoPor: new ObjectId(req.uid)
+          }
+        ]
+        createManyItemsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          items: detallesCrear
+        })
+      }
+    }
     createItemSD({
       nameCollection: 'historial',
       enviromentClienteId: clienteId,

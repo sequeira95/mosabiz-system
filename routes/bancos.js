@@ -4,7 +4,7 @@ import { deleteBanco, getBancos, saveBancos } from '../controllers/bancos.js'
 
 const router = express.Router()
 
-router.post('/get', getBancos)
+router.post('/get', requireToken, getBancos)
 router.post('/save', requireToken, saveBancos)
 router.post('/delete', requireToken, deleteBanco)
 

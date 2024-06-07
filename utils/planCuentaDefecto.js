@@ -59,7 +59,7 @@ const planCuentaDefecto = [
   },
   {
     codigo: '9',
-    descripcion: 'Cuentas de ordden (Acreedor)',
+    descripcion: 'Cuentas de orden (Acreedor)',
     tipo: 'Grupo',
     nivelCuenta: 1,
     fechaCreacion: moment().toDate()

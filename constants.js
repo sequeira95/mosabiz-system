@@ -63,6 +63,9 @@ export const collectionNameClient = [
   'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos', 'contadores', 'movimientos', 'detalleMovimientos',
   'productosPorAlmacen', 'retencionISLR', 'bancos', 'clientes', 'servicios', 'iva', 'proveedores', 'metodosPagos'
 ]
+export const collectionNameAIbiz = [
+  'islr', 'iva', 'bancos'
+]
 export const ListIndexesClient = [
   {
     collection: 'ajustes',

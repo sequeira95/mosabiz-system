@@ -1,8 +1,8 @@
 import moment from 'moment'
-import { getItemSD, upsertItemSD, agreggateCollectionsSD } from './dataBaseConfing.js'
+import { getItemSD, upsertItemSD, agreggateCollectionsSD, createManyItemsSD, createItemSD } from './dataBaseConfing.js'
 /**
  * @param {object} options - Consulta del periodo
- * @param {string} options.clienteId - ID del cliente parseado por el ObjectId
+ * @param {string} options.clienteId - ID del cliente
  * @param {string=} options.periodoId - ID del periodo parseado por el ObjectId
  * @param {string=} options.isCierre - Busca si el periodo es cerrado o no
  * @param {string=} options.fecha - Fecha dentro del rango del periodo
@@ -22,8 +22,7 @@ export const checkPeriodo = async ({ clienteId, fecha, periodoId, isCierre, quer
     filters.fechaInicio = { $lte: moment(fecha).toDate() }
     filters.fechaFin = { $gte: moment(fecha).toDate() }
   }
-  if (periodoId) filters.periodoId = periodoId
-
+  if (periodoId) filters._id = periodoId
   const periodo = await getItemSD({
     nameCollection: 'periodos',
     enviromentClienteId: clienteId,
@@ -31,8 +30,9 @@ export const checkPeriodo = async ({ clienteId, fecha, periodoId, isCierre, quer
   })
   return { periodo, status: !!periodo }
 }
+
 /**
- * @param {string} clienteId - ID del cliente parseado por el ObjectId
+ * @param {string} clienteId - ID del cliente
  * @param {object} filters - Datos de consulta o para crear el comprobante
  * @param {string | object=} filters.periodoId - ID del periodo parseado por el ObjectId
  * @param {string | object=} filters.codigo - Codigo del comprobante
@@ -98,4 +98,37 @@ export const getOrCreateComprobante = async (
     }
   })
   return comprobante
+}
+
+/**
+ * @param {string} clienteId - ID del cliente
+ * @param {object | Array} movimientos - Objeto o arreglo de movimientos a crear
+ */
+export const createMovimientos = async ({
+  clienteId,
+  movimientos
+}) => {
+  if (!clienteId) throw new Error('No existe el cliente')
+  if (!movimientos) throw new Error('No existe el movimiento')
+  let result
+  if (Array.isArray(movimientos)) {
+    for (const movimiento of movimientos) {
+      const { status } = await checkPeriodo({ clienteId, periodoId: movimiento.periodoId })
+      if (!status) throw new Error('No se pueden crear movimientos en periodos cerrados')
+    }
+    result = await createManyItemsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      items: movimientos
+    })
+  } else {
+    const { status } = await checkPeriodo({ clienteId, periodoId: movimientos.periodoId })
+    if (!status) throw new Error('No se pueden crear movimientos en periodos cerrados')
+    result = await createItemSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      item: movimientos
+    })
+  }
+  return result
 }

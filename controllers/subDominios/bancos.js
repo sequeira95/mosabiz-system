@@ -1,10 +1,11 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { subDominioName } from '../../constants.js'
 
 export const getListBancos = async (req, res) => {
   const { clienteId } = req.body
+  console.log(req.body)
   try {
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
     const bancos = await agreggateCollectionsSD({
@@ -23,6 +24,8 @@ export const getListBancos = async (req, res) => {
         {
           $project: {
             nombre: '$nombre',
+            descripcion: '$descripcion',
+            tipo: '$tipo',
             cuentaId: '$cuentaId',
             cuentaCodigo: '$detalleCuenta.codigo',
             cuentaNombre: '$detalleCuenta.descripcion'
@@ -36,15 +39,39 @@ export const getListBancos = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las retenciones de ISLR ' + e.message })
   }
 }
+export const getListBancosGeneral = async (req, res) => {
+  const { tipo, pais } = req.body
+  const matchConfig = {}
+  if (tipo === 'Nacional') {
+    matchConfig.pais = { $eq: pais }
+  }
+  if (tipo === 'Internacional') {
+    matchConfig.pais = { $ne: pais }
+  }
+  try {
+    const bancos = await agreggateCollections({
+      nameCollection: 'bancos',
+      pipeline: [
+        { $match: matchConfig }
+      ]
+    })
+    return res.status(200).json({ bancos })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las retenciones de ISLR ' + e.message })
+  }
+}
 export const saveBancos = async (req, res) => {
-  const { _id, clienteId, nombre, cuentaId /*, cuentaCodigo */ } = req.body
+  const { _id, clienteId, nombre, cuentaId, descripcion, tipo/*, cuentaCodigo */ } = req.body
   try {
     if (!_id) {
       const verify = await getItemSD({
         nameCollection: 'bancos',
         enviromentClienteId: clienteId,
         filters: {
-          nombre
+          nombre,
+          descripcion,
+          tipo
         }
       })
       if (verify) return res.status(400).json({ error: 'Ya existe un banco con este nombre' })
@@ -55,7 +82,9 @@ export const saveBancos = async (req, res) => {
         update: {
           $set: {
             nombre,
-            cuentaId: new ObjectId(cuentaId),
+            descripcion,
+            tipo,
+            cuentaId: cuentaId ? new ObjectId(cuentaId) : null,
             fechaCreacion: moment().toDate()
           }
         }
@@ -69,7 +98,9 @@ export const saveBancos = async (req, res) => {
       update: {
         $set: {
           nombre,
-          cuentaId: new ObjectId(cuentaId)
+          descripcion,
+          tipo,
+          cuentaId: cuentaId ? new ObjectId(cuentaId) : null
         }
       }
     })

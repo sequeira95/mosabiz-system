@@ -184,7 +184,7 @@ export const createCliente = async (req, res) => {
     // creamos el primer periodo activo segun los datos del periodo actual
     if (periodoActual) {
       // const [periodoActualFrom, periodoActualto] = periodoActual.split('/')
-      createItemSD({
+      const periodo = await createItemSD({
         nameCollection: 'periodos',
         enviromentClienteId: clienteCol.insertedId,
         item: {
@@ -193,6 +193,19 @@ export const createCliente = async (req, res) => {
           fechaFin: moment(periodoEnd).toDate(),
           activo: true,
           status: 'Activo'
+        }
+      })
+      createItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteCol.insertedId,
+        item: {
+          periodoId: new ObjectId(periodo.insertedId),
+          mesPeriodo: moment(periodoInit).format('YYYY/MM'),
+          codigo: '99998',
+          nombre: 'Saldos iniciales',
+          isBloqueado: true,
+          isPreCierre: true,
+          fechaCreacion: moment().toDate()
         }
       })
     }

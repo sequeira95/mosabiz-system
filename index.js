@@ -8,6 +8,8 @@ import SubDominiosRouter from './routes/subDominios.js'
 import authRouter from './routes/auth.js'
 import rolsRouter from './routes/rols.js'
 import monedasRouters from './routes/moneda.js'
+import bancosRouters from './routes/bancos.js'
+import impuestosRouters from './routes/impuestos.js'
 import mantenedorModulosRouter from './routes/mantenedorModulos.js'
 import userRouter from './routes/user.js'
 import fileUpload from 'express-fileupload'
@@ -39,6 +41,7 @@ import clientesVentasSDRouter from './routes/subDominios/clientesVentas.js'
 import serviciosSDRouter from './routes/subDominios/servicios.js'
 import ivaSDRouter from './routes/subDominios/iva.js'
 import proveedoresSDRouter from './routes/subDominios/proveedores.js'
+import comprasSDRouter from './routes/subDominios/compras.js'
 // import { getValoresBcv } from './utils/tareas.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
@@ -70,6 +73,8 @@ app.use('/v1/rols', rolsRouter)
 app.use('/v1/modulos', mantenedorModulosRouter)
 app.use('/v1/users', userRouter)
 app.use('/v1/monedas', monedasRouters)
+app.use('/v1/bancos', bancosRouters)
+app.use('/v1/impuestos', impuestosRouters)
 
 // endPoints SD
 
@@ -98,5 +103,6 @@ app.use('/v1/sub-dominio/clientesVentas', clientesVentasSDRouter)
 app.use('/v1/sub-dominio/servicios', serviciosSDRouter)
 app.use('/v1/sub-dominio/iva', ivaSDRouter)
 app.use('/v1/sub-dominio/proveedores', proveedoresSDRouter)
+app.use('/v1/sub-dominio/compras', comprasSDRouter)
 
 app.listen(PORT, () => console.log('0.0.0.0' + PORT))

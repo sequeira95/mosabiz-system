@@ -144,3 +144,13 @@ export const deleteTasa = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar esta Tasa ' + e.message })
   }
 }
+export const getTasaByDay = async (req, res) => {
+  const { fechaDia } = req.body
+  try {
+    const tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaDia } })
+    return res.status(200).json({ tasa })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar tasas monetarias' + e.message })
+  }
+}

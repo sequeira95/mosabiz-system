@@ -1,8 +1,10 @@
 import { ObjectId } from 'mongodb'
 import { agreggateCollectionsSD, createItemSD, createManyItemsSD, deleteItemSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
+import { momentDate } from '../../utils/momentDate.js'
 import { deleteImg, uploadImg } from '../../utils/cloudImage.js'
-import { ObjectNumbersMonths, keyActivosFijos, subDominioName } from '../../constants.js'
+import { getOrCreateComprobante, createMovimientos } from '../../utils/contabilidad.js'
+import { keyActivosFijos, subDominioName } from '../../constants.js'
 
 export const getActivosFijos = async (req, res) => {
   const { clienteId } = req.body
@@ -437,6 +439,7 @@ export const deleteActivoFijo = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar el activo' + e.message })
   }
 }
+
 const createDetalleComprobanteActivoFijo = async ({
   categoria,
   categoriaNombre,
@@ -504,6 +507,7 @@ const createDetalleComprobanteActivoFijo = async ({
     return e.message
   }
 }
+
 const createDetalleComprobanteForEdit = async ({
   categoria,
   categoriaNombre,
@@ -576,6 +580,7 @@ const createDetalleComprobanteForEdit = async ({
     return e.message
   }
 }
+
 export const deleteImgActivo = async (req, res) => {
   const { clienteId, activoId, imgId } = req.body
   try {
@@ -596,6 +601,7 @@ export const deleteImgActivo = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la imagen del almacen ' + e.message })
   }
 }
+
 export const addImagenToActivo = async (req, res) => {
   const { clienteId, activoId } = req.body
   try {
@@ -651,496 +657,153 @@ export const addImagenToActivo = async (req, res) => {
   }
 }
 
-export const datosDepresiacionByFecha = async (req, res) => {
-  const { clienteId, periodoId, fechaHasta } = req.body
-  const fecha = moment(fechaHasta).endOf('month').toDate()
-  const ajustesContabilidad = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
-  const comprobantesAmortizacion = await getCollectionSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { codigo: ajustesContabilidad.codigoComprobanteActivoAmortizado } })
-  const categoriasZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
-  const comprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
-  const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
-  const datosPorActivo = await agreggateCollectionsSD({
-    nameCollection: 'activosFijos',
-    enviromentClienteId: clienteId,
-    pipeline: [
-      {
-        $group: {
-          _id: {
-            categoria: '$categoria',
-            zona: '$zona'
-          }
-        }
-      }
-    ]
-  })
-  const datosCalculosActivos = await agreggateCollectionsSD({
-    nameCollection: 'activosFijos',
-    enviromentClienteId: clienteId,
-    pipeline: [
-      { $match: { fechaAdquisicion: { $lte: fecha } } },
-      {
-        $lookup: {
-          from: categoriasCollection,
-          localField: 'categoria',
-          foreignField: '_id',
-          as: 'detalleCategoria'
-        }
-      },
-      { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          vidaUtil: '$detalleCategoria.vidaUtil',
-          fechaAdquisicion: '$fechaAdquisicion',
-          montoAdquision: '$montoAdquision'
-        }
-      }
-    ]
-  })
-  const datosDepereciacion = await agreggateCollectionsSD({
-    nameCollection: 'activosFijos',
-    enviromentClienteId: clienteId,
-    pipeline: [
-      {
-        $group: {
-          _id: {
-            categoria: '$categoria',
-            zona: '$zona'
-          }
-        }
-      },
-      {
-        $lookup: {
-          from: categoriasZonaCollection,
-          let: { zonaId: '$_id.zona' },
-          localField: '_id.categoria',
-          foreignField: 'categoriaId',
-          pipeline: [
-            {
-              $match:
-                {
-                  $expr:
-                  {
-                    $and:
-                      [
-                        { $eq: ['$zonaId', '$$zonaId'] }
-                      ]
-                  }
-                }
-            }
-          ],
-          as: 'detalleCategoriaZona'
-        }
-      },
-      { $unwind: { path: '$detalleCategoriaZona', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          categoriaId: '$_id.categoria',
-          zonaId: '$_id.zona',
-          cuentaDepreciacionAcumulada: '$detalleCategoriaZona.cuentaDepreciacionAcumulada',
-          cuentaGastosDepreciacion: '$detalleCategoriaZona.cuentaGastosDepreciacion'
-        }
-      },
-      { $match: { cuentaDepreciacionAcumulada: { $exists: true }, cuentaGastosDepreciacion: { $exists: true } } },
-      { $group: { _id: '$cuentaDepreciacionAcumulada' } },
-      {
-        $lookup: {
-          from: comprobantesCollection,
-          localField: '_id',
-          foreignField: 'cuentaId',
-          pipeline: [
-            { $match: { periodoId: new ObjectId(periodoId) /* isPreCierre: true */ } },
-            {
-              $group: {
-                _id: '$cuentaId',
-                debe: { $sum: '$debe' },
-                haber: { $sum: '$haber' }
-              }
-            },
-            {
-              $project: {
-                acumulado: { $subtract: ['$debe', '$haber'] }
-              }
-            }
-          ],
-          as: 'detalleComprobantesIniciales'
-        }
-      },
-      { $unwind: { path: '$detalleComprobantesIniciales', preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: comprobantesCollection,
-          localField: '_id',
-          foreignField: 'cuentaId',
-          pipeline: [
-            {
-              $match: {
-                periodoId: new ObjectId(periodoId),
-                // isPreCierre: { $ne: true },
-                isCierre: { $ne: true },
-                fecha: { $lte: fecha },
-                comprobanteId: { $in: comprobantesAmortizacion.map(comprobante => comprobante._id) }
-              }
-            },
-            {
-              $group: {
-                _id: {
-                  cuentaId: '$cuentaId',
-                  mes: { $month: '$fecha' }
-                },
-                debe: { $sum: '$debe' },
-                haber: { $sum: '$haber' }
-              }
-            },
-            {
-              $project: {
-                mes: '$_id.mes',
-                ENERO: { $cond: { if: { $eq: ['$_id.mes', 1] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                FEBRERO: { $cond: { if: { $eq: ['$_id.mes', 2] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                MARZO: { $cond: { if: { $eq: ['$_id.mes', 3] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                ABRIL: { $cond: { if: { $eq: ['$_id.mes', 4] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                MAYO: { $cond: { if: { $eq: ['$_id.mes', 5] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                JUNIO: { $cond: { if: { $eq: ['$_id.mes', 6] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                JULIO: { $cond: { if: { $eq: ['$_id.mes', 7] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                AGOSTO: { $cond: { if: { $eq: ['$_id.mes', 8] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                SEPTIEMBRE: { $cond: { if: { $eq: ['$_id.mes', 9] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                OCTUBRE: { $cond: { if: { $eq: ['$_id.mes', 10] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                NOVIEMBRE: { $cond: { if: { $eq: ['$_id.mes', 11] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                DICIEMBRE: { $cond: { if: { $eq: ['$_id.mes', 12] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } }
-              }
-            }
-          ],
-          as: 'detalleComprobantes'
-        }
-      },
-      { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          // categoriaId: '$categoriaId',
-          // zonaId: '$zonaId',
-          cuentaDepreciacionAcumulada: '$_id',
-          acumulado: '$detalleComprobantesIniciales.acumulado',
-          ENERO: '$detalleComprobantes.ENERO',
-          FEBRERO: '$detalleComprobantes.FEBRERO',
-          MARZO: '$detalleComprobantes.MARZO',
-          ABRIL: '$detalleComprobantes.ABRIL',
-          MAYO: '$detalleComprobantes.MAYO',
-          JUNIO: '$detalleComprobantes.JUNIO',
-          JULIO: '$detalleComprobantes.JULIO',
-          AGOSTO: '$detalleComprobantes.AGOSTO',
-          SEPTIEMBRE: '$detalleComprobantes.SEPTIEMBRE',
-          OCTUBRE: '$detalleComprobantes.OCTUBRE',
-          NOVIEMBRE: '$detalleComprobantes.NOVIEMBRE',
-          DICIEMBRE: '$detalleComprobantes.DICIEMBRE'
-        }
-      },
-      {
-        $group: {
-          _id: 0,
-          acumulado: { $sum: '$acumulado' },
-          ENERO: { $sum: '$ENERO' },
-          FEBRERO: { $sum: '$FEBRERO' },
-          MARZO: { $sum: '$MARZO' },
-          ABRIL: { $sum: '$ABRIL' },
-          MAYO: { $sum: '$MAYO' },
-          JUNIO: { $sum: '$JUNIO' },
-          JULIO: { $sum: '$JULIO' },
-          AGOSTO: { $sum: '$AGOSTO' },
-          SEPTIEMBRE: { $sum: '$SEPTIEMBRE' },
-          OCTUBRE: { $sum: '$OCTUBRE' },
-          NOVIEMBRE: { $sum: '$NOVIEMBRE' },
-          DICIEMBRE: { $sum: '$DICIEMBRE' }
-        }
-      }
-    ]
-  })
-  return res.status(200).json({ datosDepereciacion: [] })
-}
-
 export const datosInicualesDepreciacion = async (req, res) => {
   const { clienteId, periodoId, fechaHasta } = req.body
   try {
-    const fecha = moment(fechaHasta, 'YYYY/MM').endOf('month').toDate()
-    const ajustesContabilidad = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
-    const comprobantesAmortizacion = await getCollectionSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { codigo: ajustesContabilidad.codigoComprobanteActivoAmortizado } })
-    const categoriasZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
-    const comprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
-    const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
-    const datosDepereciacion = await agreggateCollectionsSD({
-      nameCollection: 'activosFijos',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        {
-          $group: {
-            _id: {
-              categoria: '$categoria',
-              zona: '$zona'
-            }
-          }
-        },
-        {
-          $lookup: {
-            from: categoriasZonaCollection,
-            let: { categoriaId: '$_id.categoria', zonaId: '$_id.zona' },
-            pipeline: [
-              {
-                $match:
-                  {
-                    $expr:
-                    {
-                      $and:
-                        [
-                          { $eq: ['$categoriaId', '$$categoriaId'] },
-                          { $eq: ['$zonaId', '$$zonaId'] }
-                        ]
-                    }
-                  }
-              }
-            ],
-            as: 'detalleCategoriaZona'
-          }
-        },
-        { $unwind: { path: '$detalleCategoriaZona', preserveNullAndEmptyArrays: true } },
-        {
-          $project: {
-            categoriaId: '$_id.categoria',
-            zonaId: '$_id.zona',
-            cuentaDepreciacionAcumulada: '$detalleCategoriaZona.cuentaDepreciacionAcumulada'
-          }
-        },
-        { $match: { cuentaDepreciacionAcumulada: { $exists: true } } },
-        { $group: { _id: '$cuentaDepreciacionAcumulada' } },
-        {
-          $lookup: {
-            from: comprobantesCollection,
-            localField: '_id',
-            foreignField: 'cuentaId',
-            pipeline: [
-              { $match: { periodoId: new ObjectId(periodoId) /* isPreCierre: true */ } },
-              {
-                $group: {
-                  _id: '$cuentaId',
-                  debe: { $sum: '$debe' },
-                  haber: { $sum: '$haber' }
-                }
-              },
-              {
-                $project: {
-                  acumulado: { $subtract: ['$debe', '$haber'] }
-                }
-              }
-            ],
-            as: 'detalleComprobantesIniciales'
-          }
-        },
-        { $unwind: { path: '$detalleComprobantesIniciales', preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: comprobantesCollection,
-            localField: '_id',
-            foreignField: 'cuentaId',
-            pipeline: [
-              {
-                $match: {
-                  periodoId: new ObjectId(periodoId),
-                  // isPreCierre: { $ne: true },
-                  isCierre: { $ne: true },
-                  fecha: { $lte: fecha },
-                  comprobanteId: { $in: comprobantesAmortizacion.map(comprobante => comprobante._id) }
-                }
-              },
-              {
-                $group: {
-                  _id: {
-                    cuentaId: '$cuentaId',
-                    mes: { $month: '$fecha' }
-                  },
-                  debe: { $sum: '$debe' },
-                  haber: { $sum: '$haber' }
-                }
-              },
-              {
-                $project: {
-                  mes: '$_id.mes',
-                  ENERO: { $cond: { if: { $eq: ['$_id.mes', 1] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                  FEBRERO: { $cond: { if: { $eq: ['$_id.mes', 2] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                  MARZO: { $cond: { if: { $eq: ['$_id.mes', 3] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                  ABRIL: { $cond: { if: { $eq: ['$_id.mes', 4] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                  MAYO: { $cond: { if: { $eq: ['$_id.mes', 5] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                  JUNIO: { $cond: { if: { $eq: ['$_id.mes', 6] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                  JULIO: { $cond: { if: { $eq: ['$_id.mes', 7] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                  AGOSTO: { $cond: { if: { $eq: ['$_id.mes', 8] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                  SEPTIEMBRE: { $cond: { if: { $eq: ['$_id.mes', 9] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                  OCTUBRE: { $cond: { if: { $eq: ['$_id.mes', 10] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                  NOVIEMBRE: { $cond: { if: { $eq: ['$_id.mes', 11] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } },
-                  DICIEMBRE: { $cond: { if: { $eq: ['$_id.mes', 12] }, then: { $subtract: ['$debe', '$haber'] }, else: 0 } }
-                }
-              }
-            ],
-            as: 'detalleComprobantes'
-          }
-        },
-        { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: true } },
-        {
-          $project: {
-            // categoriaId: '$categoriaId',
-            // zonaId: '$zonaId',
-            cuentaDepreciacionAcumulada: '$_id',
-            acumulado: '$detalleComprobantesIniciales.acumulado',
-            ENERO: '$detalleComprobantes.ENERO',
-            FEBRERO: '$detalleComprobantes.FEBRERO',
-            MARZO: '$detalleComprobantes.MARZO',
-            ABRIL: '$detalleComprobantes.ABRIL',
-            MAYO: '$detalleComprobantes.MAYO',
-            JUNIO: '$detalleComprobantes.JUNIO',
-            JULIO: '$detalleComprobantes.JULIO',
-            AGOSTO: '$detalleComprobantes.AGOSTO',
-            SEPTIEMBRE: '$detalleComprobantes.SEPTIEMBRE',
-            OCTUBRE: '$detalleComprobantes.OCTUBRE',
-            NOVIEMBRE: '$detalleComprobantes.NOVIEMBRE',
-            DICIEMBRE: '$detalleComprobantes.DICIEMBRE'
-          }
-        },
-        {
-          $group: {
-            _id: 0,
-            acumulado: { $sum: '$acumulado' },
-            ENERO: { $sum: '$ENERO' },
-            FEBRERO: { $sum: '$FEBRERO' },
-            MARZO: { $sum: '$MARZO' },
-            ABRIL: { $sum: '$ABRIL' },
-            MAYO: { $sum: '$MAYO' },
-            JUNIO: { $sum: '$JUNIO' },
-            JULIO: { $sum: '$JULIO' },
-            AGOSTO: { $sum: '$AGOSTO' },
-            SEPTIEMBRE: { $sum: '$SEPTIEMBRE' },
-            OCTUBRE: { $sum: '$OCTUBRE' },
-            NOVIEMBRE: { $sum: '$NOVIEMBRE' },
-            DICIEMBRE: { $sum: '$DICIEMBRE' }
-          }
-        }
-      ]
-    })
-    const newArray = []
-    let totalAcumulado = 0
-    const datosCalculosActivos = await agreggateCollectionsSD({
-      nameCollection: 'activosFijos',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        { $match: { fechaAdquisicion: { $lte: fecha } } },
-        {
-          $lookup: {
-            from: categoriasCollection,
-            localField: 'categoria',
-            foreignField: '_id',
-            as: 'detalleCategoria'
-          }
-        },
-        { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
-        {
-          $project: {
-            vidaUtil: '$detalleCategoria.vidaUtil',
-            fechaAdquisicion: '$fechaAdquisicion',
-            montoAdquision: '$montoAdquision'
-          }
-        }
-      ]
-    })
-    let totalAcumuladoCalculo = 0
-    let totalCalculosMensuales = 0
-    const periodoActual = (await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })).fechaInicio
-    const mesAnteriorPeriodo = moment(periodoActual).subtract(25, 'days').startOf('month')
-    for (const calculo of datosCalculosActivos) {
-      // const fechaAddVidaUtil = moment(calculo?.fechaAdquisicion).add(calculo?.vidaUtil, 'years')
-      // if (fechaAddVidaUtil.startOf('month') < moment().subtract(1, 'month').startOf('month')) continue
-      // console.log({ fecha1: calculo?.fechaAdquisicion, vida: calculo.vidaUtil, fecha2: fechaAddVidaUtil, actual: moment().subtract(1, 'month').startOf('month') })
-      const fechaAdquisicionMasMes = moment(calculo?.fechaAdquisicion).endOf('month').add(1, 'month')
-      let mesesTranscurrido = moment(mesAnteriorPeriodo).diff(fechaAdquisicionMasMes, 'months')
-      const mesesVidaUtil = calculo?.vidaUtil * 12
-      if (mesesVidaUtil <= mesesTranscurrido) mesesTranscurrido = mesesVidaUtil
-      const calculoMensual = mesesVidaUtil <= mesesTranscurrido ? 0 : calculo?.montoAdquision / mesesVidaUtil
-      if (mesesTranscurrido <= 0) continue
-      totalAcumuladoCalculo += calculoMensual * mesesTranscurrido
-      totalCalculosMensuales += calculoMensual
-    }
-    const numberMonth = fecha.getMonth() + 1
-    let totalDiferencia = 0
-    for (const key in datosDepereciacion[0]) {
-      if (key === '_id') continue
-      totalAcumulado += datosDepereciacion[0][key]
-      let calculosDepreciacion = 0
-      let calculoDiferencia = 0
-      if (key === 'acumulado') {
-        calculosDepreciacion = totalAcumuladoCalculo
-        calculoDiferencia = datosDepereciacion[0][key] - totalAcumuladoCalculo
-        totalDiferencia += calculoDiferencia
-      }
-      if (key !== 'acumulado' && ObjectNumbersMonths[key] <= numberMonth) {
-        calculosDepreciacion = totalCalculosMensuales
-        calculoDiferencia = datosDepereciacion[0][key] - totalCalculosMensuales
-        totalDiferencia += calculoDiferencia
-      }
-      newArray.push({
-        nombre: key === 'acumulado' ? 'Acumulado' : key,
-        depreciacionContabilidad: datosDepereciacion[0][key],
-        depreciacionCalculos: calculosDepreciacion,
-        diferencia: calculoDiferencia,
-        sendContabilidad: false
-      })
-    }
-    newArray.push({
-      nombre: 'Total acumulado',
-      depreciacionContabilidad: totalAcumulado,
-      depreciacionCalculos: totalAcumuladoCalculo + (totalCalculosMensuales * numberMonth),
-      diferencia: totalDiferencia// totalAcumulado - (totalAcumuladoCalculo + (totalCalculosMensuales * numberMonth))
-    })
     const data = await depreciacionPorMesYAcumulado(fechaHasta, clienteId, periodoId)
-    return res.status(200).json({ datosDepereciacion: newArray, data })
+    return res.status(200).json({ data })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtner datos de los activo fijos' + e.message })
   }
 }
+
 export const saveCalculosDepreciacion = async (req, res) => {
-  const { clienteId, periodoId, datosDepreciacion, fechaHasta } = req.body
+  const { clienteId, periodoId, datosDepreciacion } = req.body
   try {
-    const fecha = moment(fechaHasta, 'YYYY/MM').endOf('month').toDate()
-    const ajustesContabilidad = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
-    const comprobantesAmortizacion = await getCollectionSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { codigo: ajustesContabilidad.codigoComprobanteActivoAmortizado } })
-    const comprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
-    const categoriasZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
-    const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
-    const resultados = []
+    const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
+    const datos = []
     for (const mes of datosDepreciacion) {
-      const fechaBusqueda = moment(mes.fecha).subtract(1, 'month').endOf('month').toDate()
-      const resultado = await depreciacionPorCategoriaSegunMes(fechaBusqueda, clienteId, periodoId)
-      resultados.push(resultado)
+      const fechaBusqueda = momentDate(ajustesSistema.timeZone, mes.fecha).toDate()
+      const dato = await depreciacionPorCategoriaSegunMes(fechaBusqueda, clienteId, periodoId)
+      datos.push({ ...dato, fecha: fechaBusqueda })
     }
-    return res.status(200).json({ resultados })
+    for (const dato of datos) {
+      const isMesActual = momentDate(ajustesSistema.timeZone, dato.fecha).format('YYYY-MM') === momentDate(ajustesSistema.timeZone).format('YYYY-MM')
+      for (const result of dato.resultado) {
+        const valorMovimiento = (
+          (result.totalMes + result.totalAccumulado) -
+          (result.movimientos?.totalAcum || 0) -
+          (result.movimientosIniciales?.totalAcum || 0)
+        )
+
+        if (Number(valorMovimiento.toFixed(2)) === 0) continue
+
+        const movimiento = {
+          descripcion: `Cálculo de depreciación ${result.categoria}`,
+          comprobanteId: dato.comprobanteId,
+          periodoId: dato.periodoId,
+          fecha: (isMesActual
+            ? moment().toDate()
+            : momentDate(ajustesSistema.timeZone, dato.fecha).endOf('month').toDateUTC()),
+          fechaCreacion: moment().toDate(),
+          docReferenciaAux: 'Depreciación',
+          documento: {
+            docReferencia: 'Depreciación'
+          }
+        }
+        const cuentasIds = Object.values(result._id)
+        const cuentas = await getCollectionSD({
+          enviromentClienteId: clienteId,
+          nameCollection: 'planCuenta',
+          filters: { _id: { $in: cuentasIds } }
+        })
+        const cuentaAcumulado = cuentas.find(e => e._id.toString() === result._id.acumulado.toString())
+        const cuentaGastos = cuentas.find(e => e._id.toString() === result._id.gastos.toString())
+        if (!cuentaGastos) throw new Error(`La categoria ${result.categoria} no tiene una cuenta de gastos asignada`)
+        if (!cuentaAcumulado) throw new Error(`La categoria ${result.categoria} no tiene una cuenta de acumulado asignada`)
+        const MovimientoGastos = {
+          ...movimiento,
+          cuentaId: cuentaGastos._id,
+          cuentaCodigo: cuentaGastos.codigo,
+          cuentaNombre: cuentaGastos.descripcion,
+          debe: 0,
+          haber: 0
+        }
+        const MovimientoAcumulado = {
+          ...movimiento,
+          cuentaId: cuentaAcumulado._id,
+          cuentaCodigo: cuentaAcumulado.codigo,
+          cuentaNombre: cuentaAcumulado.descripcion,
+          debe: 0,
+          haber: 0
+        }
+        if (valorMovimiento < 0) {
+          MovimientoGastos.debe = Math.abs(Number(valorMovimiento.toFixed(2)))
+          MovimientoAcumulado.haber = Math.abs(Number(valorMovimiento.toFixed(2)))
+        } else if (valorMovimiento > 0) {
+          MovimientoGastos.haber = Math.abs(Number(valorMovimiento.toFixed(2)))
+          MovimientoAcumulado.debe = Math.abs(Number(valorMovimiento.toFixed(2)))
+        } else {
+          continue
+        }
+        console.log([MovimientoGastos, MovimientoAcumulado])
+        await createMovimientos({
+          clienteId,
+          movimientos: [MovimientoGastos, MovimientoAcumulado]
+        })
+      }
+    }
+    return res.status(200).json({ status: 'Movimientos de Amortización y depreciación han sido creados correctamente' })
   } catch (e) {
     console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de guardar los calculos de depreciación y amortización ' + e.message })
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar los calculos de depreciación y amortización: ' + e.message })
   }
 }
 
 const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => {
-  /* const periodoActual = (await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })).fechaInicio
-  const categoriaPorZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
-  const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
-  const detalleComprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   const ajustesContabilidad = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
   if (!ajustesContabilidad?.codigoComprobanteActivoAmortizado) {
     throw new Error('No existe el coidigo de comprobante de amortizaciones en los ajustes')
   }
-  const comprobantesAmortizacion = await getItemSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { codigo: ajustesContabilidad.codigoComprobanteActivoAmortizado } })
-  const fechaInicio = moment(periodoActual).startOf('month').toDate()
-  const fechaFin = moment(fecha).endOf('month').toDate()
-  const activosSegunCalculos = await agreggateCollectionsSD({
+  const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
+  const periodoActual = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })
+  const categoriaPorZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
+  const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+  const detalleComprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
+  const yearStartComprobantes = momentDate(ajustesSistema.timeZone, periodoActual.fechaInicio).startOf('month').year()
+  const comprobanteCierre = await getItemSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { mesPeriodo: new RegExp(`${yearStartComprobantes}`, 'i'), isPreCierre: true } })
+
+  let comprobanteAmortizacion
+  const mesPeriodo = momentDate(ajustesSistema.timeZone, fecha).format('YYYY/MM')
+  try {
+    comprobanteAmortizacion = await getOrCreateComprobante(clienteId,
+      {
+        mesPeriodo,
+        codigo: ajustesContabilidad.codigoComprobanteActivoAmortizado
+      }, {
+        nombre: 'Activos amortizados'
+      },
+      true
+    )
+  } catch (e) {
+    console.log(e)
+  }
+  if (!comprobanteAmortizacion) throw new Error('No existe y no se ha podido crear el comprobante de activos amortizados')
+
+  const fechaInicio = momentDate(ajustesSistema.timeZone, periodoActual.fechaInicio).startOf('month').toDate()
+  const fechaFin = momentDate(ajustesSistema.timeZone, fecha).endOf('month').toDate()
+  const fechaInicioMes = momentDate(ajustesSistema.timeZone, fecha).startOf('month').toDate()
+  // este busca los activos que se pueden depresiar, es decir, que su fecha de adquisicion
+  // sea inferior al mes que se desea depresiar
+  const fechaInicioActivoDepreciable = momentDate(ajustesSistema.timeZone, fecha).subtract(1, 'month').endOf('month').toDate()
+
+  const sumDiff = fechaFin.getMonth() === fechaInicio.getMonth() ? 0 : 1
+  const diffMonths = momentDate(ajustesSistema.timeZone, fechaFin).diff(momentDate(ajustesSistema.timeZone, fechaInicio), 'months') + sumDiff
+  const comprobantesMesPeriodo = []
+  for (let i = fechaInicio.getMonth() + 1; i <= (diffMonths + fechaInicio.getMonth() + 1); i++) {
+    const mes = moment().set({ month: i - 1 }).format('YYYY/MM')
+    comprobantesMesPeriodo.push(mes)
+  }
+  const comprobantesAmortizacion = await getCollectionSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { mesPeriodo: { $in: comprobantesMesPeriodo }, codigo: ajustesContabilidad.codigoComprobanteActivoAmortizado } })
+
+  const datosActivos = await agreggateCollectionsSD({
     nameCollection: 'activosFijos',
     enviromentClienteId: clienteId,
     pipeline: [
       {
         $match: {
-          fechaAdquisicion: { $lte: fechaFin }
+          fechaAdquisicion: { $lte: fechaInicioActivoDepreciable }
         }
       },
       {
@@ -1163,191 +826,34 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
           mesesDiff: {
             $dateDiff: {
               startDate: '$fechaAdquisicion',
-              endDate: fechaFin,
-              unit: 'month'
-            }
-          }
-        }
-      },
-      { $match: { $expr: { $gte: ['$vidaUtilMeses', '$mesesDiff'] } } },
-      { $addFields: { depreciacionMes: { $divide: ['$montoAdquision', '$vidaUtilMeses'] } } },
-      {
-        $group: {
-          _id: {
-            categoria: '$categoria',
-            zona: '$zona'
-          },
-          categoriaNombre: {
-            $first: '$categoriaNombre'
-          },
-          total: {
-            $sum: '$depreciacionMes'
-          }
-        }
-      },
-      {
-        $lookup: {
-          from: categoriaPorZonaCollection,
-          localField: '_id.categoria',
-          foreignField: 'categoriaId',
-          let: { zonaId: '$_id.zona' },
-          pipeline: [
-            { $match: { tipo: 'activoFijo', $expr: { $eq: ['$zonaId', '$$zonaId'] } } }
-          ],
-          as: 'zonacategoria'
-        }
-      },
-      { $unwind: { path: '$zonacategoria' } },
-      {
-        $group: {
-          _id: {
-            acumulado: '$zonacategoria.cuentaDepreciacionAcumulada',
-            gastos: '$zonacategoria.cuentaGastosDepreciacion'
-          },
-          categoriaNombre: {
-            $first: '$categoriaNombre'
-          },
-          total: {
-            $sum: '$total'
-          }
-        }
-      },
-      /*
-        [
-          {acumulado: 1, gastos: 2, total: 50, nombre: Maquinas}
-          {acumulado: 1, gastos: 3, total: 50, nombre: Maquinas}
-          {acumulado: 1, gastos: 3, total: 50, nombre: Maquinas}
-        ]
-        ////
-        [
-          {acumulado: 1, gastos: [
-            {2: 50, 3: 100}
-          ], total: 150, nombre: Maquinas,
-          contabilidadACC: {1: 100},
-          contabilidadGastos: {2: 50, 3: 50}}
-        ]
-        // si gastos esta cuadrado (el valor de gastos es igual al de calculos)
-        y accumulado no, utilizar la cuenta de diferencias
-        // si acumulado esta cuadrado, y gastos no, utilizar la ceunta de diferencia
-        // si los dos estan malos, cuadrarse entre ellos magicamente y
-        // diferencia a la cuenta e diferencia
-      {
-        $lookup: {
-          from: detalleComprobantesCollection,
-          localField: '_id.cuentaDepreciacionAcumulada',
-          foreignField: 'cuentaId',
-          pipeline: [
-            {
-              $match: {
-                isPreCierre: { $ne: true },
-                isCierre: { $ne: true },
-                fecha: { $lte: fechaFin, $gte: fechaInicio },
-                comprobanteId: { $eq: comprobantesAmortizacion?._id && new ObjectId(comprobantesAmortizacion._id) }
-              }
-            },
-            {
-              $group: {
-                _id: '$cuentaId',
-                debe: { $sum: '$debe' },
-                haber: { $sum: '$haber' }
-              }
-            },
-            {
-              $project: {
-                totalContabilidad: { $subtract: ['$debe', '$haber'] }
-              }
-            }
-          ],
-          as: 'detalleComprobantes'
-        }
-      },
-      { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          _id: 1,
-          cuentaDepreciacionAcumulada: '$_id',
-          categoriaNombre: '$categoriaNombre',
-          total: '$total',
-          totalContabilidad: '$detalleComprobantes.totalContabilidad',
-          totalDiferencia: { $subtract: ['$total', { $ifNull: ['$detalleComprobantes.totalContabilidad', 0] }] }
-        }
-      }
-    ]
-  })
-  */
-  const periodoActual = (await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })).fechaInicio
-  const categoriaPorZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
-  const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
-  const detalleComprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
-  const ajustesContabilidad = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
-  if (!ajustesContabilidad?.codigoComprobanteActivoAmortizado) {
-    throw new Error('No existe el coidigo de comprobante de amortizaciones en los ajustes')
-  }
-  const yearStartComprobantes = moment(periodoActual).startOf('month').year()
-  const yearEndComprobantes = moment(fecha).endOf('month').year()
-  const regexYears = new RegExp(`(${yearStartComprobantes}|${yearEndComprobantes})`, 'i')
-  const comprobantesAmortizacion = await getCollectionSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { mesPeriodo: regexYears, codigo: ajustesContabilidad.codigoComprobanteActivoAmortizado } })
-  const fechaInicio = moment(periodoActual).startOf('month').toDate()
-  const fechaFin = moment(fecha).endOf('month').toDate()
-  const [datosActivos] = await agreggateCollectionsSD({
-    nameCollection: 'activosFijos',
-    enviromentClienteId: clienteId,
-    pipeline: [
-      {
-        $match: {
-          fechaAdquisicion: { $lte: fechaFin }
-        }
-      },
-      {
-        $lookup: {
-          from: categoriasCollection,
-          localField: 'categoria',
-          foreignField: '_id',
-          as: 'detalleCategoria'
-        }
-      },
-      { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          categoria: '$categoria',
-          categoriaNombre: '$detalleCategoria.nombre',
-          zona: '$zona',
-          vidaUtilMeses: { $multiply: ['$detalleCategoria.vidaUtil', 12] },
-          fechaAdquisicion: '$fechaAdquisicion',
-          montoAdquision: '$montoAdquision',
-          mesesDiff: {
-            $dateDiff: {
-              startDate: '$fechaAdquisicion',
-              endDate: fechaInicio,
-              unit: 'month'
+              endDate: fechaInicioMes,
+              unit: 'month',
+              timezone: ajustesSistema.timeZone
             }
           }
         }
       },
       // { $match: { $expr: { $gte: ['$vidaUtilMeses', '$mesesDiff'] } } },
-      { $addFields: { 
-        depreciacionMes: { $divide: ['$montoAdquision', '$vidaUtilMeses'] },
+      { $addFields: {
+        depreciacionMes: { $round: [{ $divide: ['$montoAdquision', '$vidaUtilMeses'] }, 2] },
+        cantidadMesesDepreciar: { $cond: {
+          if: { $gt: ['$mesesDiff', '$vidaUtilMeses'] },
+          then: '$vidaUtilMeses',
+          else: { $cond: [{ $gte: ['$mesesDiff', 0] }, '$mesesDiff', 1] }
+        } }
       } },
-      {
-        $group: {
-          _id: {
-            categoria: '$categoria',
-            zona: '$zona'
-          },
-          nombre: {
-            $first: '$categoriaNombre'
-          },
-          totalMes: {
-            $sum: '$depreciacionMes'
-          }
-        }
-      },
+      { $addFields: {
+        // Si el mes que incia la depresiacion es igual al del mes cuando se adquirio
+        // entonces no se debe usar el substract para quitar un mes
+        totalAccum: { $multiply: [{ $subtract: ['$cantidadMesesDepreciar', 1] }, { $round: ['$depreciacionMes', 2] }] }
+        // totalAccum: { $round: [{ $multiply: ['$cantidadMesesDepreciar', '$depreciacionMes'] }, 2] }
+      } },
       {
         $lookup: {
           from: categoriaPorZonaCollection,
-          localField: '_id.categoria',
+          localField: 'categoria',
           foreignField: 'categoriaId',
-          let: { zonaId: '$_id.zona' },
+          let: { zonaId: '$zona' },
           pipeline: [
             { $match: { tipo: 'activoFijo', $expr: { $eq: ['$zonaId', '$$zonaId'] } } }
           ],
@@ -1356,125 +862,156 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
       },
       { $unwind: { path: '$zonacategoria' } },
       {
-        $group: {
-          _id: {
-            acumulado: '$zonacategoria.cuentaDepreciacionAcumulada',
-            gastos: '$zonacategoria.cuentaGastosDepreciacion'
-          },
-          nombre: {
-            $first: '$nombre'
-          },
-          totalMes: {
-            $sum: '$totalMes'
-          }
-        }
-      },
-      {
         $lookup: {
           from: detalleComprobantesCollection,
-          let: { acumulado: '$_id.acumulado', gastos: '$_id.gastos' },
+          localField: 'zonacategoria.cuentaDepreciacionAcumulada',
+          foreignField: 'cuentaId',
+          let: { fechaAdquisicion: '$fechaAdquisicion' },
           pipeline: [
             {
               $match: {
-                fecha: { $lte: fechaFin, $gte: fechaInicio },
-                comprobanteId: { $in: comprobantesAmortizacion.map(c => new ObjectId(c._id)) },
+                comprobanteId: { $in: (comprobantesAmortizacion.map(e => e._id)) },
                 $expr: {
-                  $or: [
-                    { $eq: ['$cuentaId', '$$acumulado'] },
-                    { $eq: ['$cuentaId', '$$gastos'] }
+                  $and: [
+                    { $lte: ['$fecha', fechaFin] },
+                    { $gte: ['$fecha', fechaInicio] },
+                    { $or: [
+                      { $and: [
+                        { $gt: ['$fecha', '$fechaAdquisicion'] },
+                        { $or: [
+                          { $and: [
+                            { $gt: [{ $month: { date: '$fecha', timezone: ajustesSistema.timeZone } }, { $month: { date: '$$fechaAdquisicion', timezone: ajustesSistema.timeZone } }] },
+                            { $eq: [{ $year: { date: '$fecha', timezone: ajustesSistema.timeZone } }, { $year: { date: '$$fechaAdquisicion', timezone: ajustesSistema.timeZone } }] },
+                          ] },
+                          { $gt: [{ $year: { date: '$fecha', timezone: ajustesSistema.timeZone } }, { $year: { date: '$$fechaAdquisicion', timezone: ajustesSistema.timeZone } }] },
+                        ] }
+                      ] },
+                    ] }
                   ]
                 }
               }
             },
             {
               $group: {
-                _id: { $month: '$fecha' },
-                debeAcum: {
-                  $sum: {
-                    $cond: {
-                      if: { $eq: ['$cuentaId', '$$acumulado'] },
-                      then: '$debe',
-                      else: 0
-                    }
-                  }
+                _id: 0,
+                debe: {
+                  $sum: '$debe'
                 },
-                haberAcum: {
-                  $sum: {
-                    $cond: {
-                      if: { $eq: ['$cuentaId', '$$acumulado'] },
-                      then: '$haber',
-                      else: 0
-                    }
-                  }
-                },
-                debeGasto: {
-                  $sum: {
-                    $cond: {
-                      if: { $eq: ['$cuentaId', '$$gastos'] },
-                      then: '$debe',
-                      else: 0
-                    }
-                  }
-                },
-                haberGasto: {
-                  $sum: {
-                    $cond: {
-                      if: { $eq: ['$cuentaId', '$$gastos'] },
-                      then: '$haber',
-                      else: 0
-                    }
-                  }
+                haber: {
+                  $sum: '$haber'
                 }
               }
             },
             {
               $project: {
                 _id: 1,
-                totalAcum: { $subtract: ['$debeAcum', '$haberAcum'] },
-                totalGasto: { $subtract: ['$debeGasto', '$haberGasto'] }
+                totalAcum: { $round: [{ $subtract: ['$debe', '$haber'] }, 2] },
               }
             }
           ],
-          as: 'detalleComprobantes'
+          as: 'movimientos'
         }
       },
-      // { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$movimientos', preserveNullAndEmptyArrays: true } },
       {
-        $project: {
-          _id: 0,
-          nombre: 1,
-          totalCalculoMes: '$totalMes',
-          contabilidad: '$detalleComprobantes'
+        $lookup: {
+          from: detalleComprobantesCollection,
+          localField: 'zonacategoria.cuentaDepreciacionAcumulada',
+          foreignField: 'cuentaId',
+          pipeline: [
+            {
+              $match: {
+                fecha: { $lte: fechaFin, $gte: fechaInicio },
+                comprobanteId: comprobanteCierre?._id || 'none',
+              }
+            },
+            {
+              $group: {
+                _id: 0,
+                debe: {
+                  $sum: '$debe'
+                },
+                haber: {
+                  $sum: '$haber'
+                },
+              }
+            },
+            {
+              $project: {
+                _id: 1,
+                totalAcum: { $round: [{ $subtract: ['$debe', '$haber'] }, 2] }
+              }
+            }
+          ],
+          as: 'movimientosIniciales'
+        }
+      },
+      { $unwind: { path: '$movimientosIniciales', preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: {
+            acumulado: '$zonacategoria.cuentaDepreciacionAcumulada',
+            gastos: '$zonacategoria.cuentaGastosDepreciacion'
+          },
+          totalMes: {
+            $sum: { $round: ['$depreciacionMes', 2] }
+          },
+          totalAccumulado: {
+            $sum: { $round: ['$totalAccum', 2] }
+          },
+          categoria: {
+            $first: '$categoriaNombre'
+          },
+          movimientos: {
+            $first: '$movimientos'
+          },
+          movimientosIniciales: {
+            $first: '$movimientosIniciales'
+          }
         }
       }
     ]
   })
-  return {datosActivos}
+  return {
+    resultado: datosActivos,
+    periodoId: periodoActual._id,
+    comprobanteId: comprobanteAmortizacion._id
+  }
 }
+
 const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
-  const periodoActual = (await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })).fechaInicio
-  const categoriaPorZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
-  const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
-  const detalleComprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   const ajustesContabilidad = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
   if (!ajustesContabilidad?.codigoComprobanteActivoAmortizado) {
     throw new Error('No existe el coidigo de comprobante de amortizaciones en los ajustes')
   }
-  const yearStartComprobantes = moment(periodoActual).startOf('month').year()
-  const yearEndComprobantes = moment(fecha).endOf('month').year()
+
+  const periodoActual = (await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(periodoId) } })).fechaInicio
+  const categoriaPorZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
+  const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+  const detalleComprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
+  const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
+
+  const yearStartComprobantes = momentDate(ajustesSistema.timeZone, periodoActual).startOf('month').year()
+  const yearEndComprobantes = momentDate(ajustesSistema.timeZone, fecha).endOf('month').year()
   const regexYears = new RegExp(`(${yearStartComprobantes}|${yearEndComprobantes})`, 'i')
   const comprobanteCierre = await getItemSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { mesPeriodo: new RegExp(`${yearStartComprobantes}`, 'i'), isPreCierre: true } })
   const comprobantesAmortizacion = await getCollectionSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { mesPeriodo: regexYears, codigo: ajustesContabilidad.codigoComprobanteActivoAmortizado } })
-  const fechaInicio = moment(periodoActual).startOf('month').toDate()
-  const fechaFin = moment(fecha).endOf('month').toDate()
+  const fechaInicio = momentDate(ajustesSistema.timeZone, periodoActual).startOf('month').toDate()
+  const fechaFin = momentDate(ajustesSistema.timeZone, fecha).endOf('month').toDate()
+
+  // este busca los activos que se pueden depresiar, es decir, que su fecha de adquisicion
+  // sea inferior al mes que se desea depresiar
+  const fechaInicioActivoDepreciable = momentDate(ajustesSistema.timeZone, fecha).subtract(1, 'month').endOf('month').toDate()
 
   const groupActivos = {}
   const groupCategorias = {}
-  const groupContabilidad = {}
+  const groupContabilidadFirst = {}
+  const groupContabilidadSum = {}
   const groupMeses = {}
   const projectCategorias = {}
-  const diffMonths = moment(fechaFin).diff(moment(fechaInicio), 'months')
-  for (let i = fechaInicio.getMonth() + 1; i <= diffMonths + fechaInicio.getMonth() + 1; i++) {
+  const sumDiff = fechaFin.getMonth() === fechaInicio.getMonth() ? 0 : 1
+  const diffMonths = momentDate(ajustesSistema.timeZone, fechaFin).diff(momentDate(ajustesSistema.timeZone, fechaInicio), 'months') + sumDiff
+  for (let i = fechaInicio.getMonth() + 1; i <= (diffMonths + fechaInicio.getMonth() + 1); i++) {
     const mes = moment().set({ month: i - 1 })
     const nombre = mes.locale('es').format('MMMM')
     groupActivos[nombre] = {
@@ -1491,19 +1028,33 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
       $first: '$' + nombre
     }
     projectCategorias[nombre] = '$' + nombre
-    groupContabilidad[nombre + 'ContabilidadAcumulado'] = {
-      $sum: { $cond: {
-        if: { $eq: ['$movimientos._id', i] },
+    groupContabilidadFirst[nombre + 'ContabilidadAcumulado'] = {
+      $first: { $cond: {
+        if: { $and: [
+          { $eq: ['$movimientos._id.mes', i] },
+          { $isNumber: '$movimientos.totalAcum' }
+        ]} ,
         then: '$movimientos.totalAcum',
         else: 0
       } }
     }
-    groupContabilidad[nombre + 'ContabilidaGastos'] = {
-      $sum: { $cond: {
-        if: { $eq: ['$movimientos._id', i] },
+
+    groupContabilidadFirst[nombre + 'ContabilidaGastos'] = {
+      $first: { $cond: {
+        if: { $and: [
+          { $eq: ['$movimientos._id.mes', i] },
+          { $isNumber: '$movimientos.totalGasto' }
+        ] },
         then: '$movimientos.totalGasto',
         else: 0
       } }
+    }
+    groupContabilidadSum[nombre + 'ContabilidadAcumulado'] = {
+      $sum: '$' + nombre + 'ContabilidadAcumulado'
+    }
+
+    groupContabilidadSum[nombre + 'ContabilidaGastos'] = {
+      $sum: '$' + nombre + 'ContabilidaGastos'
     }
   }
   const [datosActivos] = await agreggateCollectionsSD({
@@ -1512,7 +1063,7 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
     pipeline: [
       {
         $match: {
-          fechaAdquisicion: { $lte: fechaFin }
+          fechaAdquisicion: { $lte: fechaInicioActivoDepreciable }
         }
       },
       {
@@ -1542,34 +1093,28 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
         }
       },
       // { $match: { $expr: { $gte: ['$vidaUtilMeses', '$mesesDiff'] } } },
-      { $addFields: { 
-        depreciacionMes: { $divide: ['$montoAdquision', '$vidaUtilMeses'] },
+      { $addFields: {
+        depreciacionMes: { $round: [{ $divide: ['$montoAdquision', '$vidaUtilMeses'] }, 2] },
         cantidadMesesDepreciar: { $cond: {
           if: { $gt: ['$mesesDiff', '$vidaUtilMeses'] },
           then: '$vidaUtilMeses',
-          else: { $cond: [{ $gte: ['$mesesDiff', 0] }, '$mesesDiff', 0] }
+          else: { $cond: [{ $gte: ['$mesesDiff', 0] }, '$mesesDiff', 1] }
         } }
       } },
       { $addFields: {
-        totalAccum: { $multiply: ['$cantidadMesesDepreciar', '$depreciacionMes'] }
+        // Si el mes que incia la depresiacion es igual al del mes cuando se adquirio
+        // entonces no se debe usar el substract para quitar un mes
+        totalAccum: { $multiply: [{ $subtract: ['$cantidadMesesDepreciar', 1] }, { $round: ['$depreciacionMes', 2] }] }
+        // totalAccum: { $multiply: ['$cantidadMesesDepreciar', '$depreciacionMes'] }
       } },
       { $facet: {
         meses: [
           {
-            $group: {
-              _id: {
-                categoria: '$categoria',
-                zona: '$zona'
-              },
-              ...groupActivos
-            }
-          },
-          {
             $lookup: {
               from: categoriaPorZonaCollection,
-              localField: '_id.categoria',
+              localField: 'categoria',
               foreignField: 'categoriaId',
-              let: { zonaId: '$_id.zona' },
+              let: { zonaId: '$zona' },
               pipeline: [
                 { $match: { tipo: 'activoFijo', $expr: { $eq: ['$zonaId', '$$zonaId'] } } }
               ],
@@ -1578,34 +1123,40 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
           },
           { $unwind: { path: '$zonacategoria' } },
           {
-            $group: {
-              _id: {
-                acumulado: '$zonacategoria.cuentaDepreciacionAcumulada',
-                gastos: '$zonacategoria.cuentaGastosDepreciacion'
-              },
-              ...groupCategorias
-            }
-          },
-          {
             $lookup: {
               from: detalleComprobantesCollection,
-              let: { acumulado: '$_id.acumulado', gastos: '$_id.gastos' },
+              let: { fechaAdquisicion: '$fechaAdquisicion', acumulado: '$zonacategoria.cuentaDepreciacionAcumulada', gastos: '$zonacategoria.cuentaGastosDepreciacion' },
               pipeline: [
                 {
                   $match: {
-                    fecha: { $lte: fechaFin, $gte: fechaInicio },
                     comprobanteId: { $in: comprobantesAmortizacion.map(c => new ObjectId(c._id)) },
                     $expr: {
-                      $or: [
-                        { $eq: ['$cuentaId', '$$acumulado'] },
-                        { $eq: ['$cuentaId', '$$gastos'] }
+                      $and: [
+                        { $or: [
+                          { $eq: ['$cuentaId', '$$acumulado'] },
+                          { $eq: ['$cuentaId', '$$gastos'] }
+                        ] },
+                        { $lte: ['$fecha', fechaFin] },
+                        { $gte: ['$fecha', fechaInicio] },
+                        { $or: [
+                          { $and: [
+                            { $gt: ['$fecha', '$fechaAdquisicion'] },
+                            { $or: [
+                              { $and: [
+                                { $gt: [{ $month: { date: '$fecha', timezone: ajustesSistema.timeZone } }, { $month: { date: '$$fechaAdquisicion', timezone: ajustesSistema.timeZone } }] },
+                                { $eq: [{ $year: { date: '$fecha', timezone: ajustesSistema.timeZone } }, { $year: { date: '$$fechaAdquisicion', timezone: ajustesSistema.timeZone } }] },
+                              ] },
+                              { $gt: [{ $year: { date: '$fecha', timezone: ajustesSistema.timeZone } }, { $year: { date: '$$fechaAdquisicion', timezone: ajustesSistema.timeZone } }] },
+                            ] }
+                          ] },
+                        ] }
                       ]
                     }
                   }
                 },
                 {
                   $group: {
-                    _id: { $month: '$fecha' },
+                    _id: { cuenta: '$$acumulado', mes: { $month: { date: '$fecha', timezone: ajustesSistema.timeZone } } },
                     debeAcum: {
                       $sum: {
                         $cond: {
@@ -1655,14 +1206,13 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
               as: 'movimientos'
             }
           },
-          // { $unwind: { path: '$movimientos', preserveNullAndEmptyArrays: true } },
           {
             $group: {
               _id: 0,
-              ...groupCategorias,
               movimientos: {
                 $push: '$movimientos'
-              }
+              },
+              ...groupActivos
             }
           },
           {
@@ -1686,9 +1236,16 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
           { $unwind: { path: '$movimientos', preserveNullAndEmptyArrays: true } },
           {
             $group: {
+              _id: { cuenta: '$movimientos._id.cuenta', mes: '$movimientos._id.mes'},
+              ...groupMeses,
+              ...groupContabilidadFirst,
+            }
+          },
+          {
+            $group: {
               _id: 0,
               ...groupMeses,
-              ...groupContabilidad
+              ...groupContabilidadSum
             }
           }
         ],
@@ -1832,6 +1389,8 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
       } }
     ]
   })
+  if (!datosActivos) return []
+  console.log(datosActivos.meses)
   const datos = Array(12).fill({
     nombre: 0,
     acumuladaCalculo: 0,
@@ -1841,10 +1400,11 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
     acumuladaDiferencia: 0,
     gastosDiferencia: 0,
     send: false
-  }).map((e, i) => ({ ...e, nombre: moment().locale('es').set({ month: i + (fechaInicio.getMonth()) }).format('MMMM') }))
-  if (!datosActivos) return []
+  }).map((e, i) => ({ ...e, nombre: momentDate(ajustesSistema.timeZone).locale('es').set({ month: i + (fechaInicio.getMonth()) }).format('MMMM') }))
+  console.log(datosActivos.meses)
   const meses = datosActivos.meses[0] || {}
   const acumulado = datosActivos.acumulado[0] || {}
+
   datos.unshift({
     nombre: 'Acumulado',
     acumuladaCalculo: acumulado.totalCalculoAcum || 0,
@@ -1860,9 +1420,10 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
   }
   for (let i = fechaInicio.getMonth() + 1; i <= diffMonths + fechaInicio.getMonth() + 1; i++) {
     const index = i - fechaInicio.getMonth()
-    const nombre = moment().set({ month: i - 1 }).locale('es').format('MMMM')
+    const mes = momentDate(ajustesSistema.timeZone).set({ month: i - 1 })
+    const nombre = mes.locale('es').format('MMMM')
 
-    const acumuladaCalculo = meses[nombre] || 0 // (meses.totalCalculoAcum + ((meses[nombre] || 0) * index))
+    const acumuladaCalculo = Number((meses[nombre]).toFixed(2)) || 0 // (meses.totalCalculoAcum + ((meses[nombre] || 0) * index))
     const gastosCalculo = (meses[nombre] || 0)
     const acumuladaContabilidad = meses[nombre + 'ContabilidadAcumulado'] || 0 //(meses.contabilidad || []).find(e => e._id === i)?.totalAcum || 0
     const gastosContabilidad = meses[nombre + 'ContabilidaGastos'] || 0 // (meses.contabilidad || []).find(e => e._id === i)?.totalGasto || 0
@@ -1877,6 +1438,7 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
     totals.gastosDiferencia += gastosDiferencia
     const data = {
       ...totals,
+      fecha: mes.startOf('month').format('YYYY-MM-DD'),
       gastosCalculo,
       gastosContabilidad,
       gastosDiferencia,
@@ -1888,3 +1450,162 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
   datos.push(totals)
   return datos
 }
+/*
+
+  const datosActivos = await agreggateCollectionsSD({
+    nameCollection: 'activosFijos',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      {
+        $match: {
+          fechaAdquisicion: { $lte: fechaInicioActivoDepreciable }
+        }
+      },
+      {
+        $lookup: {
+          from: categoriasCollection,
+          localField: 'categoria',
+          foreignField: '_id',
+          as: 'detalleCategoria'
+        }
+      },
+      { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          categoria: '$categoria',
+          categoriaNombre: '$detalleCategoria.nombre',
+          zona: '$zona',
+          vidaUtilMeses: { $multiply: ['$detalleCategoria.vidaUtil', 12] },
+          fechaAdquisicion: '$fechaAdquisicion',
+          montoAdquision: '$montoAdquision',
+          mesesDiff: {
+            $dateDiff: {
+              startDate: '$fechaAdquisicion',
+              endDate: fechaInicio,
+              unit: 'month'
+            }
+          }
+        }
+      },
+      // { $match: { $expr: { $gte: ['$vidaUtilMeses', '$mesesDiff'] } } },
+      { $addFields: {
+        depreciacionMes: { $divide: ['$montoAdquision', '$vidaUtilMeses'] },
+        cantidadMesesDepreciar: { $cond: {
+          if: { $gt: ['$mesesDiff', '$vidaUtilMeses'] },
+          then: '$vidaUtilMeses',
+          else: { $cond: [{ $gte: ['$mesesDiff', 0] }, '$mesesDiff', 0] }
+        } }
+      } },
+      { $addFields: {
+        totalAccum: { $multiply: ['$cantidadMesesDepreciar', '$depreciacionMes'] }
+      } },
+      {
+        $group: {
+          _id: {
+            categoria: '$categoria',
+            zona: '$zona'
+          },
+          categoria: {
+            $first: '$categoriaNombre'
+          },
+          mesDepreciar
+        }
+      },
+      {
+        $lookup: {
+          from: categoriaPorZonaCollection,
+          localField: '_id.categoria',
+          foreignField: 'categoriaId',
+          let: { zonaId: '$_id.zona' },
+          pipeline: [
+            { $match: { tipo: 'activoFijo', $expr: { $eq: ['$zonaId', '$$zonaId'] } } }
+          ],
+          as: 'zonacategoria'
+        }
+      },
+      { $unwind: { path: '$zonacategoria' } },
+      {
+        $group: {
+          _id: {
+            acumulado: '$zonacategoria.cuentaDepreciacionAcumulada',
+            gastos: '$zonacategoria.cuentaGastosDepreciacion'
+          },
+          categoria: {
+            $first: '$categoria'
+          },
+          mesDepreciar: groupCategorias
+        }
+      },
+      {
+        $lookup: {
+          from: detalleComprobantesCollection,
+          let: { acumulado: '$_id.acumulado', gastos: '$_id.gastos' },
+          pipeline: [
+            {
+              $match: {
+                fecha: { $lte: fechaFin, $gte: fechaInicioMes },
+                comprobanteId: { $eq: (comprobantesAmortizacion._id) },
+                $expr: {
+                  $or: [
+                    { $eq: ['$cuentaId', '$$acumulado'] },
+                    { $eq: ['$cuentaId', '$$gastos'] }
+                  ]
+                }
+              }
+            },
+            {
+              $group: {
+                _id: 0,
+                debeAcum: {
+                  $sum: {
+                    $cond: {
+                      if: { $eq: ['$cuentaId', '$$acumulado'] },
+                      then: '$debe',
+                      else: 0
+                    }
+                  }
+                },
+                haberAcum: {
+                  $sum: {
+                    $cond: {
+                      if: { $eq: ['$cuentaId', '$$acumulado'] },
+                      then: '$haber',
+                      else: 0
+                    }
+                  }
+                },
+                debeGasto: {
+                  $sum: {
+                    $cond: {
+                      if: { $eq: ['$cuentaId', '$$gastos'] },
+                      then: '$debe',
+                      else: 0
+                    }
+                  }
+                },
+                haberGasto: {
+                  $sum: {
+                    $cond: {
+                      if: { $eq: ['$cuentaId', '$$gastos'] },
+                      then: '$haber',
+                      else: 0
+                    }
+                  }
+                }
+              }
+            },
+            {
+              $project: {
+                _id: 1,
+                totalAcum: { $subtract: ['$debeAcum', '$haberAcum'] },
+                totalGasto: { $subtract: ['$debeGasto', '$haberGasto'] }
+              }
+            }
+          ],
+          as: 'movimientos'
+        }
+      },
+      { $unwind: { path: '$movimientos', preserveNullAndEmptyArrays: true } },
+    ]
+  })
+    */

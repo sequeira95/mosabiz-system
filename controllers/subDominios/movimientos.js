@@ -432,8 +432,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           tipo: 'movimiento',
           tipoMovimiento: 'salida',
           lote: movimientos.lote,
-          fechaVencimiento: movimientos.fechaVencimiento,
-          fechaIngreso: movimientos.fechaIngreso,
+          fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+          fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           creadoPor: new ObjectId(uid)
@@ -447,8 +447,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           tipo: 'movimiento',
           tipoMovimiento: 'entrada',
           lote: movimientos.lote,
-          fechaVencimiento: movimientos.fechaVencimiento,
-          fechaIngreso: movimientos.fechaIngreso,
+          fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+          fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           creadoPor: new ObjectId(uid)
@@ -468,8 +468,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           tipo: 'movimiento',
           tipoMovimiento: 'salida',
           lote: movimientos.lote,
-          fechaVencimiento: movimientos.fechaVencimiento,
-          fechaIngreso: movimientos.fechaIngreso,
+          fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+          fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           creadoPor: new ObjectId(uid)
@@ -484,8 +484,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           tipo: 'movimiento',
           tipoMovimiento: 'entrada',
           lote: movimientos.lote,
-          fechaVencimiento: movimientos.fechaVencimiento,
-          fechaIngreso: movimientos.fechaIngreso,
+          fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+          fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           creadoPor: new ObjectId(uid)
@@ -576,8 +576,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           tipo: 'movimiento',
           tipoMovimiento: 'entrada',
           lote: movimientos.lote,
-          fechaVencimiento: movimientos.fechaVencimiento,
-          fechaIngreso: movimientos.fechaIngreso,
+          fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+          fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           tipoAuditoria: 'faltante',
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
@@ -593,8 +593,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           tipo: 'movimiento',
           tipoMovimiento: 'salida',
           lote: movimientos.lote,
-          fechaVencimiento: movimientos.fechaVencimiento,
-          fechaIngreso: movimientos.fechaIngreso,
+          fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+          fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           creadoPor: new ObjectId(uid)
@@ -615,8 +615,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             tipo: 'movimiento',
             tipoMovimiento: 'entrada',
             lote: movimientos.lote,
-            fechaVencimiento: movimientos.fechaVencimiento,
-            fechaIngreso: movimientos.fechaIngreso,
+            fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+            fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             creadoPor: new ObjectId(uid)
@@ -633,8 +633,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             tipo: 'movimiento',
             tipoMovimiento: 'entrada',
             lote: movimientos.lote,
-            fechaVencimiento: movimientos.fechaVencimiento,
-            fechaIngreso: movimientos.fechaIngreso,
+            fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+            fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             creadoPor: new ObjectId(uid)
@@ -650,8 +650,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           tipo: 'movimiento',
           tipoMovimiento: 'salida',
           lote: movimientos.lote,
-          fechaVencimiento: movimientos.fechaVencimiento,
-          fechaIngreso: movimientos.fechaIngreso,
+          fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+          fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           creadoPor: new ObjectId(uid)
@@ -671,8 +671,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             tipo: 'movimiento',
             tipoMovimiento: 'entrada',
             lote: movimientos.lote,
-            fechaVencimiento: movimientos.fechaVencimiento,
-            fechaIngreso: movimientos.fechaIngreso,
+            fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+            fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             creadoPor: new ObjectId(uid)
@@ -689,8 +689,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             tipo: 'movimiento',
             tipoMovimiento: 'entrada',
             lote: movimientos.lote,
-            fechaVencimiento: movimientos.fechaVencimiento,
-            fechaIngreso: movimientos.fechaIngreso,
+            fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+            fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             creadoPor: new ObjectId(uid)
@@ -706,8 +706,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           tipo: 'movimiento',
           tipoMovimiento: 'salida',
           lote: movimientos.lote,
-          fechaVencimiento: movimientos.fechaVencimiento,
-          fechaIngreso: movimientos.fechaIngreso,
+          fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+          fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           creadoPor: new ObjectId(uid)
@@ -728,8 +728,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             tipoMovimiento: 'entrada',
             tipoAuditoria: 'faltante',
             lote: movimientos.lote,
-            fechaVencimiento: movimientos.fechaVencimiento,
-            fechaIngreso: movimientos.fechaIngreso,
+            fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+            fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             creadoPor: new ObjectId(uid)
@@ -744,8 +744,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             tipo: 'movimiento',
             tipoMovimiento: 'salida',
             lote: movimientos.lote,
-            fechaVencimiento: movimientos.fechaVencimiento,
-            fechaIngreso: movimientos.fechaIngreso,
+            fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+            fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             creadoPor: new ObjectId(uid)
@@ -769,8 +769,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
         fechaMovimiento: moment().toDate(),
         costoUnitario: ultimoCosto,
         lote: ultimoLote,
-        fechaVencimiento: ultimaFechaVencimiento,
-        fechaIngreso: UltimaFechaIngreso,
+        fechaVencimiento: moment(ultimaFechaVencimiento).toDate(),
+        fechaIngreso: moment(UltimaFechaIngreso).toDate(),
         creadoPor: new ObjectId(uid)
       })
       if (almacenDestino && almacenDestino._id) {
@@ -787,8 +787,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           fechaMovimiento: moment().toDate(),
           costoUnitario: ultimoCosto,
           lote: ultimoLote,
-          fechaVencimiento: ultimaFechaVencimiento,
-          fechaIngreso: UltimaFechaIngreso,
+          fechaVencimiento: moment(ultimaFechaVencimiento).toDate(),
+          fechaIngreso: moment(UltimaFechaIngreso).toDate(),
           creadoPor: new ObjectId(uid)
         })
       }
@@ -806,8 +806,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           fechaMovimiento: moment().toDate(),
           costoUnitario: ultimoCosto,
           lote: ultimoLote,
-          fechaVencimiento: ultimaFechaVencimiento,
-          fechaIngreso: UltimaFechaIngreso,
+          fechaVencimiento: moment(ultimaFechaVencimiento).toDate(),
+          fechaIngreso: moment(UltimaFechaIngreso).toDate(),
           creadoPor: new ObjectId(uid)
         })
       }
@@ -981,50 +981,180 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
         cantidad: Number(cantidad)
       }
     })
-    const detallesCrear = [
-      {
-        productoId: new ObjectId(productoId),
-        movimientoId: movimiento.insertedId,
-        cantidad: Number(cantidad),
-        almacenId: almacenAuditoria._id,
-        almacenOrigen: almacenAuditoria._id,
-        almacenDestino: almacen ? new ObjectId(almacen._id) : null,
-        tipoAuditoria,
-        tipo: 'ajuste',
-        tipoMovimiento: 'salida',
-        lote,
-        fechaVencimiento: moment(fechaVencimiento).toDate(),
-        fechaIngreso: moment(fechaIngreso).toDate(),
-        fechaMovimiento: moment().toDate(),
-        costoUnitario: Number(costoUnitario),
-        movimientoAfectado: new ObjectId(movimientoId),
-        afecta: tipoAjuste,
-        creadoPor: new ObjectId(req.uid)
-      }
-    ]
-    if (almacen) {
-      detallesCrear.push({
-        productoId: new ObjectId(productoId),
-        movimientoId: new ObjectId(movimiento.insertedId),
-        cantidad: Number(cantidad),
-        almacenId: new ObjectId(almacen._id),
-        almacenOrigen: almacenAuditoria._id,
-        almacenDestino: new ObjectId(almacen._id),
-        tipo: 'ajuste',
-        tipoMovimiento: 'entrada',
-        lote,
-        fechaVencimiento: moment(fechaVencimiento).toDate(),
-        fechaIngreso: moment(fechaIngreso).toDate(),
-        fechaMovimiento: moment().toDate(),
-        costoUnitario: Number(costoUnitario),
-        creadoPor: new ObjectId(req.uid)
-      })
-    }
-    createManyItemsSD({
-      nameCollection: 'productosPorAlmacen',
+    const detalleMovimientoAfectado = await getItemSD({
+      nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
-      items: detallesCrear
+      filters: { _id: new ObjectId(movimientoId) }
     })
+    if (tipoAuditoria === 'sobrante') {
+      if (tipoAjuste === 'Almacen') {
+        const detallesCrear = [
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: movimiento.insertedId,
+            cantidad: Number(cantidad),
+            almacenId: almacenAuditoria._id,
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: almacen ? new ObjectId(almacen._id) : null,
+            tipoAuditoria,
+            tipo: 'ajuste',
+            tipoMovimiento: 'salida',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            movimientoAfectado: new ObjectId(movimientoId),
+            afecta: tipoAjuste,
+            creadoPor: new ObjectId(req.uid)
+          },
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: movimiento.insertedId,
+            cantidad: Number(cantidad),
+            almacenId: detalleMovimientoAfectado.almacenDestino,
+            almacenOrigen: detalleMovimientoAfectado.almacenDestino,
+            almacenDestino: almacen ? new ObjectId(almacen._id) : null,
+            tipoAuditoria,
+            tipo: 'ajuste',
+            tipoMovimiento: 'salida',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            movimientoAfectado: new ObjectId(movimientoId),
+            afecta: tipoAjuste,
+            creadoPor: new ObjectId(req.uid)
+          }
+        ]
+        createManyItemsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          items: detallesCrear
+        })
+      }
+      if (tipoAjuste === 'Sobrante') {
+        const detallesCrear = [
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: movimiento.insertedId,
+            cantidad: Number(cantidad),
+            almacenId: almacenAuditoria._id,
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: almacen ? new ObjectId(almacen._id) : null,
+            tipoAuditoria,
+            tipo: 'ajuste',
+            tipoMovimiento: 'salida',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            movimientoAfectado: new ObjectId(movimientoId),
+            afecta: tipoAjuste,
+            creadoPor: new ObjectId(req.uid)
+          }
+        ]
+        createManyItemsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          items: detallesCrear
+        })
+      }
+    }
+    if (tipoAuditoria === 'faltante') {
+      if (tipoAjuste === 'Almacen') {
+        const detallesCrear = [
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: movimiento.insertedId,
+            cantidad: Number(cantidad),
+            almacenId: almacenAuditoria._id,
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: almacen ? new ObjectId(almacen._id) : null,
+            tipoAuditoria,
+            tipo: 'ajuste',
+            tipoMovimiento: 'salida',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            movimientoAfectado: new ObjectId(movimientoId),
+            afecta: tipoAjuste,
+            creadoPor: new ObjectId(req.uid)
+          },
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: new ObjectId(movimiento.insertedId),
+            cantidad: Number(cantidad),
+            almacenId: new ObjectId(almacen._id),
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: new ObjectId(almacen._id),
+            tipo: 'ajuste',
+            tipoMovimiento: 'entrada',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            creadoPor: new ObjectId(req.uid)
+          }
+        ]
+        createManyItemsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          items: detallesCrear
+        })
+        if (almacen) {
+          detallesCrear.push({
+            productoId: new ObjectId(productoId),
+            movimientoId: new ObjectId(movimiento.insertedId),
+            cantidad: Number(cantidad),
+            almacenId: new ObjectId(almacen._id),
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: new ObjectId(almacen._id),
+            tipo: 'ajuste',
+            tipoMovimiento: 'entrada',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            creadoPor: new ObjectId(req.uid)
+          })
+        }
+      }
+      if (tipoAjuste === 'Faltante') {
+        const detallesCrear = [
+          {
+            productoId: new ObjectId(productoId),
+            movimientoId: movimiento.insertedId,
+            cantidad: Number(cantidad),
+            almacenId: almacenAuditoria._id,
+            almacenOrigen: almacenAuditoria._id,
+            almacenDestino: almacen ? new ObjectId(almacen._id) : null,
+            tipoAuditoria,
+            tipo: 'ajuste',
+            tipoMovimiento: 'salida',
+            lote,
+            fechaVencimiento: moment(fechaVencimiento).toDate(),
+            fechaIngreso: moment(fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(costoUnitario),
+            movimientoAfectado: new ObjectId(movimientoId),
+            afecta: tipoAjuste,
+            creadoPor: new ObjectId(req.uid)
+          }
+        ]
+        createManyItemsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          items: detallesCrear
+        })
+      }
+    }
     createItemSD({
       nameCollection: 'historial',
       enviromentClienteId: clienteId,
@@ -2021,18 +2151,27 @@ export const getMovimientosParaDevoluciones = async (req, res) => {
   console.log(req.body)
   try {
     const { clienteId, fechaDesde, fechaHasta, numeroMovimiento, tipoMovimiento, itemsPorPagina, pagina } = req.body
-    const fechaInit = fechaDesde ? moment(fechaDesde).startOf('day').toDate() : moment().startOf('month').toDate()
-    const fechaEnd = fechaHasta ? moment(fechaHasta).endOf('day').toDate() : moment().endOf('month').toDate()
+    const fechaInit = moment(fechaDesde).startOf('day').toDate()
+    const fechaEnd = moment(fechaHasta).endOf('day').toDate()
     const detalleMovimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleMovimientos' })
     const productosPorAlmacensCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
     const zonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
     const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
     const configMatch = {
-      fecha: { $gte: fechaInit, $lte: fechaEnd },
+      // fecha: { $gte: fechaInit, $lte: fechaEnd },
       estado: 'recibido'
     }
     if (numeroMovimiento) {
       configMatch.numeroMovimiento = { $eq: Number(numeroMovimiento) }
+    }
+    if (fechaDesde) {
+      configMatch.fecha = { $gte: fechaInit }
+    }
+    if (fechaHasta) {
+      configMatch.fecha = { $lte: fechaHasta }
+    }
+    if (fechaDesde && fechaHasta) {
+      configMatch.fecha = { $gte: fechaInit, $lte: fechaEnd }
     }
     if (tipoMovimiento) {
       configMatch.tipo = { $eq: tipoMovimiento }
@@ -2043,6 +2182,7 @@ export const getMovimientosParaDevoluciones = async (req, res) => {
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: configMatch },
+        { $sort: { fecha: -1 } },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) },
         {
@@ -2233,8 +2373,8 @@ export const createDevolucion = async (req, res) => {
           tipo: 'devolucion',
           tipoMovimiento: 'entrada',
           lote: detalle.lote,
-          fechaVencimiento: detalle.fechaVencimientoLote,
-          fechaIngreso: detalle.fechaIngresoLote,
+          fechaVencimiento: moment(detalle.fechaVencimientoLote).toDate(),
+          fechaIngreso: moment(detalle.fechaIngresoLote).toDate(),
           fechaMovimiento: moment(fecha).toDate(),
           costoUnitario: detalle.costoUnitario,
           creadoPor: new ObjectId(req.uid)
@@ -2248,8 +2388,8 @@ export const createDevolucion = async (req, res) => {
           tipo: 'devolucion',
           tipoMovimiento: 'salida',
           lote: detalle.lote,
-          fechaVencimiento: detalle.fechaVencimientoLote,
-          fechaIngreso: detalle.fechaIngresoLote,
+          fechaVencimiento: moment(detalle.fechaVencimientoLote).toDate(),
+          fechaIngreso: moment(detalle.fechaIngresoLote).toDate(),
           fechaMovimiento: moment(fecha).toDate(),
           costoUnitario: detalle.costoUnitario,
           creadoPor: new ObjectId(req.uid)
@@ -2266,8 +2406,8 @@ export const createDevolucion = async (req, res) => {
           tipo: 'devolucion',
           tipoMovimiento: 'entrada',
           lote: detalle.lote,
-          fechaVencimiento: detalle.fechaVencimientoLote,
-          fechaIngreso: detalle.fechaIngresoLote,
+          fechaVencimiento: moment(detalle.fechaVencimientoLote).toDate(),
+          fechaIngreso: moment(detalle.fechaIngresoLote).toDate(),
           fechaMovimiento: moment(fecha).toDate(),
           costoUnitario: detalle.costoUnitario,
           creadoPor: new ObjectId(req.uid)
@@ -2281,8 +2421,8 @@ export const createDevolucion = async (req, res) => {
           tipo: 'devolucion',
           tipoMovimiento: 'salida',
           lote: detalle.lote,
-          fechaVencimiento: detalle.fechaVencimientoLote,
-          fechaIngreso: detalle.fechaIngresoLote,
+          fechaVencimiento: moment(detalle.fechaVencimientoLote).toDate(),
+          fechaIngreso: moment(detalle.fechaIngresoLote).toDate(),
           fechaMovimiento: moment(fecha).toDate(),
           costoUnitario: detalle.costoUnitario,
           creadoPor: new ObjectId(req.uid)

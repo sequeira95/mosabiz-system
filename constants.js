@@ -64,7 +64,7 @@ export const collectionNameClient = [
   'productosPorAlmacen', 'retencionISLR', 'bancos', 'clientes', 'servicios', 'iva', 'proveedores', 'metodosPagos'
 ]
 export const collectionNameAIbiz = [
-  'islr', 'iva', 'bancos'
+  'islr', 'iva', 'bancos', 'retIva'
 ]
 export const ListIndexesClient = [
   {

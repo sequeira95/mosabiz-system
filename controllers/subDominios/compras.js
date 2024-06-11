@@ -1,5 +1,7 @@
-import { agreggateCollections, agreggateCollectionsSD, formatCollectionName, getCollectionSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, createItemSD, createManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
+import moment from 'moment-timezone'
+import { ObjectId } from 'mongodb'
 
 export const getListImpuestosIslr = async (req, res) => {
   const { pais } = req.body
@@ -26,10 +28,16 @@ export const getListImpuestosIva = async (req, res) => {
         { $match: { pais: { $eq: pais } } }
       ]
     })
-    return res.status(200).json({ iva })
+    const retiva = await agreggateCollections({
+      nameCollection: 'retIva',
+      pipeline: [
+        { $match: { pais: { $eq: pais } } }
+      ]
+    })
+    return res.status(200).json({ iva, retiva })
   } catch (e) {
     console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de buscar las retenciones de ISLR ' + e.message })
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar los impuesto de iva ' + e.message })
   }
 }
 export const getListProductosForCompra = async (req, res) => {
@@ -218,5 +226,92 @@ export const getServiciosForCompra = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar los servicios ' + e.message })
+  }
+}
+export const createOrdenCompra = async (req, res) => {
+  console.log(req.body)
+  const { clienteId, movimiento, detalleMovimiento, fechaActualMovimiento, fechaVencimientoMovimiento, totalesMovimiento, estado, proveedor } = req.body
+  try {
+    let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'compra' } }))?.contador
+    console.log(contador)
+    if (contador) ++contador
+    if (!contador) contador = 1
+    const newMovimiento = await createItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      item: {
+        fecha: moment(fechaActualMovimiento).toDate(),
+        fechaVencimiento: moment(fechaVencimientoMovimiento).toDate(),
+        tipo: movimiento.tipo,
+        estado,
+        numeroMovimiento: contador,
+        proveedorId: new ObjectId(proveedor._id),
+        moneda: movimiento.moneda,
+        monedaSecundaria: movimiento.monedaSecundaria,
+        hasIgtf: movimiento.hasIgtf,
+        isAgenteRetencionIva: movimiento.isAgenteRetencionIva,
+        compraFiscal: movimiento.compraFiscal,
+        retISLR: movimiento.retISLR,
+        valorRetIva: Number(movimiento?.valorRetIva || 0),
+        codigoRetIslr: movimiento?.valorRetIslr?.codigo || null,
+        nombreRetIslr: movimiento?.valorRetIslr?.nombre || null,
+        porcenjateIslr: Number(movimiento?.valorRetIslr?.valorRet || 0),
+        valorBaseImponibleIslr: Number(movimiento?.valorRetIslr?.valorBaseImponible || 0),
+        baseImponible: Number(totalesMovimiento.baseImponible),
+        iva: Number(totalesMovimiento.iva),
+        retIva: Number(totalesMovimiento.retIva),
+        retIslr: Number(totalesMovimiento.retIslr),
+        total: Number(totalesMovimiento.total),
+        baseImponibleSecundaria: Number(totalesMovimiento.baseImponibleSecundaria),
+        ivaSecundaria: Number(totalesMovimiento.ivaSecundaria),
+        retIvaSecundaria: Number(totalesMovimiento.retIvaSecundaria),
+        retIslrSecundaria: Number(totalesMovimiento.retIslrSecundaria),
+        totalSecundaria: Number(totalesMovimiento.totalSecundaria),
+        creadoPor: new ObjectId(req.uid)
+      }
+    })
+    createItemSD({
+      nameCollection: 'historial',
+      enviromentClienteId: clienteId,
+      item: {
+        idMovimiento: newMovimiento.insertedId,
+        categoria: 'creado',
+        tipo: 'Factura',
+        fecha: moment().toDate(),
+        descripcion: `Factura N° ${contador} creada`,
+        creadoPor: new ObjectId(req.uid)
+      }
+    })
+    upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'compra' }, update: { $set: { contador } } })
+    const detalle = detalleMovimiento.map(e => {
+      return {
+        movimientoId: newMovimiento.insertedId,
+        productoId: new ObjectId(e._id),
+        codigo: e.codigo,
+        descripcion: e.descripcion,
+        nombre: e.nombre,
+        observacion: e.observacion,
+        unidad: e.unidad,
+        cantidad: e.cantidad,
+        tipo: e.tipo,
+        retIslr: e.retIslr,
+        costoUnitario: Number(e.costoUnitario),
+        baseImponible: Number(e.baseImponible),
+        montoIva: Number(e.montoIva),
+        iva: Number(e.iva),
+        total: Number(e.total)
+      }
+    })
+    await createManyItemsSD({
+      nameCollection: 'detalleMovimientos',
+      enviromentClienteId: clienteId,
+      items: [
+        ...detalle
+      ]
+    })
+    return res.status(200).json({ status: `Orden N° ${contador} creada exitosamente` })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar la orden de compra ' + e.message })
   }
 }

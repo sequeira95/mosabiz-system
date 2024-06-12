@@ -84,5 +84,5 @@ export const momentDate = (timezone = 'Etc/UTC', ...args) => {
       return diferencia
     }
   }
-  return new MomentDate(...args)
+  return (new MomentDate(...args)).fecha
 }

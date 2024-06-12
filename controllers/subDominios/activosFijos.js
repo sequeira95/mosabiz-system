@@ -695,7 +695,7 @@ export const saveCalculosDepreciacion = async (req, res) => {
           periodoId: dato.periodoId,
           fecha: (isMesActual
             ? moment().toDate()
-            : momentDate(ajustesSistema.timeZone, dato.fecha).endOf('month').toDateUTC()),
+            : momentDate(ajustesSistema.timeZone, dato.fecha).endOf('month').toDate()),
           fechaCreacion: moment().toDate(),
           docReferenciaAux: 'Depreciación',
           documento: {
@@ -1009,7 +1009,7 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
   const groupContabilidadSum = {}
   const groupMeses = {}
   const projectCategorias = {}
-  const sumDiff = fechaFin.getMonth() === fechaInicio.getMonth() ? 0 : 1
+  const sumDiff = 0 // fechaFin.getMonth() === fechaInicio.getMonth() ? 0 : 1
   const diffMonths = momentDate(ajustesSistema.timeZone, fechaFin).diff(momentDate(ajustesSistema.timeZone, fechaInicio), 'months') + sumDiff
   for (let i = fechaInicio.getMonth() + 1; i <= (diffMonths + fechaInicio.getMonth() + 1); i++) {
     const mes = moment().set({ month: i - 1 })
@@ -1390,7 +1390,6 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
     ]
   })
   if (!datosActivos) return []
-  console.log(datosActivos.meses)
   const datos = Array(12).fill({
     nombre: 0,
     acumuladaCalculo: 0,
@@ -1401,7 +1400,7 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
     gastosDiferencia: 0,
     send: false
   }).map((e, i) => ({ ...e, nombre: momentDate(ajustesSistema.timeZone).locale('es').set({ month: i + (fechaInicio.getMonth()) }).format('MMMM') }))
-  console.log(datosActivos.meses)
+  
   const meses = datosActivos.meses[0] || {}
   const acumulado = datosActivos.acumulado[0] || {}
 

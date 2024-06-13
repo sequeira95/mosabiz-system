@@ -7,8 +7,10 @@ import { getOrCreateComprobante, createMovimientos } from '../../utils/contabili
 import { keyActivosFijos, subDominioName } from '../../constants.js'
 
 export const getActivosFijos = async (req, res) => {
-  const { clienteId } = req.body
+  const { clienteId, itemsPorPagina, pagina, filtros } = req.body
   try {
+    const matchFilters = {}
+    if (filtros.zona) matchFilters.zona = new ObjectId(filtros.zona)
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
@@ -18,66 +20,83 @@ export const getActivosFijos = async (req, res) => {
       enviromentClienteId: clienteId,
       pipeline: [
         {
-          $lookup: {
-            from: categoriasCollection,
-            localField: 'categoria',
-            foreignField: '_id',
-            as: 'detalleCategoria'
-          }
+          $match: matchFilters
         },
-        { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
         {
-          $lookup: {
-            from: zonasCollection,
-            localField: 'zona',
-            foreignField: '_id',
-            as: 'detalleZona'
+          $facet: {
+            list: [
+              { $skip: ((pagina || 0) - 1) * (itemsPorPagina || 10) },
+              { $limit: (itemsPorPagina || 10) },
+              {
+                $lookup: {
+                  from: categoriasCollection,
+                  localField: 'categoria',
+                  foreignField: '_id',
+                  as: 'detalleCategoria'
+                }
+              },
+              { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: zonasCollection,
+                  localField: 'zona',
+                  foreignField: '_id',
+                  as: 'detalleZona'
+                }
+              },
+              { $unwind: { path: '$detalleZona', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: planCuentaCollection,
+                  localField: 'cuentaPago',
+                  foreignField: '_id',
+                  as: 'detalleCuentaPago'
+                }
+              },
+              { $unwind: { path: '$detalleCuentaPago', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: comprobantesCollection,
+                  localField: 'comprobanteRegistroActivo',
+                  foreignField: '_id',
+                  as: 'detalleComprobante'
+                }
+              },
+              { $unwind: { path: '$detalleComprobante', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  codigo: '$codigo',
+                  nombre: '$nombre',
+                  descripcion: '$descripcion',
+                  categoriaId: '$categoria',
+                  categoria: '$detalleCategoria.nombre',
+                  zonaId: '$zona',
+                  zona: '$detalleZona.nombre',
+                  fechaAdquisicion: '$fechaAdquisicion',
+                  vidaUtil: '$detalleCategoria.vidaUtil',
+                  montoAdquision: '$montoAdquision',
+                  observacion: '$observacion',
+                  documentosAdjuntos: '$documentosAdjuntos',
+                  cuentaPago: '$detalleCuentaPago.codigo',
+                  referencia: '$referencia',
+                  dataCuentaPago: '$detalleCuentaPago',
+                  comprobante: { $concat: ['$detalleComprobante.mesPeriodo', '-', '$detalleComprobante.codigo'] },
+                  dataComprobante: '$detalleComprobante'
+                }
+              },
+              { $sort: { tipo: -1 } }
+            ],
+            cantidad: [
+              { $count: 'total' }
+            ]
           }
-        },
-        { $unwind: { path: '$detalleZona', preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: planCuentaCollection,
-            localField: 'cuentaPago',
-            foreignField: '_id',
-            as: 'detalleCuentaPago'
-          }
-        },
-        { $unwind: { path: '$detalleCuentaPago', preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: comprobantesCollection,
-            localField: 'comprobanteRegistroActivo',
-            foreignField: '_id',
-            as: 'detalleComprobante'
-          }
-        },
-        { $unwind: { path: '$detalleComprobante', preserveNullAndEmptyArrays: true } },
-        {
-          $project: {
-            codigo: '$codigo',
-            nombre: '$nombre',
-            descripcion: '$descripcion',
-            categoriaId: '$categoria',
-            categoria: '$detalleCategoria.nombre',
-            zonaId: '$zona',
-            zona: '$detalleZona.nombre',
-            fechaAdquisicion: '$fechaAdquisicion',
-            vidaUtil: '$detalleCategoria.vidaUtil',
-            montoAdquision: '$montoAdquision',
-            observacion: '$observacion',
-            documentosAdjuntos: '$documentosAdjuntos',
-            cuentaPago: '$detalleCuentaPago.codigo',
-            referencia: '$referencia',
-            dataCuentaPago: '$detalleCuentaPago',
-            comprobante: { $concat: ['$detalleComprobante.mesPeriodo', '-', '$detalleComprobante.codigo'] },
-            dataComprobante: '$detalleComprobante'
-          }
-        },
-        { $sort: { tipo: -1 } }
+        }
       ]
     })
-    return res.status(200).json({ activos })
+    return res.status(200).json({
+      activos: activos[0]?.list || [],
+      cantidad: activos[0]?.cantidad?.[0]?.total || 0
+    })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtner datos de los activo fijos' + e.message })
@@ -94,7 +113,6 @@ export const createActivoFijo = async (req, res) => {
     categoria,
     zona,
     fechaAdquisicion,
-    // vidaUtil,
     montoAdquision,
     observacion,
     clienteId,
@@ -152,7 +170,7 @@ export const createActivoFijo = async (req, res) => {
         categoria: new ObjectId(categoria),
         zona: new ObjectId(zona),
         fechaAdquisicion: moment(fechaAdquisicion).toDate(),
-        // vidaUtil: Number(vidaUtil),
+        periodoId: new ObjectId(periodoId),
         montoAdquision: Number(montoAdquision),
         observacion,
         documentosAdjuntos,
@@ -161,20 +179,22 @@ export const createActivoFijo = async (req, res) => {
         comprobanteRegistroActivo: new ObjectId(comprobanteRegistroActivo)
       }
     })
-    createDetalleComprobanteActivoFijo({
-      categoria,
-      categoriaNombre,
-      zona,
-      cuentaPago,
-      comprobanteRegistroActivo,
-      clienteId,
-      periodoId,
-      fechaAdquisicion,
-      montoAdquision,
-      referencia,
-      documentosAdjuntos,
-      dataComprobante
-    })
+    if (periodoId && cuentaPago && comprobanteRegistroActivo && referencia && montoAdquision) {
+      createDetalleComprobanteActivoFijo({
+        categoria,
+        categoriaNombre,
+        zona,
+        cuentaPago,
+        comprobanteRegistroActivo,
+        clienteId,
+        periodoId,
+        fechaAdquisicion,
+        montoAdquision,
+        referencia,
+        documentosAdjuntos,
+        dataComprobante
+      })
+    }
     createItemSD({
       nameCollection: 'historial',
       enviromentClienteId: clienteId,
@@ -206,7 +226,6 @@ export const editActivoFijo = async (req, res) => {
     categoria,
     zona,
     fechaAdquisicion,
-    // vidaUtil,
     clienteId,
     cuentaPago,
     referencia,
@@ -233,7 +252,7 @@ export const editActivoFijo = async (req, res) => {
           categoria: new ObjectId(categoria),
           zona: new ObjectId(zona),
           fechaAdquisicion: moment(fechaAdquisicion).toDate(),
-          // vidaUtil: Number(vidaUtil),
+          periodoId: new ObjectId(periodoId),
           cuentaPago: new ObjectId(cuentaPago),
           referencia,
           comprobanteRegistroActivo: new ObjectId(comprobanteRegistroActivo)

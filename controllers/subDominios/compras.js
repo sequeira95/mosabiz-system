@@ -230,21 +230,22 @@ export const getServiciosForCompra = async (req, res) => {
 }
 export const createOrdenCompra = async (req, res) => {
   console.log(req.body)
-  const { clienteId, movimiento, detalleMovimiento, fechaActualMovimiento, fechaVencimientoMovimiento, totalesMovimiento, estado, proveedor } = req.body
+  const { clienteId, movimiento, detalleMovimiento, fechaActualMovimiento, fechaVencimientoMovimiento, totalesMovimiento, estado, proveedor, tasaDia } = req.body
   try {
     let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'compra' } }))?.contador
     console.log(contador)
     if (contador) ++contador
     if (!contador) contador = 1
     const newMovimiento = await createItemSD({
-      nameCollection: 'movimientos',
+      nameCollection: 'compras',
       enviromentClienteId: clienteId,
       item: {
+        tipoMovimiento: 'compra',
         fecha: moment(fechaActualMovimiento).toDate(),
         fechaVencimiento: moment(fechaVencimientoMovimiento).toDate(),
         tipo: movimiento.tipo,
         estado,
-        numeroMovimiento: contador,
+        numeroOrden: contador,
         proveedorId: new ObjectId(proveedor._id),
         moneda: movimiento.moneda,
         monedaSecundaria: movimiento.monedaSecundaria,
@@ -252,22 +253,28 @@ export const createOrdenCompra = async (req, res) => {
         isAgenteRetencionIva: movimiento.isAgenteRetencionIva,
         compraFiscal: movimiento.compraFiscal,
         retISLR: movimiento.retISLR,
-        valorRetIva: Number(movimiento?.valorRetIva || 0),
-        codigoRetIslr: movimiento?.valorRetIslr?.codigo || null,
-        nombreRetIslr: movimiento?.valorRetIslr?.nombre || null,
-        porcenjateIslr: Number(movimiento?.valorRetIslr?.valorRet || 0),
-        valorBaseImponibleIslr: Number(movimiento?.valorRetIslr?.valorBaseImponible || 0),
-        baseImponible: Number(totalesMovimiento.baseImponible),
-        iva: Number(totalesMovimiento.iva),
-        retIva: Number(totalesMovimiento.retIva),
-        retIslr: Number(totalesMovimiento.retIslr),
-        total: Number(totalesMovimiento.total),
-        baseImponibleSecundaria: Number(totalesMovimiento.baseImponibleSecundaria),
-        ivaSecundaria: Number(totalesMovimiento.ivaSecundaria),
-        retIvaSecundaria: Number(totalesMovimiento.retIvaSecundaria),
-        retIslrSecundaria: Number(totalesMovimiento.retIslrSecundaria),
-        totalSecundaria: Number(totalesMovimiento.totalSecundaria),
-        creadoPor: new ObjectId(req.uid)
+        valorRetIva: movimiento?.valorRetIva ? Number(movimiento?.valorRetIva) : null,
+        codigoRetIslr: movimiento?.valorRetISLR?.codigo || null,
+        nombreRetIslr: movimiento?.valorRetISLR?.nombre || null,
+        porcenjateIslr: movimiento?.valorRetISLR?.valorRet ? Number(movimiento?.valorRetISLR?.valorRet) : null,
+        valorBaseImponibleIslr: movimiento?.valorRetISLR?.valorBaseImponible ? Number(movimiento?.valorRetISLR?.valorBaseImponible) : null,
+        baseImponible: totalesMovimiento?.baseImponible ? Number(totalesMovimiento?.baseImponible) : null,
+        iva: totalesMovimiento?.iva ? Number(totalesMovimiento?.iva) : null,
+        retIva: totalesMovimiento?.retIva ? Number(totalesMovimiento?.retIva) : null,
+        retIslr: totalesMovimiento?.retIslr ? Number(totalesMovimiento?.retIslr) : null,
+        total: totalesMovimiento?.total ? Number(totalesMovimiento?.total) : null,
+        baseImponibleSecundaria: totalesMovimiento?.baseImponibleSecundaria ? Number(totalesMovimiento?.baseImponibleSecundaria) : null,
+        ivaSecundaria: totalesMovimiento?.ivaSecundaria ? Number(totalesMovimiento?.ivaSecundaria) : null,
+        retIvaSecundaria: totalesMovimiento?.retIvaSecundaria ? Number(totalesMovimiento?.retIvaSecundaria) : null,
+        retIslrSecundaria: totalesMovimiento?.retIslrSecundaria ? Number(totalesMovimiento?.retIslrSecundaria) : null,
+        totalSecundaria: totalesMovimiento?.totalSecundaria ? Number(totalesMovimiento?.totalSecundaria) : null,
+        creadoPor: new ObjectId(req.uid),
+        metodoPago: proveedor.metodoPagometodoPago,
+        formaPago: proveedor.formaPago,
+        credito: proveedor?.credito || null,
+        duracionCredito: proveedor?.duracionCredito || null,
+        almacenDestino: movimiento.almacenDestino ? new ObjectId(movimiento.almacenDestino._id) : null,
+        tasaDia: tasaDia ? Number(tasaDia) : null
       }
     })
     createItemSD({
@@ -297,13 +304,13 @@ export const createOrdenCompra = async (req, res) => {
         retIslr: e.retIslr,
         costoUnitario: Number(e.costoUnitario),
         baseImponible: Number(e.baseImponible),
-        montoIva: Number(e.montoIva),
-        iva: Number(e.iva),
-        total: Number(e.total)
+        montoIva: e.montoIva ? Number(e.montoIva) : null,
+        iva: e.iva ? Number(e.iva) : null,
+        costoTotal: Number(e.costoTotal)
       }
     })
     await createManyItemsSD({
-      nameCollection: 'detalleMovimientos',
+      nameCollection: 'detalleCompra',
       enviromentClienteId: clienteId,
       items: [
         ...detalle
@@ -313,5 +320,97 @@ export const createOrdenCompra = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar la orden de compra ' + e.message })
+  }
+}
+export const getListadoPendientes = async (req, res) => {
+  const { clienteId, pagina, itemsPorPagina } = req.body
+  try {
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+    const listComprasPendientes = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { estado: { $in: ['pendientePorAprobar'] } } },
+        { $skip: (pagina - 1) * itemsPorPagina },
+        { $limit: itemsPorPagina },
+        {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: 'proveedorId',
+            foreignField: '_id',
+            as: 'proveedor'
+          }
+        },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: almacenesCollection,
+            localField: 'almacenDestino',
+            foreignField: '_id',
+            as: 'detalleAlmacenDestino'
+          }
+        },
+        { $unwind: { path: '$detalleAlmacenDestino', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup:
+            {
+              from: subDominioPersonasCollectionsName,
+              localField: 'creadoPor',
+              foreignField: 'usuarioId',
+              as: 'personas'
+            }
+        },
+        { $unwind: { path: '$personas', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            proveedor: '$proveedor.razonSocial',
+            almacenDestino: '$detalleAlmacenDestino.nombre',
+            almacenDestinoId: '$detalleAlmacenDestino._id',
+            creadoPor: '$personas.nombre',
+            creadoPorId: '$personas.usuarioId',
+            proveedorId: 1,
+            numeroOrden: 1,
+            fecha: 1,
+            estado: 1,
+            moneda: 1,
+            monedaSecundaria: 1,
+            hasIgtf: 1,
+            isAgenteRetencionIva: 1,
+            compraFiscal: 1,
+            retISLR: 1,
+            valorRetIva: 1,
+            codigoRetIslr: 1,
+            nombreRetIslr: 1,
+            porcenjateIslr: 1,
+            valorBaseImponibleIslr: 1,
+            baseImponible: 1,
+            iva: 1,
+            retIva: 1,
+            retIslr: 1,
+            total: 1,
+            baseImponibleSecundaria: 1,
+            ivaSecundaria: 1,
+            retIvaSecundaria: 1,
+            retIslrSecundaria: 1,
+            totalSecundaria: 1,
+            tasaDia: 1
+          }
+        }
+      ]
+    })
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { estado: { $in: ['pendientePorAprobar'] } } },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ listComprasPendientes, count: count.length ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })
   }
 }

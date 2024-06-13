@@ -246,70 +246,69 @@ export const editActivoFijo = async (req, res) => {
           codigo,
           nombre,
           descripcion,
-          tipo,
-          unidad,
-          cantidad: Number(cantidad),
           categoria: new ObjectId(categoria),
           zona: new ObjectId(zona),
           fechaAdquisicion: moment(fechaAdquisicion).toDate(),
-          periodoId: new ObjectId(periodoId),
-          cuentaPago: new ObjectId(cuentaPago),
+          periodoId: periodoId && new ObjectId(periodoId),
+          cuentaPago: cuentaPago && new ObjectId(cuentaPago),
           referencia,
-          comprobanteRegistroActivo: new ObjectId(comprobanteRegistroActivo)
+          comprobanteRegistroActivo: comprobanteRegistroActivo && new ObjectId(comprobanteRegistroActivo)
         }
       }
     })
     const descripcionUpdate = []
-    if (activoPreUpdate.zona.toJSON() !== activo.zona.toJSON() || activoPreUpdate.categoria.toJSON() !== activo.categoria.toJSON()) {
-      createDetalleComprobanteForEdit({
-        categoria,
-        categoriaNombre,
-        zona,
-        dataPreUpdate: activoPreUpdate,
-        comprobanteRegistroActivo,
-        clienteId,
-        periodoId,
-        fechaAdquisicion,
-        montoAdquision: activo.montoAdquision,
-        referencia,
-        documentosAdjuntos: activo.documentosAdjuntos,
-        dataComprobante
-      })
-    }
-    for (const [key, value] of Object.entries(activo)) {
-      const originalValue = activoPreUpdate[key]
-      if (originalValue !== value) {
-        if (key === 'comprobanteRegistroActivo' || key === 'zona' || key === 'categoria') {
-          const equalsId = originalValue.toJSON() === value.toJSON()
-          if (equalsId) continue
+    if (activo.comprobanteRegistroActivo && activo.periodoId && activo.referencia && activo.cuentaPago) {
+      if (activoPreUpdate.zona.toJSON() !== activo.zona.toJSON() || activoPreUpdate.categoria.toJSON() !== activo.categoria.toJSON()) {
+        createDetalleComprobanteForEdit({
+          categoria,
+          categoriaNombre,
+          zona,
+          dataPreUpdate: activoPreUpdate,
+          comprobanteRegistroActivo,
+          clienteId,
+          periodoId,
+          fechaAdquisicion,
+          montoAdquision: activo.montoAdquision,
+          referencia,
+          documentosAdjuntos: activo.documentosAdjuntos,
+          dataComprobante
+        })
+      }
+      for (const [key, value] of Object.entries(activo)) {
+        const originalValue = activoPreUpdate[key]
+        if (originalValue !== value) {
+          if (key === 'comprobanteRegistroActivo' || key === 'zona' || key === 'categoria') {
+            const equalsId = originalValue.toJSON() === value.toJSON()
+            if (equalsId) continue
+            descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
+            continue
+          }
+          /* if (key === 'zona') {
+            const equalsId = originalValue.toJSON() === value.toJSON()
+            console.log(key, equalsId)
+            if (equalsId) continue
+            descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
+            continue
+          }
+          if (key === 'categoria') {
+            const equalsId = originalValue.toJSON() === value.toJSON()
+            console.log(key, equalsId)
+            if (equalsId) continue
+            descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
+            continue
+          } */
+          if (key === '_id') continue
+          if (key === 'cuentaPago') continue
+          if (key === 'documentosAdjuntos') continue
+          if (key === 'fechaAdquisicion') {
+            const fecha1 = moment(originalValue).format('DD/MM/YYYY')
+            const fecha2 = moment(value).format('DD/MM/YYYY')
+            if (fecha1 === fecha2) continue
+            descripcionUpdate.push({ campo: keyActivosFijos[key], antes: moment(originalValue).toDate(), despues: moment(value).toDate() })
+            continue
+          }
           descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
-          continue
         }
-        /* if (key === 'zona') {
-          const equalsId = originalValue.toJSON() === value.toJSON()
-          console.log(key, equalsId)
-          if (equalsId) continue
-          descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
-          continue
-        }
-        if (key === 'categoria') {
-          const equalsId = originalValue.toJSON() === value.toJSON()
-          console.log(key, equalsId)
-          if (equalsId) continue
-          descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
-          continue
-        } */
-        if (key === '_id') continue
-        if (key === 'cuentaPago') continue
-        if (key === 'documentosAdjuntos') continue
-        if (key === 'fechaAdquisicion') {
-          const fecha1 = moment(originalValue).format('DD/MM/YYYY')
-          const fecha2 = moment(value).format('DD/MM/YYYY')
-          if (fecha1 === fecha2) continue
-          descripcionUpdate.push({ campo: keyActivosFijos[key], antes: moment(originalValue).toDate(), despues: moment(value).toDate() })
-          continue
-        }
-        descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
       }
     }
     if (descripcionUpdate[0]) {

@@ -1,6 +1,18 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { createOrdenCompra, getListImpuestosIslr, getListImpuestosIva, getListProductosForCompra, getListadoPendientes, getServiciosForCompra } from '../../controllers/subDominios/compras.js'
+import {
+  aprobarOrdenCompra,
+  aprobarPagosOrdenCompra,
+  cancelarCompra, createOrdenCompra,
+  editOrden,
+  getDataCompra,
+  getDataOrdenesComprasPorPagar,
+  getListImpuestosIslr,
+  getListImpuestosIva,
+  getListProductosForCompra,
+  getListadoCompras,
+  getServiciosForCompra
+} from '../../controllers/subDominios/compras.js'
 
 const router = express.Router()
 
@@ -9,5 +21,11 @@ router.post('/get/impuestos/iva', requireSubDominioToken, getListImpuestosIva)
 router.post('/get/productos', requireSubDominioToken, getListProductosForCompra)
 router.post('/get/servicios', requireSubDominioToken, getServiciosForCompra)
 router.post('/save/compra', requireSubDominioToken, createOrdenCompra)
-router.post('/get/pendientes', requireSubDominioToken, getListadoPendientes)
+router.post('/get/dataCompra', requireSubDominioToken, getDataCompra)
+router.post('/get/ordenesCompra', requireSubDominioToken, getListadoCompras)
+router.post('/cancelar', requireSubDominioToken, cancelarCompra)
+router.post('/aprobarOrden', requireSubDominioToken, aprobarOrdenCompra)
+router.post('/aprobarForPagos', requireSubDominioToken, aprobarPagosOrdenCompra)
+router.post('/editOrden', requireSubDominioToken, editOrden)
+router.post('/get/ordenesCompra/porPagar', requireSubDominioToken, getDataOrdenesComprasPorPagar)
 export default router

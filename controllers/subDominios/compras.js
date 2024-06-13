@@ -1,4 +1,4 @@
-import { agreggateCollections, agreggateCollectionsSD, createItemSD, createManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, createItemSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 import moment from 'moment-timezone'
 import { ObjectId } from 'mongodb'
@@ -230,7 +230,7 @@ export const getServiciosForCompra = async (req, res) => {
 }
 export const createOrdenCompra = async (req, res) => {
   console.log(req.body)
-  const { clienteId, movimiento, detalleMovimiento, fechaActualMovimiento, fechaVencimientoMovimiento, totalesMovimiento, estado, proveedor, tasaDia } = req.body
+  const { clienteId, movimiento, detalleMovimiento, fechaActualMovimiento, fechaVencimientoMovimiento, totalesMovimiento, estado, proveedor } = req.body
   try {
     let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'compra' } }))?.contador
     console.log(contador)
@@ -269,12 +269,12 @@ export const createOrdenCompra = async (req, res) => {
         retIslrSecundaria: totalesMovimiento?.retIslrSecundaria ? Number(totalesMovimiento?.retIslrSecundaria) : null,
         totalSecundaria: totalesMovimiento?.totalSecundaria ? Number(totalesMovimiento?.totalSecundaria) : null,
         creadoPor: new ObjectId(req.uid),
-        metodoPago: proveedor.metodoPagometodoPago,
+        metodoPago: proveedor.metodoPago,
         formaPago: proveedor.formaPago,
         credito: proveedor?.credito || null,
         duracionCredito: proveedor?.duracionCredito || null,
         almacenDestino: movimiento.almacenDestino ? new ObjectId(movimiento.almacenDestino._id) : null,
-        tasaDia: tasaDia ? Number(tasaDia) : null
+        tasaDia: movimiento.tasaDia ? Number(movimiento.tasaDia) : null
       }
     })
     createItemSD({
@@ -292,7 +292,7 @@ export const createOrdenCompra = async (req, res) => {
     upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'compra' }, update: { $set: { contador } } })
     const detalle = detalleMovimiento.map(e => {
       return {
-        movimientoId: newMovimiento.insertedId,
+        compraId: newMovimiento.insertedId,
         productoId: new ObjectId(e._id),
         codigo: e.codigo,
         descripcion: e.descripcion,
@@ -322,8 +322,8 @@ export const createOrdenCompra = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de guardar la orden de compra ' + e.message })
   }
 }
-export const getListadoPendientes = async (req, res) => {
-  const { clienteId, pagina, itemsPorPagina } = req.body
+export const getListadoCompras = async (req, res) => {
+  const { clienteId, pagina, itemsPorPagina, estado } = req.body
   try {
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
@@ -332,7 +332,7 @@ export const getListadoPendientes = async (req, res) => {
       nameCollection: 'compras',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: { $in: ['pendientePorAprobar'] } } },
+        { $match: { estado } },
         { $skip: (pagina - 1) * itemsPorPagina },
         { $limit: itemsPorPagina },
         {
@@ -373,6 +373,8 @@ export const getListadoPendientes = async (req, res) => {
             proveedorId: 1,
             numeroOrden: 1,
             fecha: 1,
+            fechaVencimiento: 1,
+            fechaAprobacion: 1,
             estado: 1,
             moneda: 1,
             monedaSecundaria: 1,
@@ -409,6 +411,284 @@ export const getListadoPendientes = async (req, res) => {
       ]
     })
     return res.status(200).json({ listComprasPendientes, count: count.length ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })
+  }
+}
+export const getDataCompra = async (req, res) => {
+  const { clienteId, compraId } = req.body
+  try {
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const detalleCompraCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleCompra' })
+    const compra = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: new ObjectId(compraId) } },
+        {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: 'proveedorId',
+            foreignField: '_id',
+            as: 'proveedor'
+          }
+        },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: almacenesCollection,
+            localField: 'almacenDestino',
+            foreignField: '_id',
+            as: 'almacenDestino'
+          }
+        },
+        { $unwind: { path: '$almacenDestino', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: detalleCompraCollection,
+            localField: '_id',
+            foreignField: 'compraId',
+            as: 'detalleCompra'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ compra: compra[0] ? compra[0] : null })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })
+  }
+}
+export const cancelarCompra = async (req, res) => {
+  const { clienteId, compraId, observacion } = req.body
+  try {
+    updateItemSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(compraId) },
+      update: { $set: { estado: 'cancelada', observacion } }
+    })
+    return res.status(200).json({ status: 'Orden cancelada exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de cancelar esta orden ' + e.message })
+  }
+}
+export const aprobarOrdenCompra = async (req, res) => {
+  const { clienteId, compraId, fechaAprobacion } = req.body
+  try {
+    updateItemSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(compraId) },
+      update: { $set: { estado: 'aprobada', fechaAprobacion: moment(fechaAprobacion).toDate() } }
+    })
+    return res.status(200).json({ status: 'Orden aprobada exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de aprobar esta orden ' + e.message })
+  }
+}
+export const editOrden = async (req, res) => {
+  console.log(req.body)
+  const {
+    clienteId,
+    numeroOrden,
+    _id,
+    fechaVencimiento,
+    moneda,
+    monedaSecundaria,
+    hasIgtf,
+    isAgenteRetencionIva,
+    compraFiscal,
+    retISLR,
+    valorRetIva,
+    valorRetISLR,
+    baseImponible,
+    iva,
+    retIva,
+    retIslr,
+    total,
+    baseImponibleSecundaria,
+    ivaSecundaria,
+    retIvaSecundaria,
+    retIslrSecundaria,
+    totalSecundaria,
+    tasaDia,
+    metodoPago,
+    formaPago,
+    credito,
+    duracionCredito,
+    almacenDestino,
+    proveedor,
+    detalleCompra
+  } = req.body
+  try {
+    await updateItemSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: {
+        $set: {
+          fechaVencimiento: moment(fechaVencimiento).toDate(),
+          estado: 'pendientePorAprobar',
+          proveedorId: new ObjectId(proveedor._id),
+          moneda,
+          monedaSecundaria,
+          hasIgtf,
+          isAgenteRetencionIva,
+          compraFiscal,
+          retISLR,
+          valorRetIva: valorRetIva ? Number(valorRetIva) : null,
+          codigoRetIslr: valorRetISLR?.codigo || null,
+          nombreRetIslr: valorRetISLR?.nombre || null,
+          porcenjateIslr: valorRetISLR?.valorRet ? Number(valorRetISLR?.valorRet) : null,
+          valorBaseImponibleIslr: valorRetISLR?.valorBaseImponible ? Number(valorRetISLR?.valorBaseImponible) : null,
+          baseImponible: baseImponible ? Number(baseImponible) : null,
+          iva: iva ? Number(iva) : null,
+          retIva: retIva ? Number(retIva) : null,
+          retIslr: retIslr ? Number(retIslr) : null,
+          total: total ? Number(total) : null,
+          baseImponibleSecundaria: baseImponibleSecundaria ? Number(baseImponibleSecundaria) : null,
+          ivaSecundaria: ivaSecundaria ? Number(ivaSecundaria) : null,
+          retIvaSecundaria: retIvaSecundaria ? Number(retIvaSecundaria) : null,
+          retIslrSecundaria: retIslrSecundaria ? Number(retIslrSecundaria) : null,
+          totalSecundaria: totalSecundaria ? Number(totalSecundaria) : null,
+          metodoPago,
+          formaPago,
+          credito: credito || null,
+          duracionCredito: duracionCredito || null,
+          almacenDestino: almacenDestino ? new ObjectId(almacenDestino._id) : null,
+          tasaDia: tasaDia ? Number(tasaDia) : null
+
+        }
+      }
+    })
+    createItemSD({
+      nameCollection: 'historial',
+      enviromentClienteId: clienteId,
+      item: {
+        idMovimiento: _id,
+        categoria: 'editado',
+        tipo: 'Factura',
+        fecha: moment().toDate(),
+        descripcion: `Factura N° ${numeroOrden} editada`,
+        creadoPor: new ObjectId(req.uid)
+      }
+    })
+    await deleteManyItemsSD({
+      nameCollection: 'detalleCompra',
+      enviromentClienteId: clienteId,
+      filters: { compraId: new ObjectId(_id) }
+    })
+    const detalle = detalleCompra.map(e => {
+      return {
+        compraId: new ObjectId(_id),
+        productoId: new ObjectId(e.productoId),
+        codigo: e.codigo,
+        descripcion: e.descripcion,
+        nombre: e.nombre,
+        observacion: e.observacion,
+        unidad: e.unidad,
+        cantidad: e.cantidad,
+        tipo: e.tipo,
+        retIslr: e.retIslr,
+        costoUnitario: Number(e.costoUnitario),
+        baseImponible: Number(e.baseImponible),
+        montoIva: e.montoIva ? Number(e.montoIva) : null,
+        iva: e.iva ? Number(e.iva) : null,
+        costoTotal: Number(e.costoTotal)
+      }
+    })
+    createManyItemsSD({
+      nameCollection: 'detalleCompra',
+      enviromentClienteId: clienteId,
+      items: [
+        ...detalle
+      ]
+    })
+    return res.status(200).json({ status: `Orden N° ${numeroOrden} actualizada` })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar la orden de compra ' + e.message })
+  }
+}
+export const aprobarPagosOrdenCompra = async (req, res) => {
+  const { clienteId, compraId, fechaAprobacionPagos } = req.body
+  try {
+    updateItemSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(compraId) },
+      update: { $set: { estado: 'pendientePagos', fechaAprobacionPagos: moment(fechaAprobacionPagos).toDate() } }
+    })
+    return res.status(200).json({ status: 'Orden aprobada exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de aprobar esta orden ' + e.message })
+  }
+}
+export const getDataOrdenesComprasPorPagar = async (req, res) => {
+  const { clienteId, itemsPorPagina, pagina, fechaActual, timeZone } = req.body
+  console.log(req.body)
+  try {
+    const conteosPendientesPorPago = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { estado: 'pendientePagos' } },
+        {
+          $project: {
+            numeroOrden: '$numeroOrden',
+            fechaVencimiento: '$fechaVencimiento',
+            diffFechaVencimiento:
+            {
+              $dateDiff: { startDate: moment(fechaActual).toDate(), endDate: '$fechaVencimiento', unit: 'day', timezone: timeZone }
+            },
+            total: '$total'
+          }
+        },
+        {
+          $group: {
+            _id: 0,
+            menorDos: {
+              $sum: {
+                $cond: {
+                  if: { $lte: ['$diffFechaVencimiento', 2] }, then: 1, else: 0
+                }
+              }
+            },
+            menorTres: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [{ $gt: ['$diffFechaVencimiento', 2] }, { $lte: ['$diffFechaVencimiento', 3] }]
+                  },
+                  then: 1,
+                  else: 0
+                }
+              }
+            },
+            menorCinco: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [{ $gt: ['$diffFechaVencimiento', 3] }, { $lte: ['$diffFechaVencimiento', 5] }]
+                  },
+                  then: 1,
+                  else: 0
+                }
+              }
+            },
+            totalPorPagar: { $sum: '$total' }
+          }
+        }
+      ]
+    })
+    console.log(conteosPendientesPorPago)
+    return res.status(200).json({ conteosPendientesPorPago: conteosPendientesPorPago[0] ? conteosPendientesPorPago[0] : null })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })

@@ -330,7 +330,7 @@ export const saveCategoriaToArray = async (req, res) => {
         tipo
       }
       const categoria = categoriasIndex[e.nombre.toLowerCase()]
-      if (categoria._id) {
+      if (categoria?._id) {
         filters._id = categoria._id
         update.vidaUtil = Number(e.vidaUtil)
       } else {

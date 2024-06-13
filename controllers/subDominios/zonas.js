@@ -64,16 +64,42 @@ export const saveZonas = async (req, res) => {
   const { _id, clienteId, nombre, observacion, tipo, fechaCreacion, cuentaId } = req.body
   try {
     if (!_id) {
-      const verify = await getItemSD({
+      const [verify] = await agreggateCollectionsSD({
         nameCollection: 'zonas',
         enviromentClienteId: clienteId,
-        filters: {
-          tipo,
-          nombre
-        }
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$tipo', tipo] },
+                  { $eq: [{ $toLower: '$nombre' }, nombre.toLowerCase()] }
+                ]
+              }
+            }
+          }
+        ]
       })
       if (verify) return res.status(400).json({ error: 'Ya existe una zona con este nombre' })
     }
+    const [verify] = await agreggateCollectionsSD({
+      nameCollection: 'zonas',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $ne: ['$_id', new ObjectId(_id)] },
+                { $eq: ['$tipo', tipo] },
+                { $eq: [{ $toLower: '$nombre' }, nombre.toLowerCase()] }
+              ]
+            }
+          }
+        }
+      ]
+    })
+    if (verify) return res.status(400).json({ error: 'Ya existe una zona con este nombre' })
     const zona = await upsertItemSD({
       nameCollection: 'zonas',
       enviromentClienteId: clienteId,
@@ -95,20 +121,48 @@ export const saveZonas = async (req, res) => {
 }
 export const saveZonasToArray = async (req, res) => {
   const { clienteId, zonas, tipo } = req.body
-  console.log(req.body)
   try {
+    const zonasData = await agreggateCollectionsSD({
+      nameCollection: 'categorias',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo } },
+        {
+          $project: {
+            nombre: { $toLower: '$nombre' }
+          }
+        }
+      ]
+    })
+    const zonasIndex = zonasData.reduce((acc, el) => {
+      acc[el.nombre.toLowerCase()] = el._id
+      return acc
+    }, {})
     if (!zonas[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de zonas' })
     const bulkWrite = zonas.map(e => {
+      const filters = { tipo }
+      let update = {
+        observacion: e.observacion,
+        tipo
+      }
+      const zonaId = zonasIndex[e.nombre.toLowerCase()]
+      if (zonaId) {
+        filters._id = zonaId
+      } else {
+        filters.nombre = e.nombre
+        filters.tipo = tipo
+        update = {
+          nombre: e.nombre,
+          observacion: e.observacion,
+          fechaCreacion: moment().toDate(),
+          tipo
+        }
+      }
       return {
         updateOne: {
-          filter: { nombre: e.nombre, tipo },
+          filter: filters,
           update: {
-            $set: {
-              nombre: e.nombre,
-              observacion: e.observacion,
-              fechaCreacion: moment().toDate(),
-              tipo
-            }
+            $set: update
           },
           upsert: true
         }

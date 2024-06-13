@@ -687,8 +687,63 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
         }
       ]
     })
-    console.log(conteosPendientesPorPago)
-    return res.status(200).json({ conteosPendientesPorPago: conteosPendientesPorPago[0] ? conteosPendientesPorPago[0] : null })
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const comprasPorProveedor = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { estado: 'pendientePagos' } },
+        { $sort: { fechaVencimiento: 1 } },
+        {
+          $group: {
+            _id: '$proveedorId',
+            fechaVencimiento: { $first: '$fechaVencimiento' },
+            costoTotal: { $first: '$total' }
+          }
+        },
+        /* { $limit: itemsPorPagina },
+        { $skip: pagina * itemsPorPagina }, */
+        {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: '_id',
+            foreignField: '_id',
+            as: 'proveedor'
+          }
+        },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            proveedorId: '$_id',
+            proveedor: '$proveedor.razonSocial',
+            costoTotal: '$costoTotal',
+            fechaVencimiento: '$fechaVencimiento',
+            diffFechaVencimiento:
+            {
+              $dateDiff: { startDate: moment(fechaActual).toDate(), endDate: '$fechaVencimiento', unit: 'day', timezone: timeZone }
+            }
+          }
+        }
+      ]
+    })
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { estado: 'pendientePagos' } },
+        { $sort: { fechaVencimiento: 1 } },
+        {
+          $group: {
+            _id: '$proveedorId',
+            count: { $sum: 1 }
+          }
+        }
+        /* { $limit: itemsPorPagina },
+        { $skip: pagina * itemsPorPagina }, */
+      ]
+    })
+    console.log(comprasPorProveedor)
+    return res.status(200).json({ conteosPendientesPorPago: conteosPendientesPorPago[0] ? conteosPendientesPorPago[0] : null, count: count.count, comprasPorProveedor })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })

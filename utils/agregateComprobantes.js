@@ -55,14 +55,13 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: configMatch },
-        // { $sort: { fechaCreacion: -1 } },
+        { $sort: { fecha: -1 } },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) },
-        { $sort: { fechaCreacion: 1 } },
         ...lookups
       ]
     })
-    // console.log({ detallesComprobantes })
+    // console.log({ pagina, itemsPorPagina })
     const datosExtras = await agreggateCollectionsSD(
       {
         nameCollection: 'detallesComprobantes',

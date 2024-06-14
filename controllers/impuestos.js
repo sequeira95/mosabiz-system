@@ -104,7 +104,8 @@ export const getIslr = async (req, res) => {
   }
 }
 export const saveIslr = async (req, res) => {
-  const { _id, nombre, valorRet, codigo, tipoCalculo, sustraendo, minimo, pais } = req.body
+  const { _id, nombre, valorRet, codigo, tipoCalculo, sustraendo, minimo, pais, tipoRetencion, valorBaseImponible } = req.body
+  console.log(req.body)
   try {
     if (!_id) {
       const islrSave = await upsertItem({
@@ -118,7 +119,9 @@ export const saveIslr = async (req, res) => {
             valorRet: valorRet ? Number(valorRet) : 0,
             tipoCalculo,
             sustraendo: sustraendo ? Number(sustraendo) : 0,
-            minimo: minimo ? Number(minimo) : 0
+            minimo: minimo ? Number(minimo) : 0,
+            tipoRetencion,
+            valorBaseImponible: Number(valorBaseImponible)
           }
         }
       })
@@ -135,7 +138,9 @@ export const saveIslr = async (req, res) => {
           valorRet: valorRet ? Number(valorRet) : 0,
           tipoCalculo,
           sustraendo: sustraendo ? Number(sustraendo) : 0,
-          minimo: minimo ? Number(minimo) : 0
+          minimo: minimo ? Number(minimo) : 0,
+          tipoRetencion,
+          valorBaseImponible: Number(valorBaseImponible)
         }
       }
     })
@@ -153,5 +158,78 @@ export const deleteIslr = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar este ISLR ' + e.message })
+  }
+}
+export const getRetIva = async (req, res) => {
+  try {
+    const { pais, itemsPorPagina, pagina } = req.body
+    const matchConfig = {}
+    if (pais) {
+      matchConfig.pais = { $eq: pais }
+    }
+    const retIva = await agreggateCollections({
+      nameCollection: 'retIva',
+      pipeline: [
+        { $match: matchConfig },
+        { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+        { $limit: Number(itemsPorPagina) }
+      ]
+    })
+    const count = await agreggateCollections({
+      nameCollection: 'retIva',
+      pipeline: [
+        { $match: matchConfig },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ retIva, count: count.length ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la liste del I.V.A ' + e.message })
+  }
+}
+export const saveRetIva = async (req, res) => {
+  const { _id, descripcion, retIva, pais } = req.body
+  console.log(req.body)
+  try {
+    if (!_id) {
+      const retIvaSave = await upsertItem({
+        nameCollection: 'retIva',
+        filters: { _id: new ObjectId(_id) },
+        update: {
+          $set: {
+            descripcion,
+            pais,
+            retIva: retIva ? Number(retIva) : 0
+          }
+        }
+      })
+      return res.status(200).json({ status: 'Retención de I.V.A guardada exitosamente', retIva: retIvaSave })
+    }
+    const retIvaSave = await updateItem({
+      nameCollection: 'retIva',
+      filters: { _id: new ObjectId(_id) },
+      update: {
+        $set: {
+          descripcion,
+          pais,
+          retIva: retIva ? Number(retIva) : 0
+        }
+      }
+    })
+    return res.status(200).json({ status: 'Retención de I.V.A guardada exitosamente', retIva: retIvaSave })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar este retención de I.V.A' + e.message })
+  }
+}
+export const deleteRetIva = async (req, res) => {
+  const { _id } = req.body
+  try {
+    await deleteItem({ nameCollection: 'retIva', filters: { _id: new ObjectId(_id) } })
+    return res.status(200).json({ status: 'Retención de I.V.A eliminado exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar esta retención de I.V.A ' + e.message })
   }
 }

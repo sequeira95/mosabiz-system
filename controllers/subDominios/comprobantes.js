@@ -120,8 +120,6 @@ export const saveDetalleComprobante = async (req, res) => {
     pagina,
     itemsPorPagina
   } = req.body
-  // console.log({ body: req.body, file: req.files })
-  // console.log({ fecha: moment(fecha, 'YYYY/MM/DD').isValid() })
   if (!clienteId) return res.status(400).json({ error: 'Debe seleccionar un cliente' })
   if (!comprobanteId) return res.status(400).json({ error: 'Debe seleccionar un comprobante' })
   if (!moment(fecha, 'YYYY/MM/DD').isValid()) return res.status(400).json({ error: 'Debe seleccionar una fecha valida' })

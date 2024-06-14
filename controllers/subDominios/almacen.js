@@ -85,7 +85,8 @@ export const getDetalleLotePorAlmacen = async (req, res) => {
                 }
               }
             },
-            costoUnitario: { $first: '$costoUnitario' }
+            costoUnitario: { $first: '$costoUnitario' },
+            costoPromedio: { $first: '$costoPromedio' }
           }
         },
         {
@@ -96,7 +97,8 @@ export const getDetalleLotePorAlmacen = async (req, res) => {
             fechaVencimiento: '$fechaVencimiento',
             fechaIngreso: '$fechaIngreso',
             costoUnitario: '$costoUnitario',
-            almacenId: '$almacenId'
+            almacenId: '$almacenId',
+            costoPromedio: '$costoPromedio'
           }
         },
         { $match: { cantidad: { $gt: 0 } } },
@@ -210,8 +212,8 @@ export const getDataAlmacenAuditoria = async (req, res) => {
                     }
 
                   },
-                  costoUnitario: {
-                    $first: '$costoUnitario'
+                  costoPromedio: {
+                    $first: '$costoPromedio'
                     /* $addToSet: {
                       $cond: {
                         if: { $eq: ['$tipo', 'movimiento'] }, then: '$costoUnitario', else: 0
@@ -229,10 +231,10 @@ export const getDataAlmacenAuditoria = async (req, res) => {
               {
                 $addFields: {
                   totalCostoSobrante: {
-                    $multiply: ['$totalSobrante', '$costoUnitario']
+                    $multiply: ['$totalSobrante', '$costoPromedio']
                   },
                   totalCostoFaltante: {
-                    $multiply: ['$totalFaltante', '$costoUnitario']
+                    $multiply: ['$totalFaltante', '$costoPromedio']
                   }
                 }
               },
@@ -282,7 +284,7 @@ export const getDataAlmacenAuditoria = async (req, res) => {
             codigo: '$productoPorAlmacen.codigo',
             // sobrante: '$productoPorAlmacen.sobrante',
             // faltante: '$productoPorAlmacen.faltante',
-            costoUnitario: '$productoPorAlmacen.costoUnitario',
+            costoPromedio: '$productoPorAlmacen.costoPromedio',
             // ajusteFaltante: '$productoPorAlmacen.ajusteFaltante',
             // ajusteSobrante: '$productoPorAlmacen.ajusteSobrante',
             // sobrante: { $subtract: ['$productoPorAlmacen.sobrante', '$productoPorAlmacen.ajusteSobrante'] },
@@ -343,6 +345,13 @@ export const detalleAlmacenAuditoria = async (req, res) => {
             $sum: {
               $cond: {
                 if: { $eq: ['$tipoAuditoria', 'faltante'] }, then: '$cantidad', else: 0
+              }
+            }
+          },
+          costoPromedio: {
+            $sum: {
+              $cond: {
+                if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$costoPromedio', else: 0
               }
             }
           },
@@ -423,6 +432,7 @@ export const detalleAlmacenAuditoria = async (req, res) => {
           sobrante: '$sobrante',
           faltante: '$faltante',
           // tipoAuditoria: '$tipoAuditoria',
+          costoPromedio: '$costoPromedio',
           costoUnitario: '$costoUnitario',
           numeroMovimiento: '$detalleMovimiento.numeroMovimiento',
           tipoMovimiento: '$detalleMovimiento.tipo',
@@ -554,6 +564,7 @@ export const detalleMovimientoAuditado = async (req, res) => {
           almacenDestinoNombre: '$almacenDestinoNombre',
           tipo: '$tipo',
           costoUnitario: '$costoUnitario',
+          costoPromedio: '$costoPromedio',
           numeroMovimiento: '$detalleMovimiento.numeroMovimiento',
           creadoPor: '$personas.nombre',
           fechaMovimiento: '$fechaMovimiento',
@@ -565,37 +576,6 @@ export const detalleMovimientoAuditado = async (req, res) => {
       { $sort: { numeroMovimiento: 1 } }
     ]
   })
-  const prueba1 = await agreggateCollectionsSD({
-    nameCollection: 'productosPorAlmacen',
-    enviromentClienteId: clienteId,
-    pipeline: [
-      {
-        $match:
-        {
-          almacenId: almacenAuditoria._id,
-          movimientoAfectado: new ObjectId(movimientoId),
-          productoId: new ObjectId(productoId),
-          lote
-        }
-      }
-    ]
-  })
-  const prueba2 = await agreggateCollectionsSD({
-    nameCollection: 'productosPorAlmacen',
-    enviromentClienteId: clienteId,
-    pipeline: [
-      {
-        $match:
-        {
-          productoId: new ObjectId(productoId),
-          almacenId: almacenAuditoria._id,
-          movimientoId: new ObjectId(movimientoId),
-          lote
-        }
-      }
-    ]
-  })
-  console.log({ prueba1, prueba2 })
   return res.status(200).json({ detalleMovimientoAuditado })
 }
 export const createAlmacen = async (req, res) => {

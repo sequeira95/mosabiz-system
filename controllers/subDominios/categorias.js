@@ -112,15 +112,24 @@ export const getCategoriasForCompras = async (req, res) => {
 }
 export const saveCategorias = async (req, res) => {
   const { _id, clienteId, nombre, observacion, tipo, vidaUtil } = req.body
+  if (!nombre) return res.status(400).json({ error: 'Debe ingresar un nombre de categoría valido' })
   try {
     if (!_id) {
-      const verifyCategoria = await getItemSD({
+      const [verifyCategoria] = await agreggateCollectionsSD({
         nameCollection: 'categorias',
         enviromentClienteId: clienteId,
-        filters: {
-          tipo,
-          nombre
-        }
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$tipo', tipo] },
+                  { $eq: [{ $toLower: '$nombre' }, nombre.toLowerCase()] }
+                ]
+              }
+            }
+          }
+        ]
       })
       if (verifyCategoria) return res.status(400).json({ error: 'Ya existe una categoría con este nombre' })
       const categoria = await upsertItemSD({
@@ -138,6 +147,24 @@ export const saveCategorias = async (req, res) => {
       })
       return res.status(200).json({ status: 'categoría guardada exitosamente', categoria })
     }
+    const [verifyCategoria] = await agreggateCollectionsSD({
+      nameCollection: 'categorias',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $ne: ['$_id', new ObjectId(_id)] },
+                { $eq: ['$tipo', tipo] },
+                { $eq: [{ $toLower: '$nombre' }, nombre.toLowerCase()] }
+              ]
+            }
+          }
+        }
+      ]
+    })
+    if (verifyCategoria) return res.status(400).json({ error: 'Ya existe una categoría con este nombre' })
     const categoria = await updateItemSD({
       nameCollection: 'categorias',
       enviromentClienteId: clienteId,
@@ -147,7 +174,6 @@ export const saveCategorias = async (req, res) => {
           nombre,
           observacion,
           vidaUtil: Number(vidaUtil)
-          // fechaCreacion: fechaCreacion ? moment(fechaCreacion).toDate() : moment().toDate()
         }
       }
     })
@@ -266,18 +292,63 @@ export const saveCategoriasForCompras = async (req, res) => {
 export const saveCategoriaToArray = async (req, res) => {
   const { clienteId, categorias, tipo } = req.body
   try {
+    const activosFijosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'activosFijos' })
+    const categoriasData = await agreggateCollectionsSD({
+      nameCollection: 'categorias',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo } },
+        {
+          $lookup: {
+            from: activosFijosCollection,
+            localField: '_id',
+            foreignField: 'categoria',
+            pipeline: [
+              { $limit: 1 }
+            ],
+            as: 'detalleActivoFijo'
+          }
+        },
+        {
+          $project: {
+            nombre: 1,
+            vidaUtil: '$vidaUtil',
+            hasActivo: { $size: '$detalleActivoFijo' }
+          }
+        }
+      ]
+    })
+    const categoriasIndex = categoriasData.reduce((acc, el) => {
+      acc[el.nombre.toLowerCase()] = el
+      return acc
+    }, {})
     if (!categorias[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de categorías' })
     const bulkWrite = categorias.map(e => {
+      const filters = { tipo }
+      let update = {
+        observacion: e.observacion,
+        tipo
+      }
+      const categoria = categoriasIndex[e.nombre.toLowerCase()]
+      if (categoria?._id) {
+        filters._id = categoria._id
+        update.vidaUtil = Number(e.vidaUtil)
+      } else {
+        filters.nombre = e.nombre
+        filters.tipo = tipo
+        update = {
+          nombre: e.nombre,
+          observacion: e.observacion,
+          fechaCreacion: moment().toDate(),
+          vidaUtil: Number(e.vidaUtil),
+          tipo
+        }
+      }
       return {
         updateOne: {
-          filter: { nombre: e.nombre, tipo },
+          filter: filters,
           update: {
-            $set: {
-              nombre: e.nombre,
-              observacion: e.observacion,
-              fechaCreacion: moment().toDate(),
-              tipo
-            }
+            $set: update
           },
           upsert: true
         }
@@ -287,7 +358,7 @@ export const saveCategoriaToArray = async (req, res) => {
     return res.status(200).json({ status: 'categorías guardadas exitosamente' })
   } catch (e) {
     console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de guardar las categorías' + e.message })
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar las categorías: ' + e.message })
   }
 }
 export const deleteCategorias = async (req, res) => {

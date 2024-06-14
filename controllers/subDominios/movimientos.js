@@ -335,7 +335,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
               // fechaMovimiento: '$fechaMovimiento',
               lote: '$lote',
               fechaVencimiento: '$fechaVencimiento',
-              fechaIngreso: '$fechaIngreso'
+              fechaIngreso: '$fechaIngreso',
+              costoPromedio: '$costoPromedio'
             },
             entrada: {
               $sum: {
@@ -356,6 +357,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
         {
           $project: {
             _id: 0,
+            costoPromedio: '$_id.costoPromedio',
             costoUnitario: '$_id.costoUnitario',
             // fechaMovimiento: '$_id.fechaMovimiento',
             fechaIngreso: '$_id.fechaIngreso',
@@ -421,7 +423,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
       if (detalle.cantidad === 0) break
       if (detalle.cantidad >= movimientos.cantidad) {
         console.log({ 1: movimientos.fechaIngreso })
-        costoProductoTotal += movimientos.costoUnitario * Number(movimientos.cantidad)
+        costoProductoTotal += movimientos.costoPromedio * Number(movimientos.cantidad)
         detallesCrear.push({
           productoId: new ObjectId(detalle.productoId),
           movimientoId: new ObjectId(detalle.movimientoId),
@@ -436,6 +438,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
+          costoPromedio: movimientos.costoPromedio,
           creadoPor: new ObjectId(uid)
         }, {
           productoId: new ObjectId(detalle.productoId),
@@ -451,13 +454,14 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
+          costoPromedio: movimientos.costoPromedio,
           creadoPor: new ObjectId(uid)
         })
         detalle.cantidad -= movimientos.cantidad
         continue
       }
       if (detalle.cantidad < movimientos.cantidad) {
-        costoProductoTotal += movimientos.costoUnitario * detalle.cantidad
+        costoProductoTotal += movimientos.costoPromedio * detalle.cantidad
         detallesCrear.push({
           productoId: new ObjectId(detalle.productoId),
           movimientoId: new ObjectId(detalle.movimientoId),
@@ -472,6 +476,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
+          costoPromedio: movimientos.costoPromedio,
           creadoPor: new ObjectId(uid)
         },
         {
@@ -488,6 +493,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
+          costoPromedio: movimientos.costoPromedio,
           creadoPor: new ObjectId(uid)
         })
         detalle.cantidad = 0
@@ -555,17 +561,19 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
     let costoProductosPorAlmacen = 0
     let costoAlmacenAuditoria = 0
     let ultimoCosto = 0
+    let ultimoCostoPromedio = 0
     let ultimoLote = ''
     let ultimaFechaVencimiento = ''
     let UltimaFechaIngreso = ''
     for (const movimientos of detallesMovimientosPorProducto) {
       ultimoCosto = movimientos.costoUnitario
+      ultimoCostoPromedio = movimientos.costoPromedio
       ultimaFechaVencimiento = movimientos.fechaVencimiento
       UltimaFechaIngreso = movimientos.fechaIngreso
       ultimoLote = movimientos.lote
       console.log({ 2: movimientos.fechaIngreso })
       if (detalle.cantidadRecibido === 0 && movimientos.cantidad) {
-        costoAlmacenAuditoria += movimientos.costoUnitario * Number(movimientos.cantidad)
+        costoAlmacenAuditoria += movimientos.costoPromedio * Number(movimientos.cantidad)
         detallesCrear.push({
           productoId: new ObjectId(detalle.productoId),
           movimientoId: new ObjectId(detalle.movimientoId),
@@ -581,6 +589,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           tipoAuditoria: 'faltante',
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
+          costoPromedio: movimientos.costoPromedio,
           creadoPor: new ObjectId(uid)
         })
         detallesCrear.push({
@@ -597,13 +606,14 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
+          costoPromedio: movimientos.costoPromedio,
           creadoPor: new ObjectId(uid)
         })
         continue
       }
       if (detalle.cantidadRecibido === 0) break
       if (detalle.cantidadRecibido >= movimientos.cantidad) {
-        costoProductosPorAlmacen += movimientos.costoUnitario * movimientos.cantidad
+        costoProductosPorAlmacen += movimientos.costoPromedio * movimientos.cantidad
         if (almacenDestino && almacenDestino._id) {
           detallesCrear.push({
             productoId: new ObjectId(detalle.productoId),
@@ -619,6 +629,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
+            costoPromedio: movimientos.costoPromedio,
             creadoPor: new ObjectId(uid)
           })
         }
@@ -637,6 +648,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
+            costoPromedio: movimientos.costoPromedio,
             creadoPor: new ObjectId(uid)
           })
         }
@@ -654,6 +666,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
+          costoPromedio: movimientos.costoPromedio,
           creadoPor: new ObjectId(uid)
         })
         detalle.cantidadRecibido -= movimientos.cantidad
@@ -675,6 +688,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
+            costoPromedio: movimientos.costoPromedio,
             creadoPor: new ObjectId(uid)
           })
         }
@@ -693,6 +707,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
+            costoPromedio: movimientos.costoPromedio,
             creadoPor: new ObjectId(uid)
           })
         }
@@ -710,13 +725,14 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
+          costoPromedio: movimientos.costoPromedio,
           creadoPor: new ObjectId(uid)
         })
-        const sumaRecibida = Number(detalle.cantidadRecibido) * movimientos.costoUnitario
+        const sumaRecibida = Number(detalle.cantidadRecibido) * movimientos.costoPromedio
         costoProductosPorAlmacen += sumaRecibida
         const faltante = Number(movimientos.cantidad) - Number(detalle.cantidadRecibido)
         if (faltante > 0) {
-          costoAlmacenAuditoria += movimientos.costoUnitario * Number(faltante)
+          costoAlmacenAuditoria += movimientos.costoPromedio * Number(faltante)
           detallesCrear.push({
             productoId: new ObjectId(detalle.productoId),
             movimientoId: new ObjectId(detalle.movimientoId),
@@ -732,6 +748,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
+            costoPromedio: movimientos.costoPromedio,
             creadoPor: new ObjectId(uid)
           })
           detallesCrear.push({
@@ -748,6 +765,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
+            costoPromedio: movimientos.costoPromedio,
             creadoPor: new ObjectId(uid)
           })
         }
@@ -768,6 +786,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
         tipoAuditoria: 'sobrante',
         fechaMovimiento: moment().toDate(),
         costoUnitario: ultimoCosto,
+        costoPromedio: ultimoCostoPromedio,
         lote: ultimoLote,
         fechaVencimiento: moment(ultimaFechaVencimiento).toDate(),
         fechaIngreso: moment(UltimaFechaIngreso).toDate(),
@@ -786,6 +805,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           // tipoAuditoria: 'sobrante',
           fechaMovimiento: moment().toDate(),
           costoUnitario: ultimoCosto,
+          costoPromedio: ultimoCostoPromedio,
           lote: ultimoLote,
           fechaVencimiento: moment(ultimaFechaVencimiento).toDate(),
           fechaIngreso: moment(UltimaFechaIngreso).toDate(),
@@ -805,6 +825,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           // tipoAuditoria: 'sobrante',
           fechaMovimiento: moment().toDate(),
           costoUnitario: ultimoCosto,
+          costoPromedio: ultimoCostoPromedio,
           lote: ultimoLote,
           fechaVencimiento: moment(ultimaFechaVencimiento).toDate(),
           fechaIngreso: moment(UltimaFechaIngreso).toDate(),
@@ -909,7 +930,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           periodoId: new ObjectId(periodo._id),
           descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} DESDE ${almacenOrigen.nombre} HASTA ${zona?.nombre ? zona.nombre : almacenDestino.nombre}`,
           fecha: moment(fechaEntrega).toDate(),
-          haber: ultimoCosto * detalle.cantidadRecibido,
+          haber: ultimoCostoPromedio * detalle.cantidadRecibido,
           debe: 0,
           fechaCreacion: moment().toDate(),
           docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
@@ -938,7 +959,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
   }
 }
 export const saveAjusteAlmacenAuditoria = async (req, res) => {
-  const { clienteId, cantidad, tipoAjuste, almacen, fechaRegistro, movimientoId, productoId, costoUnitario, tipoAuditoria, lote, fechaVencimiento, fechaIngreso } = req.body
+  const { clienteId, cantidad, tipoAjuste, almacen, fechaRegistro, movimientoId, productoId, costoUnitario, costoPromedio, tipoAuditoria, lote, fechaVencimiento, fechaIngreso } = req.body
   try {
     console.log({ 3: fechaIngreso })
     const tieneContabilidad = await hasContabilidad({ clienteId })
@@ -1004,6 +1025,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             fechaIngreso: moment(fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
+            costoPromedio: Number(costoPromedio),
             movimientoAfectado: new ObjectId(movimientoId),
             afecta: tipoAjuste,
             creadoPor: new ObjectId(req.uid)
@@ -1023,6 +1045,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             fechaIngreso: moment(fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
+            costoPromedio: Number(costoPromedio),
             movimientoAfectado: new ObjectId(movimientoId),
             afecta: tipoAjuste,
             creadoPor: new ObjectId(req.uid)
@@ -1051,6 +1074,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             fechaIngreso: moment(fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
+            costoPromedio: Number(costoPromedio),
             movimientoAfectado: new ObjectId(movimientoId),
             afecta: tipoAjuste,
             creadoPor: new ObjectId(req.uid)
@@ -1081,6 +1105,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             fechaIngreso: moment(fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
+            costoPromedio: Number(costoPromedio),
             movimientoAfectado: new ObjectId(movimientoId),
             afecta: tipoAjuste,
             creadoPor: new ObjectId(req.uid)
@@ -1099,6 +1124,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             fechaIngreso: moment(fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
+            costoPromedio: Number(costoPromedio),
             creadoPor: new ObjectId(req.uid)
           }
         ]
@@ -1122,6 +1148,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             fechaIngreso: moment(fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
+            costoPromedio: Number(costoPromedio),
             creadoPor: new ObjectId(req.uid)
           })
         }
@@ -1143,6 +1170,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             fechaIngreso: moment(fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
+            costoPromedio: Number(costoPromedio),
             movimientoAfectado: new ObjectId(movimientoId),
             afecta: tipoAjuste,
             creadoPor: new ObjectId(req.uid)
@@ -1228,7 +1256,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
               periodoId: periodo._id,
               descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
               fecha: moment(fechaRegistro).toDate(),
-              debe: Number(cantidad) * Number(costoUnitario),
+              debe: Number(cantidad) * Number(costoPromedio),
               haber: 0,
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `MOV-AJ-${contador}`,
@@ -1246,7 +1274,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
               descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
               fecha: moment(fechaRegistro).toDate(),
               debe: 0,
-              haber: Number(cantidad) * Number(costoUnitario),
+              haber: Number(cantidad) * Number(costoPromedio),
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `MOV-AJ-${contador}`,
               documento: {
@@ -1272,7 +1300,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
               periodoId: periodo._id,
               descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
               fecha: moment(fechaRegistro).toDate(),
-              debe: Number(cantidad) * Number(costoUnitario),
+              debe: Number(cantidad) * Number(costoPromedio),
               haber: 0,
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `MOV-AJ-${contador}`,
@@ -1290,7 +1318,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
               descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
               fecha: moment(fechaRegistro).toDate(),
               debe: 0,
-              haber: Number(cantidad) * Number(costoUnitario),
+              haber: Number(cantidad) * Number(costoPromedio),
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `MOV-AJ-${contador}`,
               documento: {
@@ -1336,7 +1364,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             periodoId: periodo._id,
             descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
             fecha: moment(fechaRegistro).toDate(),
-            debe: Number(cantidad) * Number(costoUnitario),
+            debe: Number(cantidad) * Number(costoPromedio),
             haber: 0,
             fechaCreacion: moment().toDate(),
             docReferenciaAux: `MOV-AJ-${contador}`,
@@ -1354,7 +1382,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
             fecha: moment(fechaRegistro).toDate(),
             debe: 0,
-            haber: Number(cantidad) * Number(costoUnitario),
+            haber: Number(cantidad) * Number(costoPromedio),
             fechaCreacion: moment().toDate(),
             docReferenciaAux: `MOV-AJ-${contador}`,
             documento: {
@@ -1401,7 +1429,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimientoAfectado.tipo]}-${movimientoAfectado.numeroMovimiento}`,
             fecha: moment(fechaRegistro).toDate(),
             haber: 0,
-            debe: Number(cantidad) * Number(costoUnitario),
+            debe: Number(cantidad) * Number(costoPromedio),
             fechaCreacion: moment().toDate(),
             docReferenciaAux: `MOV-AJ-${contador}`,
             documento: {
@@ -1417,7 +1445,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             periodoId: periodo._id,
             descripcion: `Ajuste #${contador} de inventario ${producto.nombre}, movimiento afectado ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
             fecha: moment(fechaRegistro).toDate(),
-            haber: Number(cantidad) * Number(costoUnitario),
+            haber: Number(cantidad) * Number(costoPromedio),
             debe: 0,
             fechaCreacion: moment().toDate(),
             docReferenciaAux: `MOV-AJ-${contador}`,
@@ -2226,6 +2254,7 @@ export const getMovimientosParaDevoluciones = async (req, res) => {
                   productoPorAlmacenId: '$detalleProductoPorAlmacen._id',
                   lote: '$detalleProductoPorAlmacen.lote',
                   costoUnitario: '$detalleProductoPorAlmacen.costoUnitario',
+                  costoPromedio: '$detalleProductoPorAlmacen.costoPromedio',
                   tipoMovimiento: '$detalleProductoPorAlmacen.tipoMovimiento',
                   // cantidadAux: '$detalleProductoPorAlmacen.cantidad',
                   cantidadPorLote: { $subtract: ['$detalleProductoPorAlmacen.cantidad', { $ifNull: ['$detalleProductoPorAlmacen.cantidadDevueltaPorLote', 0] }] },
@@ -2328,7 +2357,7 @@ export const createDevolucion = async (req, res) => {
     const saldoContabilidad = {}
     for (const detalle of detalleMovimiento) {
       if (!saldoContabilidad[detalle.productoId]) saldoContabilidad[detalle.productoId] = 0
-      saldoContabilidad[detalle.productoId] += Number(detalle?.cantidadDevolver || 0) * Number(detalle?.costoUnitario || 0)
+      saldoContabilidad[detalle.productoId] += Number(detalle?.cantidadDevolver || 0) * Number(detalle?.costoPromedio || 0)
       const indexDetalle = detalleNewMovimiento.findIndex(e => e.productoId.toString() === detalle.productoId.toString())
       if (indexDetalle !== -1) {
         detalleNewMovimiento[indexDetalle].cantidad += Number(detalle.cantidadDevolver)
@@ -2377,6 +2406,7 @@ export const createDevolucion = async (req, res) => {
           fechaIngreso: moment(detalle.fechaIngresoLote).toDate(),
           fechaMovimiento: moment(fecha).toDate(),
           costoUnitario: detalle.costoUnitario,
+          costoPromedio: detalle.costoPromedio,
           creadoPor: new ObjectId(req.uid)
         }, {
           productoId: new ObjectId(detalle.productoId),
@@ -2392,6 +2422,7 @@ export const createDevolucion = async (req, res) => {
           fechaIngreso: moment(detalle.fechaIngresoLote).toDate(),
           fechaMovimiento: moment(fecha).toDate(),
           costoUnitario: detalle.costoUnitario,
+          costoPromedio: detalle.costoPromedio,
           creadoPor: new ObjectId(req.uid)
         })
       }
@@ -2410,6 +2441,7 @@ export const createDevolucion = async (req, res) => {
           fechaIngreso: moment(detalle.fechaIngresoLote).toDate(),
           fechaMovimiento: moment(fecha).toDate(),
           costoUnitario: detalle.costoUnitario,
+          costoPromedio: detalle.costoPromedio,
           creadoPor: new ObjectId(req.uid)
         }, {
           productoId: new ObjectId(detalle.productoId),
@@ -2425,6 +2457,7 @@ export const createDevolucion = async (req, res) => {
           fechaIngreso: moment(detalle.fechaIngresoLote).toDate(),
           fechaMovimiento: moment(fecha).toDate(),
           costoUnitario: detalle.costoUnitario,
+          costoPromedio: detalle.costoPromedio,
           creadoPor: new ObjectId(req.uid)
         })
       }

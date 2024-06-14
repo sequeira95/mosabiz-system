@@ -147,7 +147,17 @@ export const deleteTasa = async (req, res) => {
 export const getTasaByDay = async (req, res) => {
   const { fechaDia } = req.body
   try {
-    const tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaDia } })
+    let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaDia } })
+    if (!tasa) {
+      const ultimaTasa = await agreggateCollections({
+        nameCollection: 'tasas',
+        pipeline: [
+          { $sort: { fechaOperacion: -1 } },
+          { $limit: 1 }
+        ]
+      })
+      tasa = ultimaTasa[0] ? ultimaTasa[0] : null
+    }
     return res.status(200).json({ tasa })
   } catch (e) {
     console.log(e)

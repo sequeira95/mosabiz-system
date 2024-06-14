@@ -94,7 +94,9 @@ export const getProductos = async (req, res) => {
             isExento: '$isExento',
             precioVenta: '$precioVenta',
             ivaId: '$iva',
-            iva: '$detalleIva.iva'
+            iva: '$detalleIva.iva',
+            costoPromedio: '$costoPromedio',
+            isDataInicial: '$isDataInicial'
           }
         }
         // { $match: { cantidad: { $gte: 0 } } }
@@ -276,7 +278,8 @@ export const getListCostos = async (req, res) => {
         {
           $group: {
             _id: {
-              costoUnitario: '$costoUnitario',
+              // costoUnitario: '$costoUnitario',
+              costoPromedio: '$costoPromedio',
               lote: '$lote',
               fechaIngreso: '$fechaIngreso',
               fechaVencimiento: '$fechaVencimiento'
@@ -300,7 +303,8 @@ export const getListCostos = async (req, res) => {
         {
           $project: {
             cantidad: { $subtract: ['$entrada', '$salida'] },
-            costoUnitario: '$_id.costoUnitario',
+            // costoUnitario: '$_id.costoUnitario',
+            costoPromedio: '$_id.costoPromedio',
             fechaIngreso: '$_id.fechaIngreso',
             fechaVencimiento: '$_id.fechaVencimiento',
             lote: '$_id.lote'
@@ -315,7 +319,7 @@ export const getListCostos = async (req, res) => {
   }
 }
 export const saveAjusteAlmacen = async (req, res) => {
-  const { clienteId, productoId, almacen, cantidad, costoUnitario, tipo, lote, fechaAjuste, fechaVencimiento, fechaIngreso } = req.body
+  const { clienteId, productoId, almacen, cantidad, costoPromedio, tipo, lote, fechaAjuste, fechaVencimiento, fechaIngreso } = req.body
   console.log({ body: req.body })
   if (tipo === 'Ingreso') {
     const validProductoPorAlmacen = await getItemSD({
@@ -362,7 +366,7 @@ export const saveAjusteAlmacen = async (req, res) => {
         productoId: new ObjectId(productoId),
         almacenId: new ObjectId(almacen._id),
         cantidad: Number(cantidad),
-        costoUnitario: Number(costoUnitario),
+        costoUnitario: Number(costoPromedio),
         movimientoId: movimiento.insertedId,
         tipoMovimiento: 'entrada',
         tipo: 'ajuste',
@@ -372,7 +376,8 @@ export const saveAjusteAlmacen = async (req, res) => {
         fechaMovimiento: moment(fechaAjuste).toDate(),
         almacenDestino: new ObjectId(almacen._id),
         creadoPor: new ObjectId(req.uid),
-        fechaCreacion: moment().toDate()
+        fechaCreacion: moment().toDate(),
+        costoPromedio: Number(costoPromedio)
       }
     })
     createItemSD({
@@ -495,7 +500,7 @@ export const saveAjusteAlmacen = async (req, res) => {
           periodoId: perido._id,
           descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
           fecha: moment(fechaAjuste).toDate(),
-          debe: Number(cantidad) * Number(costoUnitario),
+          debe: Number(cantidad) * Number(costoPromedio),
           haber: 0,
           fechaCreacion: moment().toDate(),
           docReferenciaAux: `MOV-AJ-${contador}`,
@@ -513,7 +518,7 @@ export const saveAjusteAlmacen = async (req, res) => {
           descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
           fecha: moment(fechaAjuste).toDate(),
           debe: 0,
-          haber: Number(cantidad) * Number(costoUnitario),
+          haber: Number(cantidad) * Number(costoPromedio),
           fechaCreacion: moment().toDate(),
           docReferenciaAux: `MOV-AJ-${contador}`,
           documento: {
@@ -553,7 +558,7 @@ export const saveAjusteAlmacen = async (req, res) => {
         almacenId: new ObjectId(almacen._id),
         movimientoId: movimiento.insertedId,
         cantidad: Number(cantidad),
-        costoUnitario: Number(costoUnitario),
+        costoUnitario: Number(costoPromedio),
         tipoMovimiento: 'salida',
         tipo: 'ajuste',
         lote: lote.lote,
@@ -562,7 +567,8 @@ export const saveAjusteAlmacen = async (req, res) => {
         fechaMovimiento: moment(fechaAjuste).toDate(),
         almacenOrigen: new ObjectId(almacen._id),
         creadoPor: new ObjectId(req.uid),
-        fechaCreacion: moment().toDate()
+        fechaCreacion: moment().toDate(),
+        costoPromedio: Number(costoPromedio)
       }
     })
     createItemSD({
@@ -684,7 +690,7 @@ export const saveAjusteAlmacen = async (req, res) => {
           periodoId: perido._id,
           descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
           fecha: moment(fechaAjuste).toDate(),
-          debe: Number(cantidad) * Number(costoUnitario),
+          debe: Number(cantidad) * Number(costoPromedio),
           haber: 0,
           fechaCreacion: moment().toDate(),
           docReferenciaAux: `MOV-AJ-${contador}`,
@@ -702,7 +708,7 @@ export const saveAjusteAlmacen = async (req, res) => {
           descripcion: `Ajuste #${contador} de inventario ${dataParaDetalle[0].nombre} ${dataParaDetalle[0].categoria}`,
           fecha: moment(fechaAjuste).toDate(),
           debe: 0,
-          haber: Number(cantidad) * Number(costoUnitario),
+          haber: Number(cantidad) * Number(costoPromedio),
           fechaCreacion: moment().toDate(),
           docReferenciaAux: `MOV-AJ-${contador}`,
           documento: {
@@ -762,7 +768,24 @@ export const updatePrecioProducto = async (req, res) => {
 export const saveDataInicial = async (req, res) => {
   const { clienteId, cantidadPorAlmacen, productoId } = req.body
   const datosParaAlmacen = []
+  let costoTotal = 0
+  let cantidadTotal = 0
+  cantidadPorAlmacen.forEach(e => {
+    costoTotal += Number(e.costoUnitario) * Number(e.cantidad)
+    cantidadTotal += Number(e.cantidad)
+  })
   if (cantidadPorAlmacen[0]) {
+    updateItemSD({
+      nameCollection: 'productos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(productoId) },
+      update: {
+        $set: {
+          isDataInicial: true,
+          costoPromedio: costoTotal / cantidadTotal
+        }
+      }
+    })
     for (const cantidad of cantidadPorAlmacen) {
       const verifyLote = await getItemSD({
         nameCollection: 'productosPorAlmacen',
@@ -783,7 +806,8 @@ export const saveDataInicial = async (req, res) => {
         fechaIngreso: moment(cantidad.fechaIngreso).toDate(),
         costoUnitario: Number(cantidad.costoUnitario),
         fechaMovimiento: moment().toDate(),
-        creadoPor: new ObjectId(req.uid)
+        creadoPor: new ObjectId(req.uid),
+        costoPromedio: costoTotal / cantidadTotal
       })
     }
     /* const datosParaAlmacen = cantidadPorAlmacen.map(e => {
@@ -808,7 +832,7 @@ export const saveDataInicial = async (req, res) => {
   return res.status(200).json({ status: 'Datos iniciales guardados exitosamente' })
 }
 export const updateCostoPorLote = async (req, res) => {
-  const { clienteId, productoId, nuevoCostoUnitario, lote, tipoAjuste, fechaActual } = req.body
+  const { clienteId, productoId, nuevoCostoPromedio, lote, tipoAjuste, fechaActual } = req.body
   console.log(req.body)
   const almacenAuditoria = await getItemSD({
     nameCollection: 'almacenes',
@@ -831,15 +855,16 @@ export const updateCostoPorLote = async (req, res) => {
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { productoId: new ObjectId(productoId), lote, almacenId: { $ne: almacenAuditoria._id } } },
+        { $match: { productoId: new ObjectId(productoId)/* , lote */, almacenId: { $ne: almacenAuditoria._id } } },
         {
           $group: {
             _id: {
-              costoUnitario: '$costoUnitario',
+              // costoUnitario: '$costoUnitario',
               productoId: '$productoId',
-              almacenId: '$almacenId'
+              almacenId: '$almacenId',
+              costoPromedio: '$costoPromedio'
             },
-            lote: { $first: '$lote' },
+            // lote: { $first: '$lote' },
             entrada: {
               $sum: {
                 $cond: {
@@ -906,8 +931,9 @@ export const updateCostoPorLote = async (req, res) => {
         {
           $project: {
             _id: 0,
-            lote: '$lote',
-            costoUnitario: '$_id.costoUnitario',
+            // lote: '$lote',
+            // costoUnitario: '$_id.costoUnitario',
+            costoPromedio: '$_id.costoPromedio',
             productoId: '$_id.productoId',
             almacenId: '$_id.almacenId',
             cantidad: { $subtract: ['$entrada', '$salida'] }, // cantidad de producto en el almacen de origen
@@ -959,8 +985,8 @@ export const updateCostoPorLote = async (req, res) => {
       }
       for (const movimiento of datosMovivientoPorProducto) {
         if (tipoAjuste === 'perdida') {
-          const costoActual = Number(movimiento.costoUnitario) * Number(movimiento.cantidad)
-          const nuevoCosto = Number(nuevoCostoUnitario) * Number(movimiento.cantidad)
+          const costoActual = Number(movimiento.costoPromedio) * Number(movimiento.cantidad)
+          const nuevoCosto = Number(nuevoCostoPromedio) * Number(movimiento.cantidad)
           const diferencia = costoActual - nuevoCosto
           const asientos = [
             {
@@ -969,7 +995,7 @@ export const updateCostoPorLote = async (req, res) => {
               cuentaNombre: cuentaPerdida.descripcion,
               comprobanteId: comprobante._id,
               periodoId: periodo._id,
-              descripcion: `Ajuste de costo ${movimiento.productoNombre} lote ${lote} en almacen ${movimiento.almacenNombre}`,
+              descripcion: `Ajuste de costo ${movimiento.productoNombre} en almacen ${movimiento.almacenNombre}`,
               fecha: moment(fechaActual).toDate(),
               debe: Number(diferencia),
               haber: 0,
@@ -986,7 +1012,7 @@ export const updateCostoPorLote = async (req, res) => {
               cuentaNombre: movimiento.cuentaNombre,
               comprobanteId: comprobante._id,
               periodoId: periodo._id,
-              descripcion: `Ajuste de costo ${movimiento.productoNombre} lote ${lote} en almacen ${movimiento.almacenNombre}`,
+              descripcion: `Ajuste de costo ${movimiento.productoNombre} en almacen ${movimiento.almacenNombre}`,
               fecha: moment(fechaActual).toDate(),
               debe: 0,
               haber: Number(diferencia),
@@ -1001,8 +1027,8 @@ export const updateCostoPorLote = async (req, res) => {
           asientosContables.push(...asientos)
         }
         if (tipoAjuste === 'ganancia') {
-          const costoActual = Number(movimiento.costoUnitario) * Number(movimiento.cantidad)
-          const nuevoCosto = Number(nuevoCostoUnitario) * Number(movimiento.cantidad)
+          const costoActual = Number(movimiento.costoPromedio) * Number(movimiento.cantidad)
+          const nuevoCosto = Number(nuevoCostoPromedio) * Number(movimiento.cantidad)
           const diferencia = nuevoCosto - costoActual
           const asientos = [
             {
@@ -1011,7 +1037,7 @@ export const updateCostoPorLote = async (req, res) => {
               cuentaNombre: movimiento.cuentaNombre,
               comprobanteId: comprobante._id,
               periodoId: periodo._id,
-              descripcion: `Ajuste de costo ${movimiento.productoNombre} lote ${lote} en almacen ${movimiento.almacenNombre}`,
+              descripcion: `Ajuste de costo ${movimiento.productoNombre} en almacen ${movimiento.almacenNombre}`,
               fecha: moment(fechaActual).toDate(),
               debe: Number(diferencia),
               haber: 0,
@@ -1028,7 +1054,7 @@ export const updateCostoPorLote = async (req, res) => {
               cuentaNombre: cuentaUtilidad.descripcion,
               comprobanteId: comprobante._id,
               periodoId: periodo._id,
-              descripcion: `Ajuste de costo ${movimiento.productoNombre} lote ${lote} en almacen ${movimiento.almacenNombre}`,
+              descripcion: `Ajuste de costo ${movimiento.productoNombre} en almacen ${movimiento.almacenNombre}`,
               fecha: moment(fechaActual).toDate(),
               debe: 0,
               haber: Number(diferencia),
@@ -1052,11 +1078,12 @@ export const updateCostoPorLote = async (req, res) => {
             $group: {
               _id: {
                 tipoAuditoria: '$tipoAuditoria',
-                costoUnitario: '$costoUnitario',
+                // costoUnitario: '$costoUnitario',
+                costoPromedio: '$costoPromedio',
                 productoId: '$productoId',
                 almacenId: '$almacenId'
               },
-              lote: { $first: '$lote' },
+              // lote: { $first: '$lote' },
               entrada: {
                 $sum: {
                   $cond: {
@@ -1123,9 +1150,10 @@ export const updateCostoPorLote = async (req, res) => {
           {
             $project: {
               _id: 0,
-              lote: '$lote',
+              // lote: '$lote',
               tipoAuditoria: '$_id.tipoAuditoria',
-              costoUnitario: '$_id.costoUnitario',
+              // costoUnitario: '$_id.costoUnitario',
+              costoPromedio: '$_id.costoPromedio',
               productoId: '$_id.productoId',
               almacenId: '$_id.almacenId',
               cantidad: { $subtract: ['$entrada', '$salida'] }, // cantidad de producto en el almacen de origen
@@ -1144,8 +1172,8 @@ export const updateCostoPorLote = async (req, res) => {
         for (const movimientoAuditoria of productosAlmacenAuditoria) {
           if (tipoAjuste === 'perdida') {
             if (movimientoAuditoria.tipoAuditoria === 'faltante') {
-              const costoActual = Number(movimientoAuditoria.costoUnitario) * Number(movimientoAuditoria.cantidad)
-              const nuevoCosto = Number(nuevoCostoUnitario) * Number(movimientoAuditoria.cantidad)
+              const costoActual = Number(movimientoAuditoria.costoPromedio) * Number(movimientoAuditoria.cantidad)
+              const nuevoCosto = Number(nuevoCostoPromedio) * Number(movimientoAuditoria.cantidad)
               const diferencia = costoActual - nuevoCosto
               const asientos = [
                 {
@@ -1154,7 +1182,7 @@ export const updateCostoPorLote = async (req, res) => {
                   cuentaNombre: cuentaPerdida.descripcion,
                   comprobanteId: comprobante._id,
                   periodoId: periodo._id,
-                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} lote ${lote} en almacen ${movimientoAuditoria.almacenNombre}`,
+                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} en almacen ${movimientoAuditoria.almacenNombre}`,
                   fecha: moment(fechaActual).toDate(),
                   debe: Number(diferencia),
                   haber: 0,
@@ -1171,7 +1199,7 @@ export const updateCostoPorLote = async (req, res) => {
                   cuentaNombre: movimientoAuditoria.cuentaNombre,
                   comprobanteId: comprobante._id,
                   periodoId: periodo._id,
-                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} lote ${lote} en almacen ${movimientoAuditoria.almacenNombre}`,
+                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} en almacen ${movimientoAuditoria.almacenNombre}`,
                   fecha: moment(fechaActual).toDate(),
                   debe: 0,
                   haber: Number(diferencia),
@@ -1186,8 +1214,8 @@ export const updateCostoPorLote = async (req, res) => {
               asientosContables.push(...asientos)
             }
             if (movimientoAuditoria.tipoAuditoria === 'sobrante') {
-              const costoActual = Number(movimientoAuditoria.costoUnitario) * Number(movimientoAuditoria.cantidad)
-              const nuevoCosto = Number(nuevoCostoUnitario) * Number(movimientoAuditoria.cantidad)
+              const costoActual = Number(movimientoAuditoria.costoPromedio) * Number(movimientoAuditoria.cantidad)
+              const nuevoCosto = Number(nuevoCostoPromedio) * Number(movimientoAuditoria.cantidad)
               const diferencia = costoActual - nuevoCosto
               const asientos = [
                 {
@@ -1196,7 +1224,7 @@ export const updateCostoPorLote = async (req, res) => {
                   cuentaNombre: movimientoAuditoria.cuentaNombre,
                   comprobanteId: comprobante._id,
                   periodoId: periodo._id,
-                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} lote ${lote} en almacen ${movimientoAuditoria.almacenNombre}`,
+                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} en almacen ${movimientoAuditoria.almacenNombre}`,
                   fecha: moment(fechaActual).toDate(),
                   debe: Number(diferencia),
                   haber: 0,
@@ -1213,7 +1241,7 @@ export const updateCostoPorLote = async (req, res) => {
                   cuentaNombre: cuentaUtilidad.descripcion,
                   comprobanteId: comprobante._id,
                   periodoId: periodo._id,
-                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} lote ${lote} en almacen ${movimientoAuditoria.almacenNombre}`,
+                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} en almacen ${movimientoAuditoria.almacenNombre}`,
                   fecha: moment(fechaActual).toDate(),
                   debe: 0,
                   haber: Number(diferencia),
@@ -1230,8 +1258,8 @@ export const updateCostoPorLote = async (req, res) => {
           }
           if (tipoAjuste === 'ganancia') {
             if (movimientoAuditoria.tipoAuditoria === 'faltante') {
-              const costoActual = Number(movimientoAuditoria.costoUnitario) * Number(movimientoAuditoria.cantidad)
-              const nuevoCosto = Number(nuevoCostoUnitario) * Number(movimientoAuditoria.cantidad)
+              const costoActual = Number(movimientoAuditoria.costoPromedio) * Number(movimientoAuditoria.cantidad)
+              const nuevoCosto = Number(nuevoCostoPromedio) * Number(movimientoAuditoria.cantidad)
               const diferencia = nuevoCosto - costoActual
               const asientos = [
                 {
@@ -1240,7 +1268,7 @@ export const updateCostoPorLote = async (req, res) => {
                   cuentaNombre: movimientoAuditoria.cuentaNombre,
                   comprobanteId: comprobante._id,
                   periodoId: periodo._id,
-                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} lote ${lote} en almacen ${movimientoAuditoria.almacenNombre}`,
+                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} en almacen ${movimientoAuditoria.almacenNombre}`,
                   fecha: moment(fechaActual).toDate(),
                   debe: Number(diferencia),
                   haber: 0,
@@ -1257,7 +1285,7 @@ export const updateCostoPorLote = async (req, res) => {
                   cuentaNombre: cuentaUtilidad.descripcion,
                   comprobanteId: comprobante._id,
                   periodoId: periodo._id,
-                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} lote ${lote} en almacen ${movimientoAuditoria.almacenNombre}`,
+                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} en almacen ${movimientoAuditoria.almacenNombre}`,
                   fecha: moment(fechaActual).toDate(),
                   debe: 0,
                   haber: Number(diferencia),
@@ -1272,8 +1300,8 @@ export const updateCostoPorLote = async (req, res) => {
               asientosContables.push(...asientos)
             }
             if (movimientoAuditoria.tipoAuditoria === 'sobrante') {
-              const costoActual = Number(movimientoAuditoria.costoUnitario) * Number(movimientoAuditoria.cantidad)
-              const nuevoCosto = Number(nuevoCostoUnitario) * Number(movimientoAuditoria.cantidad)
+              const costoActual = Number(movimientoAuditoria.costoPromedio) * Number(movimientoAuditoria.cantidad)
+              const nuevoCosto = Number(nuevoCostoPromedio) * Number(movimientoAuditoria.cantidad)
               const diferencia = nuevoCosto - costoActual
               const asientos = [
                 {
@@ -1282,7 +1310,7 @@ export const updateCostoPorLote = async (req, res) => {
                   cuentaNombre: cuentaPerdida.descripcion,
                   comprobanteId: comprobante._id,
                   periodoId: periodo._id,
-                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} lote ${lote} en almacen ${movimientoAuditoria.almacenNombre}`,
+                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} en almacen ${movimientoAuditoria.almacenNombre}`,
                   fecha: moment(fechaActual).toDate(),
                   debe: Number(diferencia),
                   haber: 0,
@@ -1299,7 +1327,7 @@ export const updateCostoPorLote = async (req, res) => {
                   cuentaNombre: movimientoAuditoria.cuentaNombre,
                   comprobanteId: comprobante._id,
                   periodoId: periodo._id,
-                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} lote ${lote} en almacen ${movimientoAuditoria.almacenNombre}`,
+                  descripcion: `Ajuste de costo ${movimientoAuditoria.productoNombre} en almacen ${movimientoAuditoria.almacenNombre}`,
                   fecha: moment(fechaActual).toDate(),
                   debe: 0,
                   haber: Number(diferencia),
@@ -1328,7 +1356,7 @@ export const updateCostoPorLote = async (req, res) => {
       filters: { lote, productoId: new ObjectId(productoId) },
       update: {
         $set: {
-          costoUnitario: nuevoCostoUnitario
+          costoPromedio: nuevoCostoPromedio
         }
       }
     })

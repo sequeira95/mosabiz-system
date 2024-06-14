@@ -80,7 +80,6 @@ export const getOrCreateComprobante = async (
   const queryPeriodo = { clienteId, isCierre: false }
   if (periodoId) queryPeriodo._id = periodoId
   else queryPeriodo.fecha = moment(mesPeriodo, 'YYYY/MM').toDate()
-  console.log(queryPeriodo)
   const { periodo, status } = await checkPeriodo(queryPeriodo)
   if (!status) throw new Error('No se encontró periodo o esta cerrado, para la fecha ingresada')
 

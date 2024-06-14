@@ -730,7 +730,6 @@ export const saveCalculosDepreciacion = async (req, res) => {
         } else {
           continue
         }
-        console.log([MovimientoGastos, MovimientoAcumulado])
         await createMovimientos({
           clienteId,
           movimientos: [MovimientoGastos, MovimientoAcumulado]

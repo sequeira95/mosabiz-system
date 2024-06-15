@@ -836,10 +836,10 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
         }
       } },
       { $addFields: {
-        depreciacionMes: { $round: [{ $divide: ['$montoAdquision', '$vidaUtilMeses'] }, 2] },
+        depreciacionMes: { $divide: ['$montoAdquision', '$vidaUtilMeses'] },
         depreciacionMesActual: { $cond: {
           if: { $gte: ['$fechaFinDepreciacion', fechaInicioMes] },
-          then: { $round: [{ $divide: ['$montoAdquision', '$vidaUtilMeses'] }, 2] },
+          then: { $divide: ['$montoAdquision', '$vidaUtilMeses'] },
           else: 0
         } },
         cantidadMesesDepreciar: { $cond: {
@@ -856,8 +856,8 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
       { $addFields: {
         // Si el mes que incia la depresiacion es igual al del mes cuando se adquirio
         // entonces no se debe usar el substract para quitar un mes
-        totalAccum: { $multiply: [{ $subtract: ['$cantidadMesesDepreciar', '$cantidadSustraer'] }, { $round: ['$depreciacionMes', 2] }] }
-        // totalAccum: { $round: [{ $multiply: ['$cantidadMesesDepreciar', '$depreciacionMes'] }, 2] }
+        totalAccum: { $multiply: [{ $subtract: ['$cantidadMesesDepreciar', '$cantidadSustraer'] }, '$depreciacionMes'] }
+        // totalAccum: { $multiply: ['$cantidadMesesDepreciar', '$depreciacionMes'] }
       } },
       {
         $lookup: {
@@ -903,7 +903,7 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
             {
               $project: {
                 _id: 1,
-                totalAcum: { $round: [{ $subtract: ['$haber', '$debe'] }, 2] },
+                totalAcum: { $subtract: ['$haber', '$debe'] },
               }
             }
           ],
@@ -936,7 +936,7 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
             {
               $project: {
                 _id: 1,
-                totalAcum: { $round: [{ $subtract: ['$debe', '$haber'] }, 2] }
+                totalAcum: { $subtract: ['$debe', '$haber'] }
               }
             }
           ],
@@ -951,10 +951,10 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
             gastos: '$zonacategoria.cuentaGastosDepreciacion'
           },
           totalMes: {
-            $sum: { $round: ['$depreciacionMesActual', 2] }
+            $sum: '$depreciacionMesActual'
           },
           totalAccumulado: {
-            $sum: { $round: ['$totalAccum', 2] }
+            $sum: '$totalAccum'
           },
           categoria: {
             $first: '$categoriaNombre'
@@ -970,8 +970,8 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
       {
         $project: {
           _id: 1,
-          totalMes: { $round: ['$totalMes', 2] },
-          totalAccumulado: { $round: ['$totalAccumulado', 2] },
+          totalMes: '$totalMes',
+          totalAccumulado: '$totalAccumulado',
           categoria: 1,
           movimientos: 1,
           movimientosIniciales: 1
@@ -1100,7 +1100,7 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
       },
       // { $match: { $expr: { $gte: ['$vidaUtilMeses', '$mesesDiff'] } } },
       { $addFields: {
-        depreciacionMes: { $round: [{ $divide: ['$montoAdquision', '$vidaUtilMeses'] }, 2] },
+        depreciacionMes: { $divide: ['$montoAdquision', '$vidaUtilMeses'] },
         cantidadMesesDepreciar: { $cond: {
           if: { $gt: ['$mesesDiff', '$vidaUtilMeses'] },
           then: '$vidaUtilMeses',
@@ -1123,7 +1123,7 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
       { $addFields: {
         // Si el mes que inicia la depreciacion es igual al del mes cuando se adquirio
         // entonces no se debe usar el substract para quitar un mes
-        totalAccum: { $round: [{ $multiply: [{ $subtract: ['$cantidadMesesDepreciar', '$cantidadSustraer'] }, { $round: ['$depreciacionMes', 2] }] }, 2] }
+        totalAccum: { $multiply: [{ $subtract: ['$cantidadMesesDepreciar', '$cantidadSustraer'] }, '$depreciacionMes'] }
         // totalAccum: { $multiply: ['$cantidadMesesDepreciar', '$depreciacionMes'] }
       } },
       { $facet: {
@@ -1380,9 +1380,9 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
           {
             $project: {
               _id: 0,
-              totalCalculoAcum: { $round: ['$totalAccum', 2] },
-              totalContabilidadAcum: { $round: ['$detalleComprobantes.totalAcum', 2] },
-              totalContabilidadGasto: { $round: ['$detalleComprobantes.totaltotalGastoAcum', 2] }
+              totalCalculoAcum: '$totalAccum',
+              totalContabilidadAcum: '$detalleComprobantes.totalAcum',
+              totalContabilidadGasto: '$detalleComprobantes.totaltotalGastoAcum'
             }
           },
           {
@@ -1452,9 +1452,9 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
     const data = {
       ...totals,
       fecha: mes.startOf('month').format('YYYY-MM-DD'),
-      gastosCalculo,
-      gastosContabilidad,
-      gastosDiferencia,
+      gastosCalculo: Number((gastosCalculo).toFixed(2)),
+      gastosContabilidad: Number((gastosContabilidad).toFixed(2)),
+      gastosDiferencia: Number((gastosDiferencia).toFixed(2)),
       nombre,
       send: false
     }

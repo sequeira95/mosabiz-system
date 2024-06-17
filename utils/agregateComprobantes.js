@@ -86,8 +86,6 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
         ]
       })
     let detalleIndex = -1
-    // console.log({ search })
-    let detalleall
     if (search.detalleId) {
       const detalle = await agreggateCollectionsSD(
         {
@@ -108,17 +106,9 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
             }
           ]
         })
-      detalleall = await agreggateCollectionsSD(
-        {
-          nameCollection: 'detallesComprobantes',
-          enviromentClienteId: clienteId,
-          pipeline: [
-            { $match: configMatch }
-          ]
-        })
       detalleIndex = detalle[0]?.index ?? -1
     }
-    return ({ detalleall, detallesComprobantes, cantidad: datosExtras[0]?.count, totalDebe: datosExtras[0]?.debe, totalHaber: datosExtras[0]?.haber, detalleIndex })
+    return ({ detallesComprobantes, cantidad: datosExtras[0]?.count, totalDebe: datosExtras[0]?.debe, totalHaber: datosExtras[0]?.haber, detalleIndex })
   } catch (e) {
     console.log(e)
     return e

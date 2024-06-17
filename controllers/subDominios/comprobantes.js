@@ -213,7 +213,8 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
         cantidad: e?.cantidad,
         monedasUsar: e?.monedasUsar,
         tasa: e?.tasa,
-        monedaPrincipal: e?.monedaPrincipal
+        monedaPrincipal: e?.monedaPrincipal,
+        isPreCierre: e.isPreCierre ? e.isPreCierre : null
       }
     })
     if (datosDetallesSinId[0]) await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: datosDetallesSinId })

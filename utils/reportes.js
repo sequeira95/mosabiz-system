@@ -415,7 +415,7 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
                       [
                         { $eq: ['$periodoId', new ObjectId(periodoId)] },
                         { $lte: ['$fecha', fechaInit] },
-                        { $ne: ['$isPreCierre', true] },
+                        { $eq: ['$isPreCierre', true] },
                         { $ne: ['$isCierre', true] },
                         {
                           $regexMatch:

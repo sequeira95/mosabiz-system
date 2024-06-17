@@ -203,7 +203,7 @@ export const createActivoFijo = async (req, res) => {
         idProducto: newActivo.insertedId,
         categoria: 'creado',
         tipo: 'Activo fijo',
-        fecha: moment().toDate(),
+        fecha: momentDate(ajustesSistema?.timeZone).toDate(),
         descripcion: `Creo el activo: ${codigo} - ${nombre}`,
         creadoPor: new ObjectId(req.uid)
       }
@@ -289,7 +289,7 @@ export const editActivoFijo = async (req, res) => {
             const fecha1 = moment(originalValue).format('DD/MM/YYYY')
             const fecha2 = moment(value).format('DD/MM/YYYY')
             if (fecha1 === fecha2) continue
-            descripcionUpdate.push({ campo: keyActivosFijos[key], antes: moment(originalValue).toDate(), despues: moment(value).toDate() })
+            descripcionUpdate.push({ campo: keyActivosFijos[key], antes: momentDate(ajustesSistema?.timeZone, originalValue).toDate(), despues: momentDate(ajustesSistema?.timeZone, value).toDate() })
             continue
           }
           descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
@@ -304,7 +304,7 @@ export const editActivoFijo = async (req, res) => {
           idProducto: activo._id,
           categoria: 'editado',
           tipo: 'Activo fijo',
-          fecha: moment().toDate(),
+          fecha: momentDate(ajustesSistema?.timeZone).toDate(),
           descripcion: descripcionUpdate,
           creadoPor: new ObjectId(req.uid)
         }
@@ -363,7 +363,7 @@ export const saveToArray = async (req, res) => {
               const fecha1 = moment(originalValue).format('DD/MM/YYYY')
               const fecha2 = moment(value).format('DD/MM/YYYY')
               if (fecha1 === fecha2) continue
-              descripcionUpdate.push({ campo: keyActivosFijos[key], antes: moment(originalValue).toDate(), despues: moment(value).toDate() })
+              descripcionUpdate.push({ campo: keyActivosFijos[key], antes: momentDate(ajustesSistema?.timeZone, originalValue).toDate(), despues: momentDate(ajustesSistema?.timeZone, value).toDate() })
               continue
             }
             descripcionUpdate.push({ campo: keyActivosFijos[key], antes: originalValue, despues: value })
@@ -377,7 +377,7 @@ export const saveToArray = async (req, res) => {
               idProducto: updateActivo._id,
               categoria: 'editado',
               tipo: 'Activo fijo',
-              fecha: moment().toDate(),
+              fecha: momentDate(ajustesSistema?.timeZone).toDate(),
               descripcion: descripcionUpdate,
               creadoPor: new ObjectId(req.uid)
             }
@@ -409,7 +409,7 @@ export const saveToArray = async (req, res) => {
             idProducto: newActivo.insertedId,
             categoria: 'creado',
             tipo: 'Activo fijo',
-            fecha: moment().toDate(),
+            fecha: momentDate(ajustesSistema?.timeZone).toDate(),
             descripcion: `Creo el activo: ${activo.codigo} - ${activo.nombre}`,
             creadoPor: new ObjectId(req.uid)
           }
@@ -463,17 +463,18 @@ const createDetalleComprobanteActivoFijo = async ({
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(cuentaPago) }
     })
-    const fechaComprobante = moment(`${dataComprobante}/01`, 'YYYY/MM/DD').toDate()
+    const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
+    const fechaComprobante = momentDate(ajustesSistema?.timeZone, `${dataComprobante}/01`, 'YYYY/MM/DD').toDate()
     const datosRepetidos = {
       comprobanteId: new ObjectId(comprobanteRegistroActivo),
       periodoId: new ObjectId(periodoId),
       descripcion: `Adquisición ${categoriaNombre}`,
       fecha: fechaComprobante,
-      fechaCreacion: moment().toDate(),
+      fechaCreacion: momentDate(ajustesSistema?.timeZone).toDate(),
       docReferenciaAux: referencia,
       documento: {
         docReferencia: referencia,
-        docFecha: moment(fechaAdquisicion).toDate(),
+        docFecha: momentDate(ajustesSistema?.timeZone, fechaAdquisicion).toDate(),
         docTipo: 'Transacción',
         documento: documentosAdjuntos
       }
@@ -516,6 +517,7 @@ const createDetalleComprobanteForEdit = async ({
   dataComprobante
 }) => {
   try {
+    const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
     const categoriaZona = await getItemSD({
       nameCollection: 'categoriaPorZona',
       enviromentClienteId: clienteId,
@@ -536,17 +538,17 @@ const createDetalleComprobanteForEdit = async ({
       enviromentClienteId: clienteId,
       filters: { _id: categoriaZonaPreUpdate.cuentaId }
     })
-    const fechaComprobante = moment(`${dataComprobante}/01`, 'YYYY/MM/DD').toDate()
+    const fechaComprobante = momentDate(ajustesSistema?.timeZone, `${dataComprobante}/01`, 'YYYY/MM/DD').toDate()
     const datosRepetidos = {
       comprobanteId: new ObjectId(comprobanteRegistroActivo),
       periodoId: new ObjectId(periodoId),
       descripcion: `Adquisición ${categoriaNombre}`,
       fecha: fechaComprobante,
-      fechaCreacion: moment().toDate(),
+      fechaCreacion: momentDate(ajustesSistema?.timeZone).toDate(),
       docReferenciaAux: referencia,
       documento: {
         docReferencia: referencia,
-        docFecha: moment(fechaAdquisicion).toDate(),
+        docFecha: momentDate(ajustesSistema?.timeZone, fechaAdquisicion).toDate(),
         docTipo: 'Transacción',
         documento: documentosAdjuntos
       }
@@ -687,9 +689,9 @@ export const saveCalculosDepreciacion = async (req, res) => {
           comprobanteId: dato.comprobanteId,
           periodoId: dato.periodoId,
           fecha: (isMesActual
-            ? moment().toDate()
+            ? momentDate(ajustesSistema.timeZone).toDate()
             : momentDate(ajustesSistema.timeZone, dato.fecha).endOf('month').toDate()),
-          fechaCreacion: moment().toDate(),
+          fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
           docReferenciaAux: 'Depreciación',
           documento: {
             docReferencia: 'Depreciación'
@@ -773,22 +775,11 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
   }
   if (!comprobanteAmortizacion) throw new Error('No existe y no se ha podido crear el comprobante de activos amortizados')
 
-  const fechaInicio = momentDate(ajustesSistema.timeZone, periodoActual.fechaInicio).startOf('month').toDate()
   const fechaFin = momentDate(ajustesSistema.timeZone, fecha).endOf('month').toDate()
   const fechaInicioMes = momentDate(ajustesSistema.timeZone, fecha).startOf('month').toDate()
   // este busca los activos que se pueden depresiar, es decir, que su fecha de adquisicion
   // sea inferior al mes que se desea depresiar
   const fechaInicioActivoDepreciable = momentDate(ajustesSistema.timeZone, fecha).subtract(1, 'month').endOf('month').toDate()
-
-  const sumDiff = fechaFin.getMonth() === fechaInicio.getMonth() ? 0 : 1
-  const diffMonths = momentDate(ajustesSistema.timeZone, fechaFin).diff(momentDate(ajustesSistema.timeZone, fechaInicio), 'months') + sumDiff
-  const comprobantesMesPeriodo = []
-  for (let i = fechaInicio.getMonth() + 1; i <= (diffMonths + fechaInicio.getMonth() + 1); i++) {
-    const mes = moment().set({ month: i - 1 }).format('YYYY/MM')
-    comprobantesMesPeriodo.push(mes)
-  }
-  const comprobantesAmortizacion = await getCollectionSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { mesPeriodo: { $in: comprobantesMesPeriodo }, codigo: ajustesContabilidad.codigoComprobanteActivoAmortizado } })
-
   const datosActivos = await agreggateCollectionsSD({
     nameCollection: 'activosFijos',
     enviromentClienteId: clienteId,

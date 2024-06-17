@@ -1,4 +1,4 @@
-import moment from 'moment'
+import { momentDate } from './momentDate.js'
 import { getItemSD, upsertItemSD, agreggateCollectionsSD, createManyItemsSD, createItemSD } from './dataBaseConfing.js'
 /**
  * @param {object} options - Consulta del periodo
@@ -11,6 +11,8 @@ import { getItemSD, upsertItemSD, agreggateCollectionsSD, createManyItemsSD, cre
 export const checkPeriodo = async ({ clienteId, fecha, periodoId, isCierre, query } = { isCierre: false, query: {} }) => {
   if (!clienteId) return { status: false }
   if (!(fecha || periodoId)) return { status: false }
+  const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
+  const timeZone = ajustesSistema?.timeZone
   const filters = {
     isCierre: { $ne: true },
     ...query
@@ -19,8 +21,8 @@ export const checkPeriodo = async ({ clienteId, fecha, periodoId, isCierre, quer
     filters.isCierre = true
   }
   if (fecha) {
-    filters.fechaInicio = { $lte: moment(fecha).toDate() }
-    filters.fechaFin = { $gte: moment(fecha).toDate() }
+    filters.fechaInicio = { $lte: momentDate(timeZone, fecha).toDate() }
+    filters.fechaFin = { $gte: momentDate(timeZone, fecha).toDate() }
   }
   if (periodoId) filters._id = periodoId
   const periodo = await getItemSD({
@@ -78,8 +80,10 @@ export const getOrCreateComprobante = async (
   if (!hasPeriodo) throw new Error('Debe ingresar un periodo o fecha valido')
 
   const queryPeriodo = { clienteId, isCierre: false }
+  const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
+  const timeZone = ajustesSistema?.timeZone
   if (periodoId) queryPeriodo._id = periodoId
-  else queryPeriodo.fecha = moment(mesPeriodo, 'YYYY/MM').toDate()
+  else queryPeriodo.fecha = momentDate(timeZone, mesPeriodo, 'YYYY/MM').toDate()
   const { periodo, status } = await checkPeriodo(queryPeriodo)
   if (!status) throw new Error('No se encontró periodo o esta cerrado, para la fecha ingresada')
 
@@ -92,7 +96,7 @@ export const getOrCreateComprobante = async (
     update: {
       $set: {
         ...createProps,
-        fechaCreacion: moment().toDate()
+        fechaCreacion: momentDate(timeZone).toDate()
       }
     }
   })

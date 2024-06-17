@@ -701,8 +701,8 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             costoTotal: { $first: '$total' }
           }
         },
-        /* { $limit: itemsPorPagina },
-        { $skip: pagina * itemsPorPagina }, */
+        { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+        { $limit: Number(itemsPorPagina) },
         {
           $lookup: {
             from: proveedoresCollection,
@@ -716,6 +716,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
           $project: {
             proveedorId: '$_id',
             proveedor: '$proveedor.razonSocial',
+            documentoIdentidad: { $concat: ['$proveedor.tipoDocumento', '-', '$proveedor.documentoIdentidad'] },
             costoTotal: '$costoTotal',
             fechaVencimiento: '$fechaVencimiento',
             diffFechaVencimiento:
@@ -738,14 +739,75 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             count: { $sum: 1 }
           }
         }
-        /* { $limit: itemsPorPagina },
-        { $skip: pagina * itemsPorPagina }, */
       ]
     })
-    console.log(comprasPorProveedor)
     return res.status(200).json({ conteosPendientesPorPago: conteosPendientesPorPago[0] ? conteosPendientesPorPago[0] : null, count: count.count, comprasPorProveedor })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })
+  }
+}
+export const getDetalleProveedor = async (req, res) => {
+  const { clienteId, proveedorId, itemsPorPagina, pagina } = req.body
+  try {
+    const pagination = []
+    if (itemsPorPagina && pagina) {
+      pagination.push(
+        { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+        { $limit: Number(itemsPorPagina) }
+      )
+    }
+    const comprasPorProveedor = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { estado: 'pendientePagos', proveedorId: new ObjectId(proveedorId) } },
+        /* { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+        { $limit: Number(itemsPorPagina) }, */
+        ...pagination,
+        {
+          $project: {
+            proveedorId: 1,
+            numeroOrden: 1,
+            costoTotal: '$total'
+          }
+        }
+      ]
+    })
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { estado: 'pendientePagos', proveedorId: new ObjectId(proveedorId) } },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ comprasPorProveedor, count: count && count[0] ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar el listados de compras del proveedor ' + e.message })
+  }
+}
+export const createPagoOrdenes = async (req, res) => {
+  console.log(req.body)
+  const { clienteId, proveedorId, abonos } = req.body
+  try {
+    const datosAbonos = []
+    if (abonos[0]) {
+      for (const abono of abonos) {
+        datosAbonos.push({
+          compraId: new ObjectId(abono.compraId),
+          proveedorId: new ObjectId(proveedorId),
+          pago: Number(abono.monto),
+          fechaPago: moment(abono.fechaPago).toDate(),
+          referencia: abono.referencia,
+          banco: new ObjectId(abono.banco._id)
+        })
+      }
+    }
+    return res.status(200).json({ })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de realizar el pago de compras ' + e.message })
   }
 }

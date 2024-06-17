@@ -32,12 +32,14 @@ export const getTipoAjustesCliente = async (req, res) => {
 export const upsertAjusteCliente = async (req, res) => {
   const ajuste = req.body.ajuste
   const clienteId = req.body.clienteId
-  console.log({ ajuste, clienteId })
   if (ajuste.cuentaSuperAvitAcum && ajuste.cuentaSuperAvitAcum._id) ajuste.cuentaSuperAvitAcum = new ObjectId(ajuste.cuentaSuperAvitAcum._id)
   if (ajuste.cuentaPerdidaAcum && ajuste.cuentaPerdidaAcum._id) ajuste.cuentaPerdidaAcum = new ObjectId(ajuste.cuentaPerdidaAcum._id)
   if (ajuste.cuentaSuperAvitOperdidaActual && ajuste.cuentaSuperAvitOperdidaActual._id) ajuste.cuentaSuperAvitOperdidaActual = new ObjectId(ajuste.cuentaSuperAvitOperdidaActual._id)
   if (ajuste.cuentaISLR && ajuste.cuentaISLR._id) ajuste.cuentaISLR = new ObjectId(ajuste.cuentaISLR._id)
   if (ajuste._id) delete ajuste._id
+  if (ajuste.puedeDesbloquearComprobantes) {
+    ajuste.puedeDesbloquearComprobantes = ajuste.puedeDesbloquearComprobantes.map(userId => new ObjectId(userId))
+  }
   if (ajuste.puedeRecibir && ajuste.puedeRecibir[0]) ajuste.puedeRecibir = ajuste.puedeRecibir.map(puedeRecibir => new ObjectId(puedeRecibir._id))
   if (ajuste.puedeCrear && ajuste.puedeCrear[0]) ajuste.puedeCrear = ajuste.puedeCrear.map(puedeCrear => new ObjectId(puedeCrear._id))
   if (ajuste.puedeCrearProductos && ajuste.puedeCrearProductos[0]) ajuste.puedeCrearProductos = ajuste.puedeCrearProductos.map(puedeCrearProductos => new ObjectId(puedeCrearProductos._id))

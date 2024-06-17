@@ -4,9 +4,11 @@ import {
   aprobarOrdenCompra,
   aprobarPagosOrdenCompra,
   cancelarCompra, createOrdenCompra,
+  createPagoOrdenes,
   editOrden,
   getDataCompra,
   getDataOrdenesComprasPorPagar,
+  getDetalleProveedor,
   getListImpuestosIslr,
   getListImpuestosIva,
   getListProductosForCompra,
@@ -28,4 +30,6 @@ router.post('/aprobarOrden', requireSubDominioToken, aprobarOrdenCompra)
 router.post('/aprobarForPagos', requireSubDominioToken, aprobarPagosOrdenCompra)
 router.post('/editOrden', requireSubDominioToken, editOrden)
 router.post('/get/ordenesCompra/porPagar', requireSubDominioToken, getDataOrdenesComprasPorPagar)
+router.post('/getDetalleProveedor', requireSubDominioToken, getDetalleProveedor)
+router.post('/create/pagosOrdenes', requireSubDominioToken, createPagoOrdenes)
 export default router

@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { subDominioName, tipoMovimientosShort } from '../../constants.js'
 import { hasContabilidad, validMovimientoAuditoria, validMovimientoPenditeEnvio, validMovimientoPenditeRecepcion } from '../../utils/hasContabilidad.js'
@@ -288,15 +288,196 @@ export const updateEstadoMovimiento = async (req, res) => {
   }
 }
 export const cancelarMovimiento = async (req, res) => {
-  const { clienteId, movimientoId, observacion } = req.body
+  const { clienteId, movimientoId, observacion, fechaCancelado } = req.body
   try {
     const movimiento = await updateItemSD({
       nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(movimientoId) },
-      update: { $set: { estado: 'Cancelado', observacion } }
+      update: { $set: { estado: 'Cancelado', observacion, fechaCancelado: moment(fechaCancelado).toDate() } }
     })
-    deleteManyItemsSD({ nameCollection: 'productosPorAlmacen', enviromentClienteId: clienteId, filters: { movimientoId: new ObjectId(movimientoId) } })
+    // deleteManyItemsSD({ nameCollection: 'productosPorAlmacen', enviromentClienteId: clienteId, filters: { movimientoId: new ObjectId(movimientoId) } })
+    const almacenAuditoria = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Auditoria' } })
+    const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const productosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+    const categoriaPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
+    const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+    const productosPorAlmacen = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { movimientoId: new ObjectId(movimientoId) } },
+        {
+          $lookup: {
+            from: almacenCollection,
+            localField: 'almacenId',
+            foreignField: '_id',
+            as: 'almacen'
+          }
+        },
+        { $unwind: { path: '$almacen', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: productosCollection,
+            localField: 'productoId',
+            foreignField: '_id',
+            as: 'producto'
+          }
+        },
+        { $unwind: { path: '$producto', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: categoriaPorAlmacenCollection,
+            localField: 'producto.categoria',
+            foreignField: 'categoriaId',
+            let: { almacenId: '$almacen._id' },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$almacenId', '$$almacenId'] } } },
+              { $project: { cuentaId: 1 } }
+            ],
+            as: 'categoriaAlmacen'
+          }
+        },
+        { $unwind: { path: '$categoriaAlmacen', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: planCuentaCollection,
+            localField: 'categoriaAlmacen.cuentaId',
+            foreignField: '_id',
+            as: 'cuentaTransito'
+          }
+        },
+        { $unwind: { path: '$cuentaTransito', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: categoriaPorAlmacenCollection,
+            localField: 'producto.categoria',
+            foreignField: 'categoriaId',
+            pipeline: [
+              { $match: { almacenId: { $eq: almacenAuditoria._id } } },
+              { $project: { cuentaId: 1 } }
+            ],
+            as: 'categoriaAlmacenAuditoria'
+          }
+        },
+        { $unwind: { path: '$categoriaAlmacenAuditoria', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: planCuentaCollection,
+            localField: 'categoriaAlmacenAuditoria.cuentaId',
+            foreignField: '_id',
+            as: 'cuentaAuditoria'
+          }
+        },
+        { $unwind: { path: '$cuentaAuditoria', preserveNullAndEmptyArrays: true } }
+      ]
+    })
+    console.log(productosPorAlmacen)
+    const movimientoProdutoAlmacen = []
+    const asientosContables = []
+    const tieneContabilidad = await hasContabilidad({ clienteId })
+    let periodo = null
+    let comprobante = null
+    if (productosPorAlmacen) {
+      if (tieneContabilidad) {
+        const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
+        periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaCancelado).toDate() }, fechaFin: { $gte: moment(fechaCancelado).toDate() } } })
+        console.log({ periodo })
+        if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha de envio o de recepción')
+        const mesPeriodo = moment(fechaCancelado).format('YYYY/MM')
+        comprobante = await getItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteInventario.codigoComprobanteMovimientos, periodoId: periodo._id, mesPeriodo }
+        })
+        if (!comprobante) {
+          comprobante = await upsertItemSD({
+            nameCollection: 'comprobantes',
+            enviromentClienteId: clienteId,
+            filters: { codigo: ajusteInventario.codigoComprobanteMovimientos, periodoId: periodo._id, mesPeriodo },
+            update: {
+              $set: {
+                nombre: 'Movimientos de inventario',
+                isBloqueado: false,
+                fechaCreacion: moment().toDate()
+              }
+            }
+          })
+        }
+      }
+      for (const producto of productosPorAlmacen) {
+        movimientoProdutoAlmacen.push({
+          productoId: new ObjectId(producto.productoId),
+          movimientoId: new ObjectId(producto.movimientoId),
+          cantidad: Number(producto.cantidad),
+          almacenId: almacenAuditoria._id,
+          almacenOrigen: new ObjectId(producto.almacen._id),
+          almacenDestino: almacenAuditoria._id,
+          tipo: 'movimiento',
+          tipoMovimiento: 'entrada',
+          lote: producto.lote,
+          fechaVencimiento: moment(producto.fechaVencimiento).toDate(),
+          fechaIngreso: moment(producto.fechaIngreso).toDate(),
+          tipoAuditoria: 'faltante',
+          fechaMovimiento: moment().toDate(),
+          costoUnitario: producto.costoUnitario,
+          costoPromedio: producto.costoPromedio,
+          creadoPor: new ObjectId(req.uid)
+        }, {
+          productoId: new ObjectId(producto.productoId),
+          movimientoId: new ObjectId(producto.movimientoId),
+          cantidad: Number(producto.cantidad),
+          almacenId: new ObjectId(producto.almacen._id),
+          almacenOrigen: new ObjectId(producto.almacen._id),
+          almacenDestino: almacenAuditoria._id,
+          tipo: 'movimiento',
+          tipoMovimiento: 'salida',
+          lote: producto.lote,
+          fechaVencimiento: moment(producto.fechaVencimiento).toDate(),
+          fechaIngreso: moment(producto.fechaIngreso).toDate(),
+          // tipoAuditoria: 'faltante',
+          fechaMovimiento: moment().toDate(),
+          costoUnitario: producto.costoUnitario,
+          costoPromedio: producto.costoPromedio,
+          creadoPor: new ObjectId(req.uid)
+        })
+        if (tieneContabilidad) {
+          asientosContables.push({
+            cuentaId: new ObjectId(producto.cuentaAuditoria._id),
+            cuentaCodigo: producto.cuentaAuditoria.codigo,
+            cuentaNombre: producto.cuentaAuditoria.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} CANCELADO`,
+            fecha: moment(fechaCancelado).toDate(),
+            debe: Number(producto.cantidad) * Number(producto.costoPromedio),
+            haber: 0,
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+            documento: {
+              docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+              docFecha: moment(fechaCancelado).toDate()
+            }
+          }, {
+            cuentaId: new ObjectId(producto.cuentaTransito._id),
+            cuentaCodigo: producto.cuentaTransito.codigo,
+            cuentaNombre: producto.cuentaTransito.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} CANCELADO`,
+            fecha: moment(fechaCancelado).toDate(),
+            debe: 0,
+            haber: Number(producto.cantidad) * Number(producto.costoPromedio),
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+            documento: {
+              docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+              docFecha: moment(fechaCancelado).toDate()
+            }
+          })
+        }
+      }
+    }
     createItemSD({
       nameCollection: 'historial',
       enviromentClienteId: clienteId,
@@ -309,6 +490,20 @@ export const cancelarMovimiento = async (req, res) => {
         descripcion: `Movimiento ${movimiento.numeroMovimiento} cancelado`
       }
     })
+    if (movimientoProdutoAlmacen[0]) {
+      createManyItemsSD({
+        nameCollection: 'productosPorAlmacen',
+        enviromentClienteId: clienteId,
+        items: movimientoProdutoAlmacen
+      })
+    }
+    if (tieneContabilidad && asientosContables[0]) {
+      createManyItemsSD({
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        items: asientosContables
+      })
+    }
     return res.status(200).json({ status: 'Movimiento cancelado exitosamente' })
   } catch (e) {
     console.log(e)

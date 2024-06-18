@@ -900,7 +900,7 @@ export const getProductosPorAlmacen = async (req, res) => {
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { almacenId: new ObjectId(almacenOrigen) } },
+        { $match: { almacenId: new ObjectId(almacenOrigen), activo: { $ne: false } } },
         {
           $group:
           {

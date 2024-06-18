@@ -410,7 +410,8 @@ export const getListadoCompras = async (req, res) => {
             tasaDia: 1,
             fechaPago: 1,
             pagadoPor: '$pagadoPorDetalle.nombre',
-            pagadoPorId: '$pagadoPorDetalle.usuarioId'
+            pagadoPorId: '$pagadoPorDetalle.usuarioId',
+            statusInventario: 1
           }
         }
       ]
@@ -978,6 +979,13 @@ export const createPagoOrdenes = async (req, res) => {
           fechaPago: moment(abono.fechaPago).toDate(),
           referencia: abono.referencia,
           banco: new ObjectId(abono.banco._id),
+          porcentajeIgtf: Number(abono?.porcentajeIgtf || 0),
+          baseImponibleIgtf: Number(abono?.baseImponibleIgtf || 0),
+          pagoIgtf: abono?.pagoIgtf,
+          abonoSecundario: abono?.abonoSecundario,
+          baseImponibleIgtfSecundario: abono?.baseImponibleIgtfSecundario,
+          pagoIgtfSecundario: abono?.pagoIgtfSecundario,
+          moneda: abono.moneda,
           tipo: 'compra',
           creadoPor: new ObjectId(req.uid)
         })
@@ -1147,7 +1155,13 @@ export const getDataCompraRecepcion = async (req, res) => {
             localField: '_id',
             foreignField: 'compraId',
             pipeline: [
-              { $match: { tipo: 'producto' } }
+              { $match: { tipo: 'producto' } },
+              {
+                $addFields: {
+                  cantValid: { $subtract: ['$cantidad', '$recibido'] }
+                }
+              },
+              { $match: { cantValid: { $ne: 0 } } }
             ],
             as: 'detalleCompra'
           }

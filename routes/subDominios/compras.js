@@ -6,13 +6,16 @@ import {
   cancelarCompra, createOrdenCompra,
   createPagoOrdenes,
   editOrden,
+  getComprasForRecepcion,
   getDataCompra,
+  getDataCompraRecepcion,
   getDataOrdenesComprasPorPagar,
   getDetalleProveedor,
   getListImpuestosIslr,
   getListImpuestosIva,
   getListProductosForCompra,
   getListadoCompras,
+  getListadoPagos,
   getServiciosForCompra
 } from '../../controllers/subDominios/compras.js'
 
@@ -32,4 +35,7 @@ router.post('/editOrden', requireSubDominioToken, editOrden)
 router.post('/get/ordenesCompra/porPagar', requireSubDominioToken, getDataOrdenesComprasPorPagar)
 router.post('/getDetalleProveedor', requireSubDominioToken, getDetalleProveedor)
 router.post('/create/pagosOrdenes', requireSubDominioToken, createPagoOrdenes)
+router.post('/get/listadoTransacciones', requireSubDominioToken, getListadoPagos)
+router.post('/get/comprasRecepcion', requireSubDominioToken, getComprasForRecepcion)
+router.post('/get/dataCompra/recepcion', requireSubDominioToken, getDataCompraRecepcion)
 export default router

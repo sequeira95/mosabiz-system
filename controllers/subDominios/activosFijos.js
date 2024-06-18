@@ -676,12 +676,15 @@ export const saveCalculosDepreciacion = async (req, res) => {
       dato.fecha = fechaBusqueda
       const isMesActual = momentDate(ajustesSistema.timeZone, dato.fecha).format('YYYY-MM') === momentDate(ajustesSistema.timeZone).format('YYYY-MM')
       for (const result of dato.resultado) {
-        const valorMovimiento = (
-          (result.totalMes + result.totalAccumulado) -
-          (result.movimientos?.totalAcum || 0) -
-          (result.movimientosIniciales?.totalAcum || 0)
-        )
-
+        const valorMovimiento = Number((
+          Number((result?.totalMes || 0).toFixed(2)) +
+          Number((result?.totalAccumulado || 0).toFixed(2)) -
+          // result?.totalMes + result?.totalAccumulado) -
+          (result?.movimientos?.totalAcum || 0) -
+          (result?.movimientosIniciales?.totalAcum || 0)
+          // (result?.movimientos?.totalAcum || 0) -
+          // (result?.movimientosIniciales?.totalAcum || 0)
+        ).toFixed(2))
         if (Number(valorMovimiento.toFixed(2)) === 0) continue
 
         const movimiento = {
@@ -755,8 +758,6 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
   const categoriaPorZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
   const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
   const detalleComprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
-  const yearStartComprobantes = momentDate(ajustesSistema.timeZone, periodoActual.fechaInicio).startOf('month').year()
-  const comprobanteCierre = await getItemSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { mesPeriodo: new RegExp(`${yearStartComprobantes}`, 'i'), isPreCierre: true } })
 
   let comprobanteAmortizacion
   const mesPeriodo = momentDate(ajustesSistema.timeZone, fecha).format('YYYY/MM')
@@ -873,6 +874,7 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
             {
               $match: {
                 periodoId: periodoActual._id,
+                isPreCierre: { $ne: true },
                 $expr: {
                   $and: [
                     { $lte: ['$fecha', fechaFin] }
@@ -910,7 +912,7 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
           pipeline: [
             {
               $match: {
-                comprobanteId: comprobanteCierre?._id || 'none',
+                isPreCierre: { $eq: true }
               }
             },
             {
@@ -927,7 +929,7 @@ const depreciacionPorCategoriaSegunMes = async (fecha, clienteId, periodoId) => 
             {
               $project: {
                 _id: 1,
-                totalAcum: { $subtract: ['$debe', '$haber'] }
+                totalAcum: { $subtract: ['$haber', '$debe'] }
               }
             }
           ],
@@ -990,7 +992,6 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
   const detalleComprobantesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } }) || {}
 
-  const comprobanteCierre = await getItemSD({ nameCollection: 'comprobantes', enviromentClienteId: clienteId, filters: { periodoId: periodoActual._id, isPreCierre: true } })
   const fechaInicio = momentDate(ajustesSistema.timeZone, periodoActual.fechaInicio).startOf('month').toDate()
   const fechaFin = momentDate(ajustesSistema.timeZone, fecha).endOf('month').toDate()
 
@@ -1149,6 +1150,8 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
                 {
                   $match: {
                     periodoId: periodoActual._id,
+                    isPreCierre: { $ne: true },
+                    isCierre: { $ne: true },
                     $expr: {
                       $and: [
                         { $or: [
@@ -1306,7 +1309,7 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
               pipeline: [
                 {
                   $match: {
-                    comprobanteId: (comprobanteCierre && new ObjectId(comprobanteCierre._id)) || 'none',
+                    isPreCierre: true,
                     $expr: {
                       $or: [
                         { $eq: ['$cuentaId', '$$acumulado'] },

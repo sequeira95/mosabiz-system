@@ -4,8 +4,8 @@ import { subDominioName, getParentCode } from '../constants.js'
 import { ObjectId } from 'mongodb'
 
 export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta }) {
-  const fechaInit = moment(fechaDesde, ajusteFecha || 'YYYY/MM/DD').startOf('day').toDate()
-  const fechaEnd = moment(fechaHasta, ajusteFecha || 'YYYY/MM/DD').endOf('day').toDate()
+  const fechaInit = moment(fechaDesde).startOf('day').toDate()
+  const fechaEnd = moment(fechaHasta).endOf('day').toDate()
   const sort = order === 'documento' ? { $sort: { documento: 1 } } : { $sort: { fecha: 1 } }
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   const addFieldCondition = { $addFields: { codigoToInt: { $convert: { input: '$codigo', to: 'double' } } } }
@@ -150,8 +150,8 @@ export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order
   }
 }
 export async function mayorAnaliticosAgrupado ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta }) {
-  const fechaInit = moment(fechaDesde, ajusteFecha || 'YYYY/MM/DD').startOf('day').toDate()
-  const fechaEnd = moment(fechaHasta, ajusteFecha || 'YYYY/MM/DD').endOf('day').toDate()
+  const fechaInit = moment(fechaDesde).startOf('day').toDate()
+  const fechaEnd = moment(fechaHasta).endOf('day').toDate()
   const sort = order === 'documento' ? { $sort: { documento: 1 } } : { $sort: { fecha: 1 } }
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   const matchCuentasMovimientos = cuentaSinMovimientos ? {} : { $match: { dataCuentaSize: { $gt: 0 } } }
@@ -339,8 +339,8 @@ export async function mayorAnaliticosAgrupado ({ fechaDesde, fechaHasta, order, 
   }
 }
 export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos }) {
-  const fechaInit = moment(fecha, 'YYYY/MM').startOf('month').toDate()
-  const fechaEnd = moment(fecha, 'YYYY/MM').endOf('month').toDate()
+  const fechaInit = moment(fecha).startOf('month').toDate()
+  const fechaEnd = moment(fecha).endOf('month').toDate()
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   // const matchSinMovimientos = cuentaSinMovimientos ? {} : { $match: { debe: { $gt: 0 }, haber: { $gt: 0 } } }
   try {
@@ -352,7 +352,7 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
         {
           $lookup: {
             from: detalleComprobanteCollectionName,
-            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*'] }, nivelCuenta: '$nivelCuenta' },
+            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*$'] }, nivelCuenta: '$nivelCuenta' },
             pipeline: [
               {
                 $match: {
@@ -401,9 +401,7 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
         {
           $lookup: {
             from: detalleComprobanteCollectionName,
-            localField: '_id',
-            foreignField: 'cuentaId',
-            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*'] }, nivelCuenta: '$nivelCuenta' },
+            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*$'] }, nivelCuenta: '$nivelCuenta' },
             pipeline: [
               {
                 $match: {
@@ -415,7 +413,7 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
                       [
                         { $eq: ['$periodoId', new ObjectId(periodoId)] },
                         { $lte: ['$fecha', fechaInit] },
-                        { $eq: ['$isPreCierre', true] },
+                        { $ne: ['$isPreCierre', true] },
                         { $ne: ['$isCierre', true] },
                         {
                           $regexMatch:
@@ -451,9 +449,7 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
         {
           $lookup: {
             from: detalleComprobanteCollectionName,
-            localField: '_id',
-            foreignField: 'cuentaId',
-            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*'] }, nivelCuenta: '$nivelCuenta' },
+            let: { cuentaCodigo: { $concat: ['^', '$codigo', '.*$'] }, nivelCuenta: '$nivelCuenta' },
             pipeline: [
               {
                 $match: {
@@ -634,8 +630,8 @@ export async function dataComprobantes ({ clienteId, periodoId, order, comproban
   }
 }
 export async function dataLibroDiario ({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos }) {
-  const fechaInit = moment(fecha, 'YYYY/MM').startOf('month').toDate()
-  const fechaEnd = moment(fecha, 'YYYY/MM').endOf('month').toDate()
+  const fechaInit = moment(fecha).startOf('month').toDate()
+  const fechaEnd = moment(fecha).endOf('month').toDate()
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   // const matchSinMovimientos = cuentaSinMovimientos ? {} : { $match: { debe: { $gt: 0 }, haber: { $gt: 0 } } }
   try {
@@ -773,8 +769,8 @@ export async function dataLibroDiario ({ clienteId, periodoId, fecha, nivel, cue
   }
 }
 export async function dataLibroMayor ({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos }) {
-  const fechaInit = moment(fecha, 'YYYY/MM').startOf('month').toDate()
-  const fechaEnd = moment(fecha, 'YYYY/MM').endOf('month').toDate()
+  const fechaInit = moment(fecha).startOf('month').toDate()
+  const fechaEnd = moment(fecha).endOf('month').toDate()
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   // const matchSinMovimientos = cuentaSinMovimientos ? {} : { $match: { debe: { $gt: 0 }, haber: { $gt: 0 } } }
   try {
@@ -969,8 +965,7 @@ export async function datosESF ({ clienteId, periodoId, fecha, nivel, cuentaSinM
   const cuentaISLR = ajustesContables?.cuentaISLR || ''
   const cuentaIdEjercicioActual = ajustesContables?.cuentaSuperAvitOperdidaActual || ''
   const regexOr = '^(1|2|3)'
-  // const fechaInit = moment(fecha, 'YYYY/MM').startOf('month').toDate()
-  const fechaEnd = moment(fecha, 'YYYY/MM').endOf('month').toDate()
+  const fechaEnd = moment(fecha).endOf('month').toDate()
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   // const matchSinMovimientos = cuentaSinMovimientos ? {} : { $match: { debe: { $gt: 0 }, haber: { $gt: 0 } } }
   try {
@@ -1141,8 +1136,8 @@ export async function datosER ({ clienteId, periodoId, fechaDesde, fechaHasta, n
   const cuentasNoValidas = (await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })).grupoESF
   const arrayGroupESF = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].filter(e => !cuentasNoValidas.includes(e))
   const regexOr = `^(${arrayGroupESF.join('|')})`
-  const fechaInit = moment(fechaDesde, (ajusteFecha || 'YYYY/MM/DD')).startOf('month').toDate()
-  const fechaEnd = moment(fechaHasta, (ajusteFecha || 'YYYY/MM/DD')).endOf('month').toDate()
+  const fechaInit = moment(fechaDesde).startOf('month').toDate()
+  const fechaEnd = moment(fechaHasta).endOf('month').toDate()
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   // const matchSinMovimientos = cuentaSinMovimientos ? {} : { $match: { debe: { $gt: 0 }, haber: { $gt: 0 } } }
   try {

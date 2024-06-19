@@ -138,7 +138,8 @@ export const createMovimientos = async (req, res) => {
         almacenDestino: movimiento.almacenDestino ? new ObjectId(movimiento.almacenDestino._id) : null,
         zona: movimiento.zona ? new ObjectId(movimiento.zona._id) : null,
         estado,
-        numeroMovimiento: contador
+        numeroMovimiento: contador,
+        creadoPor: new ObjectId(req.uid)
       }
     })
     createItemSD({

@@ -896,11 +896,12 @@ export const getProductosPorAlmacen = async (req, res) => {
   try {
     const productoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    const matchAlmacen = almacenOrigen ? { almacenId: new ObjectId(almacenOrigen) } : {}
     const productosPorAlmacen = await agreggateCollectionsSD({
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { almacenId: new ObjectId(almacenOrigen), activo: { $ne: false } } },
+        { $match: { ...matchAlmacen, activo: { $ne: false } } },
         {
           $group:
           {

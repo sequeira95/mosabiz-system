@@ -16,7 +16,8 @@ import {
   getListProductosForCompra,
   getListadoCompras,
   getListadoPagos,
-  getServiciosForCompra
+  getServiciosForCompra,
+  getSolicitudesInventario
 } from '../../controllers/subDominios/compras.js'
 
 const router = express.Router()
@@ -38,4 +39,5 @@ router.post('/create/pagosOrdenes', requireSubDominioToken, createPagoOrdenes)
 router.post('/get/listadoTransacciones', requireSubDominioToken, getListadoPagos)
 router.post('/get/comprasRecepcion', requireSubDominioToken, getComprasForRecepcion)
 router.post('/get/dataCompra/recepcion', requireSubDominioToken, getDataCompraRecepcion)
+router.post('/get/solicitudesInventario', requireSubDominioToken, getSolicitudesInventario)
 export default router

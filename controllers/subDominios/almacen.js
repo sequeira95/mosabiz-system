@@ -317,6 +317,7 @@ export const getDataAlmacenAuditoria = async (req, res) => {
 }
 export const detalleAlmacenAuditoria = async (req, res) => {
   const { clienteId, productoId, almacenId } = req.body
+  console.log(req.body, 'auditoria')
   const productoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
   const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
   const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
@@ -376,7 +377,7 @@ export const detalleAlmacenAuditoria = async (req, res) => {
       {
         $lookup: {
           from: productorPorAlamcenCollection,
-          let: { movimientoId: '$_id.movimientoId', lote: '$_id.lote' },
+          let: { movimientoId: '$_id.movimientoId', lote: '$_id.lote', productoId: '$productoId' },
           pipeline: [
             {
               $match:
@@ -386,7 +387,8 @@ export const detalleAlmacenAuditoria = async (req, res) => {
                     $and:
                       [
                         { $eq: ['$movimientoAfectado', '$$movimientoId'] },
-                        { $eq: ['$lote', '$$lote'] }
+                        { $eq: ['$lote', '$$lote'] },
+                        { $eq: ['$productoId', '$$productoId'] }
                       ]
                   }
                 }
@@ -453,12 +455,12 @@ export const detalleAlmacenAuditoria = async (req, res) => {
             { totalFaltante: { $gt: 0 } },
             { totalSobrante: { $in: [null, undefined] } },
             { totalFaltante: { $in: [null, undefined] } }
-
           ]
         }
       }
     ]
   })
+  console.log({ movimientosPoductosPorAlmacen })
   // const movimientosValidos = movimientosPoductosPorAlmacen.filter(item => (item.totalSobrante > 0 || item.totalSobrante === null) || (item.totalFaltante > 0 || item.totalFaltante))
   return res.status(200).json({ movimientosPoductosPorAlmacen })
 }

@@ -1242,7 +1242,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
             costoPromedio: Number(costoPromedio),
-            movimientoAfectado: new ObjectId(movimientoId),
+            // movimientoAfectado: new ObjectId(movimientoId),
             afecta: tipoAjuste,
             creadoPor: new ObjectId(req.uid)
           }

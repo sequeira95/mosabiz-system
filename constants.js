@@ -102,5 +102,6 @@ export const tipoMovimientosShort = {
   solicitudCompra: 'SC',
   transferencia: 'TR',
   Ajuste: 'AJ',
-  devolucion: 'DEV'
+  devolucion: 'DEV',
+  recepcion: 'REC'
 }

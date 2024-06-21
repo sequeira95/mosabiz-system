@@ -23,7 +23,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
         item: {
           periodoId: new ObjectId(periodo._id),
           mesPeriodo: moment(periodo.fechaInicio).format('YYYY/MM'),
-          codigo: '99998',
+          codigo: '00000',
           nombre: 'Saldos iniciales',
           isBloqueado: true,
           isPreCierre: true,

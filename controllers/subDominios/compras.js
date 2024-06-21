@@ -768,6 +768,7 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
             almacenOrigen: null,
             almacenDestino: detalleCompra[0].almacenDestino,
             zona: null,
+            compraId: new ObjectId(compraId),
             numeroMovimiento: contador
           }
         })

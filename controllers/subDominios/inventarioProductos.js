@@ -7,7 +7,7 @@ import { hasContabilidad, validAjustesContablesForAjusteProducto, validUpdateCos
 
 export const getProductos = async (req, res) => {
   const { clienteId, almacenOrigen } = req.body
-  console.log({ clienteId })
+  console.log({ clienteId, almacenOrigen })
   try {
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
@@ -43,7 +43,7 @@ export const getProductos = async (req, res) => {
             localField: '_id',
             foreignField: 'productoId',
             pipeline: [
-              { $match: { ...matchAlmacen, almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } } },
+              { $match: { ...matchAlmacen, almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] }, lote: { $ne: null } } },
               {
                 $group: {
                   _id: '$productoId',
@@ -88,6 +88,7 @@ export const getProductos = async (req, res) => {
             utilidad: '$detalleCategoria.utilidad',
             tipoDescuento: '$detalleCategoria.tipoDescuento',
             observacion: '$observacion',
+            // detalleCantidadProducto: '$detalleCantidadProducto',
             cantidad: '$detalleCantidadProducto.cantidad',
             entrada: '$detalleCantidadProducto.entrada',
             salida: '$detalleCantidadProducto.salida',
@@ -205,7 +206,7 @@ export const getDetalleCantidad = async (req, res) => {
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { productoId: new ObjectId(productoId), almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } } },
+        { $match: { productoId: new ObjectId(productoId), almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] }, lote: { $ne: null } } },
         {
           $group: {
             _id: {

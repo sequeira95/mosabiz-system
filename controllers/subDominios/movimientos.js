@@ -3016,6 +3016,7 @@ export const recepcionInventarioCompra = async (req, res) => {
     if (detalleMovimientos[0]) {
       const detalleUpdate = []
       const productoPorAlmacen = []
+      const productosUpdate = []
       const almacenTransito = await getItemSD({
         nameCollection: 'almacenes',
         enviromentClienteId: clienteId,
@@ -3027,173 +3028,255 @@ export const recepcionInventarioCompra = async (req, res) => {
         filters: { nombre: 'Auditoria' }
       })
       for (const detalle of detalleMovimientos) {
-        const inventarioAnterior = await agreggateCollectionsSD({
-          nameCollection: 'productosPorAlmacen',
-          enviromentClienteId: clienteId,
-          pipeline: [
-            { $match: { productoId: new ObjectId(detalle.productoId), movimientoId: { $ne: new ObjectId(movimientoId) }/* , lote */ /* almacenId: { $ne: almacenAuditoria._id } */ } },
-            {
-              $group: {
-                _id: {
-                  // costoUnitario: '$costoUnitario',
-                  productoId: '$productoId',
-                  // almacenId: '$almacenId',
-                  costoPromedio: '$costoPromedio'
-                },
-                // lote: { $first: '$lote' },
-                entrada: {
-                  $sum: {
-                    $cond: {
-                      if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+        if (detalle?.cantidaLotes) {
+          const inventarioAnterior = await agreggateCollectionsSD({
+            nameCollection: 'productosPorAlmacen',
+            enviromentClienteId: clienteId,
+            pipeline: [
+              {
+                $match:
+                {
+                  productoId: new ObjectId(detalle.productoId),
+                  $or: [
+                    { $and: [{ movimientoId: { $ne: new ObjectId(movimientoId) }, almacenId: { $ne: new ObjectId(almacenTransito?._id) } }] }
+                  ]
+                }
+              },
+              {
+                $group: {
+                  _id: {
+                    // costoUnitario: '$costoUnitario',
+                    productoId: '$productoId',
+                    // almacenId: '$almacenId',
+                    costoPromedio: '$costoPromedio'
+                  },
+                  // lote: { $first: '$lote' },
+                  entrada: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                      }
                     }
-                  }
-                },
-                salida: {
-                  $sum: {
-                    $cond: {
-                      if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                  },
+                  salida: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                      }
                     }
                   }
                 }
+              },
+              { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  _id: 0,
+                  costoPromedio: '$_id.costoPromedio',
+                  productoId: '$_id.productoId',
+                  // almacenId: '$_id.almacenId',
+                  cantidad: { $subtract: ['$entrada', '$salida'] } // cantidad de producto en el almacen de origen
+                  // almacenNombre: '$detalleAlmacen.nombre'
+                }
+              },
+              { $match: { cantidad: { $gt: 0 } } }
+            ]
+          })
+          console.log({ inventarioAnterior })
+          /** Calculando costo promedio */
+          const costoPromedioTotalAnterior = (inventarioAnterior[0]?.costoPromedio || 0) * (inventarioAnterior[0]?.cantidad || 0)
+          // const costoPromedioTotalActualizado = ((detalle?.recibe || 0) * (detalle?.costoUnitario || 0)) + costoPromedioTotalAnterior
+          let costoPromedio = inventarioAnterior[0]?.costoPromedio || 0 // costoPromedioTotalActualizado / (Number(detalle?.recibe || 0) + Number(inventarioAnterior[0]?.cantidad || 0))
+          let diferencia = Number(detalle?.cantidad || 0) - Number(detalle?.recibido || 0)
+          if (diferencia >= Number(detalle?.recibe)) {
+            const costoPromedioTotalActualizado = (Number(detalle?.recibe) * (detalle?.costoUnitario || 0)) + costoPromedioTotalAnterior
+            costoPromedio = costoPromedioTotalActualizado / (Number(detalle?.recibe) + Number(inventarioAnterior[0]?.cantidad || 0))
+            console.log({ costoPromedioTotalActualizado })
+          } else if (diferencia > 0 && diferencia < Number(detalle?.recibe)) {
+            const costoPromedioTotalActualizado = (diferencia * (detalle?.costoUnitario || 0)) + costoPromedioTotalAnterior
+            costoPromedio = costoPromedioTotalActualizado / (diferencia + Number(inventarioAnterior[0]?.cantidad || 0))
+            console.log({ costoPromedioTotalActualizado })
+          }
+          console.log({ costoPromedioTotalAnterior, costoPromedio })
+          /** */
+          console.log({ diferencia })
+          for (const lote of detalle.cantidaLotes) {
+            const verifyLote = await getItemSD({
+              nameCollection: 'productosPorAlmacen',
+              enviromentClienteId: clienteId,
+              filters: { productoId: new ObjectId(detalle.productoId), lote: lote.lote }
+            })
+            if (verifyLote) return res.status(400).json({ error: 'Ya se encuentra un lote con el mismo codigo guardado en este producto' })
+            if (diferencia > 0 && diferencia >= Number(lote.cantidad)) {
+              diferencia -= Number(lote.cantidad)
+              console.log({ lote, diferencia })
+              productoPorAlmacen.push({
+                productoId: new ObjectId(detalle.productoId),
+                movimientoId: new ObjectId(detalle.movimientoId),
+                cantidad: Number(lote.cantidad),
+                almacenId: new ObjectId(almacenDestino._id),
+                almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenDestino: new ObjectId(almacenDestino._id),
+                tipo: 'movimiento',
+                tipoMovimiento: 'entrada',
+                lote: lote.lote,
+                fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                fechaIngreso: moment(fechaActual).toDate(),
+                fechaMovimiento: moment().toDate(),
+                costoUnitario: detalle.costoUnitario,
+                costoPromedio,
+                creadoPor: new ObjectId(req.uid)
+              },
+              {
+                productoId: new ObjectId(detalle.productoId),
+                movimientoId: new ObjectId(detalle.movimientoId),
+                cantidad: Number(lote.cantidad),
+                almacenId: new ObjectId(almacenTransito._id),
+                almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenDestino: new ObjectId(almacenDestino._id),
+                tipo: 'movimiento',
+                tipoMovimiento: 'salida',
+                lote: null, // lote.lote,
+                fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                fechaIngreso: moment(fechaActual).toDate(),
+                fechaMovimiento: moment().toDate(),
+                costoUnitario: detalle.costoUnitario,
+                costoPromedio: detalle.costoUnitario,
+                creadoPor: new ObjectId(req.uid)
+              })
+            } else if (diferencia > 0 && diferencia < Number(lote.cantidad)) {
+              const diferenciaLote = Number(lote.cantidad) - diferencia
+              console.log({ diferenciaLote })
+              productoPorAlmacen.push({
+                productoId: new ObjectId(detalle.productoId),
+                movimientoId: new ObjectId(detalle.movimientoId),
+                cantidad: Number(diferencia),
+                almacenId: new ObjectId(almacenDestino._id),
+                almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenDestino: new ObjectId(almacenDestino._id),
+                tipo: 'movimiento',
+                tipoMovimiento: 'entrada',
+                lote: lote.lote,
+                fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                fechaIngreso: moment(fechaActual).toDate(),
+                fechaMovimiento: moment().toDate(),
+                costoUnitario: detalle.costoUnitario,
+                costoPromedio,
+                creadoPor: new ObjectId(req.uid)
+              },
+              {
+                productoId: new ObjectId(detalle.productoId),
+                movimientoId: new ObjectId(detalle.movimientoId),
+                cantidad: Number(diferencia),
+                almacenId: new ObjectId(almacenTransito._id),
+                almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenDestino: new ObjectId(almacenDestino._id),
+                tipo: 'movimiento',
+                tipoMovimiento: 'salida',
+                lote: null, // lote.lote,
+                fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                fechaIngreso: moment(fechaActual).toDate(),
+                fechaMovimiento: moment().toDate(),
+                costoUnitario: detalle.costoUnitario,
+                costoPromedio: detalle.costoUnitario,
+                creadoPor: new ObjectId(req.uid)
+              })
+              if (diferenciaLote > 0) {
+                productoPorAlmacen.push({
+                  productoId: new ObjectId(detalle.productoId),
+                  movimientoId: new ObjectId(detalle.movimientoId),
+                  cantidad: Number(diferenciaLote),
+                  almacenId: new ObjectId(almacenAudutoria._id),
+                  almacenOrigen: new ObjectId(almacenTransito._id),
+                  almacenDestino: new ObjectId(almacenAudutoria._id),
+                  tipo: 'movimiento',
+                  tipoMovimiento: 'entrada',
+                  tipoAuditoria: 'sobrante',
+                  lote: lote.lote,
+                  fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                  fechaIngreso: moment(fechaActual).toDate(),
+                  fechaMovimiento: moment().toDate(),
+                  costoUnitario: detalle.costoUnitario,
+                  costoPromedio,
+                  creadoPor: new ObjectId(req.uid)
+                },
+                {
+                  productoId: new ObjectId(detalle.productoId),
+                  movimientoId: new ObjectId(detalle.movimientoId),
+                  cantidad: Number(diferenciaLote),
+                  almacenId: new ObjectId(almacenTransito._id),
+                  almacenOrigen: new ObjectId(almacenTransito._id),
+                  almacenDestino: new ObjectId(almacenAudutoria._id),
+                  tipo: 'movimiento',
+                  tipoMovimiento: 'salida',
+                  lote: null, // lote.lote,
+                  fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                  fechaIngreso: moment(fechaActual).toDate(),
+                  fechaMovimiento: moment().toDate(),
+                  costoUnitario: detalle.costoUnitario,
+                  costoPromedio: detalle.costoUnitario,
+                  creadoPor: new ObjectId(req.uid)
+                })
               }
-            },
-            { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
-            {
-              $project: {
-                _id: 0,
-                costoPromedio: '$_id.costoPromedio',
-                productoId: '$_id.productoId',
-                // almacenId: '$_id.almacenId',
-                cantidad: { $subtract: ['$entrada', '$salida'] } // cantidad de producto en el almacen de origen
-                // almacenNombre: '$detalleAlmacen.nombre'
-              }
-            },
-            { $match: { cantidad: { $gt: 0 } } }
-          ]
+            }
+            if (diferencia <= 0) {
+              diferencia -= lote.cantidad
+              productoPorAlmacen.push({
+                productoId: new ObjectId(detalle.productoId),
+                movimientoId: new ObjectId(detalle.movimientoId),
+                cantidad: Number(lote.cantidad),
+                almacenId: new ObjectId(almacenAudutoria._id),
+                // almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenDestino: new ObjectId(almacenAudutoria._id),
+                tipo: 'movimiento',
+                tipoMovimiento: 'entrada',
+                lote: lote.lote,
+                fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                fechaIngreso: moment(fechaActual).toDate(),
+                tipoAuditoria: 'sobrante',
+                fechaMovimiento: moment().toDate(),
+                costoUnitario: detalle.costoUnitario,
+                costoPromedio,
+                creadoPor: new ObjectId(req.uid)
+              })
+            }
+          }
+          detalleUpdate.push({
+            updateOne: {
+              filter: { _id: new ObjectId(detalle._id) },
+              update: { $set: { recibido: Number(detalle?.recibe || 0) + Number(detalle?.recibido || 0) } }
+            }
+          })
+          productosUpdate.push({
+            updateOne: {
+              filter: { _id: new ObjectId(detalle.productoId) },
+              update: { $set: { costoPromedio } }
+            }
+          })
+        }
+      }
+      console.log({ productoPorAlmacen, detalleUpdate })
+      if (detalleUpdate[0]) {
+        bulkWriteSD({ nameCollection: 'detalleMovimientos', enviromentClienteId: clienteId, pipeline: detalleUpdate })
+        bulkWriteSD({ nameCollection: 'productos', enviromentClienteId: clienteId, pipeline: productosUpdate })
+        createItemSD({
+          nameCollection: 'historial',
+          enviromentClienteId: clienteId,
+          item: {
+            idMovimiento: new ObjectId(movimientoId),
+            categoria: 'creado',
+            tipo: 'Recepcion de inventario',
+            fecha: moment().toDate(),
+            descripcion: 'Inventario recibido parcialmente',
+            creadoPor: new ObjectId(req.uid)
+          }
         })
-        console.log({ inventarioAnterior })
-        const costoPromedioTotalAnterior = (inventarioAnterior[0]?.costoPromedio || 0) * (inventarioAnterior[0]?.cantidad || 0)
-        const costoPromedioTotalActualizado = ((detalle?.recibe || 0) * (detalle?.costoUnitario || 0)) + costoPromedioTotalAnterior
-        const costoPromedio = costoPromedioTotalActualizado / (Number(detalle?.recibe || 0) + Number(inventarioAnterior[0]?.cantidad || 0))
-        let diferencia = Number(detalle?.cantidad || 0) - Number(detalle?.recibido || 0)
-        console.log({ costoPromedioTotalAnterior, costoPromedioTotalActualizado, costoPromedio })
-        for (const lote of detalle.cantidaLotes) {
-          console.log({ lote, diferencia })
-          const verifyLote = await getItemSD({
+        if (productoPorAlmacen[0]) {
+          createManyItemsSD({
             nameCollection: 'productosPorAlmacen',
             enviromentClienteId: clienteId,
-            filters: { productoId: new ObjectId(detalle.productoId), lote: lote.lote }
+            items: productoPorAlmacen
           })
-          if (verifyLote) return res.status(400).json({ error: 'Ya se encuentra un lote con el mismo codigo guardado en este producto' })
-          if (diferencia > 0) {
-            diferencia -= Number(lote.cantidad)
-            productoPorAlmacen.push({
-              productoId: new ObjectId(detalle.productoId),
-              movimientoId: new ObjectId(detalle.movimientoId),
-              cantidad: Number(lote.cantidad),
-              almacenId: new ObjectId(almacenDestino._id),
-              almacenOrigen: new ObjectId(almacenTransito._id),
-              almacenDestino: new ObjectId(almacenDestino._id),
-              tipo: 'movimiento',
-              tipoMovimiento: 'entrada',
-              lote: lote.lote,
-              fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
-              fechaIngreso: moment(fechaActual).toDate(),
-              fechaMovimiento: moment().toDate(),
-              costoUnitario: detalle.costoUnitario,
-              costoPromedio,
-              creadoPor: new ObjectId(req.uid)
-            },
-            {
-              productoId: new ObjectId(detalle.productoId),
-              movimientoId: new ObjectId(detalle.movimientoId),
-              cantidad: Number(lote.cantidad),
-              almacenId: new ObjectId(almacenTransito._id),
-              almacenOrigen: new ObjectId(almacenTransito._id),
-              almacenDestino: new ObjectId(almacenDestino._id),
-              tipo: 'movimiento',
-              tipoMovimiento: 'salida',
-              lote: lote.lote,
-              fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
-              fechaIngreso: moment(fechaActual).toDate(),
-              fechaMovimiento: moment().toDate(),
-              costoUnitario: detalle.costoUnitario,
-              costoPromedio: detalle.costoUnitario,
-              creadoPor: new ObjectId(req.uid)
-            })
-          }
-          if (diferencia <= 0) {
-            diferencia -= lote.cantidad
-            productoPorAlmacen.push({
-              productoId: new ObjectId(detalle.productoId),
-              movimientoId: new ObjectId(detalle.movimientoId),
-              cantidad: Number(lote.cantidad),
-              almacenId: new ObjectId(almacenAudutoria._id),
-              // almacenOrigen: new ObjectId(almacenTransito._id),
-              almacenDestino: new ObjectId(almacenAudutoria._id),
-              tipo: 'movimiento',
-              tipoMovimiento: 'entrada',
-              lote: lote.lote,
-              fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
-              fechaIngreso: moment(fechaActual).toDate(),
-              tipoAuditoria: 'sobrante',
-              fechaMovimiento: moment().toDate(),
-              costoUnitario: detalle.costoUnitario,
-              costoPromedio,
-              creadoPor: new ObjectId(req.uid)
-            })
-          }
         }
-        detalleUpdate.push({
-          updateOne: {
-            filter: { _id: new ObjectId(detalle._id) },
-            update: { $set: { recibido: Number(detalle?.recibe || 0) + Number(detalle?.recibido || 0) } },
-            upsert: true
-          }
-        })
-      }
-      console.log({ productoPorAlmacen })
-      if (detalleUpdate[0]) {
-        // await bulkWriteSD({ nameCollection: 'detalleCompra', enviromentClienteId: clienteId, pipeline: detalleUpdate })
-        /* if (detalleMovimientos.every(e => e.cantidad === Number(e?.recibe || 0) + Number(e?.recibido || 0))) {
-          await updateItemSD({
-            nameCollection: 'compras',
-            enviromentClienteId: clienteId,
-            filters: { _id: new ObjectId(movimientoId) },
-            update: { $set: { statusInventario: 'Recibido' } }
-          })
-          createItemSD({
-            nameCollection: 'historial',
-            enviromentClienteId: clienteId,
-            item: {
-              idMovimiento: new ObjectId(compraId),
-              categoria: 'creado',
-              tipo: 'Recepcion de inventario',
-              fecha: moment().toDate(),
-              descripcion: 'Recepción completa de inventario',
-              creadoPor: new ObjectId(req.uid)
-            }
-          })
-        } else {
-          await updateItemSD({
-            nameCollection: 'compras',
-            enviromentClienteId: clienteId,
-            filters: { _id: new ObjectId(compraId) },
-            update: { $set: { statusInventario: 'Parcialmente recibido' } }
-          })
-          createItemSD({
-            nameCollection: 'historial',
-            enviromentClienteId: clienteId,
-            item: {
-              idMovimiento: new ObjectId(compraId),
-              categoria: 'creado',
-              tipo: 'Recepcion de inventario',
-              fecha: moment().toDate(),
-              descripcion: 'Inventario recibido parcialmente',
-              creadoPor: new ObjectId(req.uid)
-            }
-          })
-        } */
       }
     }
     return res.status(200).json({ status: 'Inventario recibido exitosamente' })

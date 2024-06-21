@@ -18,7 +18,11 @@ export const getListComprobantes = async (req, res) => {
       pipeline: [
         {
           $match: { periodoId: new ObjectId(periodoId), ...filterNombre }
-        }
+        },
+        { $sort: {
+          mesPeriodo: 1,
+          codigo: 1
+        }}
       ]
     })
     return res.status(200).json({ comprobantes })
@@ -184,6 +188,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
     console.log(e)
   }
   try {
+    const fechaCreacion = moment()
     let addSeconds = 1
     const datosDetallesSinId = detalles.filter(i => !i._id).map(e => {
       addSeconds += 2
@@ -200,7 +205,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
         cCosto: e.cCosto,
         terceroId: e.terceroId ? new ObjectId(e.terceroId) : '',
         terceroNombre: e?.terceroNombre,
-        fechaCreacion: moment().add(addSeconds, 'milliseconds').toDate(),
+        fechaCreacion: moment(fechaCreacion).add(addSeconds, 'milliseconds').toDate(),
         docReferenciaAux: e.documento.docReferencia,
         documento: {
           docReferencia: e.documento.docReferencia,

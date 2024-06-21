@@ -546,10 +546,11 @@ export async function dataComprobantes ({ clienteId, periodoId, order, comproban
           periodoMes: { $lte: fechaEnd }
         }
     } else if (comprobanteDesde && comprobanteHasta) {
-      console.log(3)
+      const [menor, mayor] = [comprobanteDesde.codigo, comprobanteHasta.codigo].sort((a, b) => Number(a) - Number(b))
+
       matchLimitComprobantes =
         {
-          codigoToInt: { $gte: Number(comprobanteDesde.codigo), $lte: Number(comprobanteHasta.codigo) },
+          codigoToInt: { $gte: Number(menor), $lte: Number(mayor) },
           periodoMes: { $gte: fechaInit, $lte: fechaEnd }
         }
     }
@@ -623,6 +624,7 @@ export async function dataComprobantes ({ clienteId, periodoId, order, comproban
         }
       ]
     })
+    console.log({matchLimitComprobantes})
     return ({ comprobantes })
   } catch (e) {
     console.log(e)

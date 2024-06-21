@@ -55,7 +55,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: configMatch },
-        { $sort: { fecha: -1 } },
+        { $sort: { fechaCreacion: 1, debe: -1 } },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) },
         ...lookups

@@ -93,8 +93,8 @@ export const estadoSituacionFinanciera = async (req, res) => {
 export const estadoResultado = async (req, res) => {
   const { clienteId, periodoId, fechaDesde, fechaHasta, nivel, cuentaSinMovimientos, ajusteFecha } = req.body
   try {
-    const { dataCuentas } = await datosER({ clienteId, periodoId, fechaDesde, fechaHasta, nivel, cuentaSinMovimientos, ajusteFecha })
-    return res.status(200).json({ ER: dataCuentas })
+    const { dataCuentas, ISLR } = await datosER({ clienteId, periodoId, fechaDesde, fechaHasta, nivel, cuentaSinMovimientos, ajusteFecha })
+    return res.status(200).json({ ER: dataCuentas, ISLR })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar datos del estado de situación financiera ' + e.message })

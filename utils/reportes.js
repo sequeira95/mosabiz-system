@@ -354,6 +354,7 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
   const fechaEnd = moment(fecha).endOf('month').toDate()
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   // const matchSinMovimientos = cuentaSinMovimientos ? {} : { $match: { debe: { $gt: 0 }, haber: { $gt: 0 } } }
+  const gtMatch = cuentaSinMovimientos ? '$gte' : '$gt'
   try {
     const dataCuentas = await agreggateCollectionsSD({
       nameCollection: 'planCuenta',
@@ -392,7 +393,7 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
               },
               {
                 $group: {
-                  _id: '$cuentaId',
+                  _id: 0,
                   debe: { $sum: '$debe' },
                   haber: { $sum: '$haber' }
                 }
@@ -408,7 +409,6 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
             as: 'detalleComprobantes'
           }
         },
-        { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: cuentaSinMovimientos } },
         {
           $lookup: {
             from: detalleComprobanteCollectionName,
@@ -440,7 +440,7 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
               },
               {
                 $group: {
-                  _id: '$cuentaId',
+                  _id: 0,
                   debe: { $sum: '$debe' },
                   haber: { $sum: '$haber' }
                 }
@@ -456,7 +456,6 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
             as: 'saldoAnterior'
           }
         },
-        { $unwind: { path: '$saldoAnterior', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
             from: detalleComprobanteCollectionName,
@@ -486,7 +485,7 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
               },
               {
                 $group: {
-                  _id: '$cuentaId',
+                  _id: 0,
                   debe: { $sum: '$debe' },
                   haber: { $sum: '$haber' }
                 }
@@ -502,6 +501,19 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
             as: 'saldosIniciales'
           }
         },
+        {
+          $match: {
+            $expr: {
+              $or: [
+                { [gtMatch]: [{ $size: '$detalleComprobantes' }, 0] },
+                { [gtMatch]: [{ $size: '$saldoAnterior' }, 0] },
+                { [gtMatch]: [{ $size: '$saldosIniciales' }, 0] }
+              ]
+            }
+          }
+        },
+        { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$saldoAnterior', preserveNullAndEmptyArrays: true } },
         { $unwind: { path: '$saldosIniciales', preserveNullAndEmptyArrays: true } },
         {
           $group: {
@@ -521,7 +533,7 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
             codigo: 1,
             descripcion: 1,
             nivelCuenta: 1,
-            saldoAnterior: 1,
+            saldoAnterior: { $sum: ['$saldoAnterior', '$saldosIniciales'] },
             debe: 1,
             haber: 1,
             saldo: { $sum: ['$saldoAnterior', '$saldosIniciales', '$saldo'] },

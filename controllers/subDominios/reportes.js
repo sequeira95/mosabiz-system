@@ -43,7 +43,6 @@ export const balanceComprobacion = async (req, res) => {
   const { clienteId, periodoId, fecha, nivel, cuentaSinMovimientos } = req.body
   try {
     const { dataCuentas } = await dataBalanceComprobacion({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos })
-    console.log(dataCuentas)
     return res.status(200).json({ balanceComprobacion: dataCuentas })
   } catch (e) {
     console.log(e)

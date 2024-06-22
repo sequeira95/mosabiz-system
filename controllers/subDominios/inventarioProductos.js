@@ -7,6 +7,7 @@ import { hasContabilidad, validAjustesContablesForAjusteProducto, validUpdateCos
 
 export const getProductos = async (req, res) => {
   const { clienteId, almacenOrigen } = req.body
+  console.log({ clienteId, almacenOrigen })
   try {
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
@@ -42,7 +43,7 @@ export const getProductos = async (req, res) => {
             localField: '_id',
             foreignField: 'productoId',
             pipeline: [
-              { $match: { ...matchAlmacen, almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } } },
+              { $match: { ...matchAlmacen, almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] }, lote: { $ne: null } } },
               {
                 $group: {
                   _id: '$productoId',
@@ -87,6 +88,7 @@ export const getProductos = async (req, res) => {
             utilidad: '$detalleCategoria.utilidad',
             tipoDescuento: '$detalleCategoria.tipoDescuento',
             observacion: '$observacion',
+            // detalleCantidadProducto: '$detalleCantidadProducto',
             cantidad: '$detalleCantidadProducto.cantidad',
             entrada: '$detalleCantidadProducto.entrada',
             salida: '$detalleCantidadProducto.salida',
@@ -102,7 +104,7 @@ export const getProductos = async (req, res) => {
         // { $match: { cantidad: { $gte: 0 } } }
       ]
     })
-    console.log(productos)
+    // console.log(productos)
     return res.status(200).json({ productos })
   } catch (e) {
     console.log(e)
@@ -204,7 +206,7 @@ export const getDetalleCantidad = async (req, res) => {
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { productoId: new ObjectId(productoId), almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } } },
+        { $match: { productoId: new ObjectId(productoId), almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] }, lote: { $ne: null } } },
         {
           $group: {
             _id: {
@@ -312,6 +314,7 @@ export const getListCostos = async (req, res) => {
         }
       ]
     })
+    console.log({ costosPorAlmacen })
     return res.status(200).json({ costosPorAlmacen })
   } catch (e) {
     console.log(e)
@@ -858,7 +861,7 @@ export const updateCostoPorLote = async (req, res) => {
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { productoId: new ObjectId(productoId)/* , lote */, almacenId: { $ne: almacenAuditoria._id } } },
+        { $match: { productoId: new ObjectId(productoId)/* , lote */ /* almacenId: { $ne: almacenAuditoria._id } */ } },
         {
           $group: {
             _id: {
@@ -1368,76 +1371,5 @@ export const updateCostoPorLote = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de actualizar el costo por lote del producto ' + e.message })
-  }
-}
-export const recepcionInventarioCompra = async (req, res) => {
-  const { clienteId, _id: compraId, detalleCompra } = req.body
-  console.log(req.body)
-  console.log({ compraId })
-  try {
-    if (detalleCompra[0]) {
-      const detalleUpdate = []
-      for (const detalle of detalleCompra) {
-        const verifyLote = await getItemSD({
-          nameCollection: 'productosPorAlmacen',
-          enviromentClienteId: clienteId,
-          filters: { productoId: new ObjectId(detalle.productoId), lote: detalle.lote }
-        })
-        if (verifyLote) return res.status(400).json({ error: 'Ya se encuentra un lote con el mismo codigo guardado en este producto' })
-        detalleUpdate.push({
-          updateOne: {
-            filter: { _id: new ObjectId(detalle._id) },
-            update: { $set: { recibido: Number(detalle?.recibe || 0) + Number(detalle?.recibido || 0) } },
-            upsert: true
-          }
-        })
-      }
-      if (detalleUpdate[0]) {
-        await bulkWriteSD({ nameCollection: 'detalleCompra', enviromentClienteId: clienteId, pipeline: detalleUpdate })
-        if (detalleCompra.every(e => e.cantidad === Number(e?.recibe || 0) + Number(e?.recibido || 0))) {
-          await updateItemSD({
-            nameCollection: 'compras',
-            enviromentClienteId: clienteId,
-            filters: { _id: new ObjectId(compraId) },
-            update: { $set: { statusInventario: 'Recibido' } }
-          })
-          createItemSD({
-            nameCollection: 'historial',
-            enviromentClienteId: clienteId,
-            item: {
-              idMovimiento: new ObjectId(compraId),
-              categoria: 'creado',
-              tipo: 'Recepcion de inventario',
-              fecha: moment().toDate(),
-              descripcion: 'Recepción completa de inventario',
-              creadoPor: new ObjectId(req.uid)
-            }
-          })
-        } else {
-          await updateItemSD({
-            nameCollection: 'compras',
-            enviromentClienteId: clienteId,
-            filters: { _id: new ObjectId(compraId) },
-            update: { $set: { statusInventario: 'Parcialmente recibido' } }
-          })
-          createItemSD({
-            nameCollection: 'historial',
-            enviromentClienteId: clienteId,
-            item: {
-              idMovimiento: new ObjectId(compraId),
-              categoria: 'creado',
-              tipo: 'Recepcion de inventario',
-              fecha: moment().toDate(),
-              descripcion: 'Inventario recibido parcialmente',
-              creadoPor: new ObjectId(req.uid)
-            }
-          })
-        }
-      }
-    }
-    return res.status(200).json({ status: 'Inventario recibido exitosamente' })
-  } catch (e) {
-    console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de recibir inventario ' + e.message })
   }
 }

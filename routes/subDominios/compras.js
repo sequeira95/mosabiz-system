@@ -6,9 +6,7 @@ import {
   cancelarCompra, createOrdenCompra,
   createPagoOrdenes,
   editOrden,
-  getComprasForRecepcion,
   getDataCompra,
-  getDataCompraRecepcion,
   getDataOrdenesComprasPorPagar,
   getDetalleProveedor,
   getListImpuestosIslr,
@@ -37,7 +35,5 @@ router.post('/get/ordenesCompra/porPagar', requireSubDominioToken, getDataOrdene
 router.post('/getDetalleProveedor', requireSubDominioToken, getDetalleProveedor)
 router.post('/create/pagosOrdenes', requireSubDominioToken, createPagoOrdenes)
 router.post('/get/listadoTransacciones', requireSubDominioToken, getListadoPagos)
-router.post('/get/comprasRecepcion', requireSubDominioToken, getComprasForRecepcion)
-router.post('/get/dataCompra/recepcion', requireSubDominioToken, getDataCompraRecepcion)
 router.post('/get/solicitudesInventario', requireSubDominioToken, getSolicitudesInventario)
 export default router

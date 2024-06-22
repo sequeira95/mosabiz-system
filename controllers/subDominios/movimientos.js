@@ -10,11 +10,12 @@ export const getDataMovimientos = async (req, res) => {
     const zonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
     const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
     const matchEstados = estado === 'recibido' ? { estado } : { estado, tipo: { $ne: 'solicitudCompra ' } }
+    console.log(estado, matchEstados)
     const movimientos = await agreggateCollectionsSD({
       nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: matchEstados },
+        { $match: { ...matchEstados } },
         {
           $lookup: {
             from: detalleMovimientosCollection,
@@ -1140,7 +1141,7 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
     }
   }
   console.log({ detallesCrear })
-  console.log({ asientosContables })
+  // console.log({ asientosContables })
   createManyItemsSD({
     nameCollection: 'productosPorAlmacen',
     enviromentClienteId: clienteId,
@@ -1329,7 +1330,7 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
           enviromentClienteId: clienteId,
           items: detallesCrear
         })
-        if (almacen) {
+        /* if (almacen) {
           detallesCrear.push({
             productoId: new ObjectId(productoId),
             movimientoId: new ObjectId(movimiento.insertedId),
@@ -1347,7 +1348,8 @@ export const saveAjusteAlmacenAuditoria = async (req, res) => {
             costoPromedio: Number(costoPromedio),
             creadoPor: new ObjectId(req.uid)
           })
-        }
+        } */
+        console.log({ detallesCrear })
       }
       if (tipoAjuste === 'Faltante') {
         const detallesCrear = [
@@ -2906,5 +2908,380 @@ export const getDevoluciones = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de bucar datos de los movimientos ' + e.message })
+  }
+}
+export const getComprasForRecepcion = async (req, res) => {
+  const { clienteId, pagina, itemsPorPagina } = req.body
+  try {
+    const detalleMovimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleMovimientos' })
+    const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const comprasPendienteRecepcion = await agreggateCollectionsSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo: 'recepcion' } },
+        {
+          $lookup: {
+            from: detalleMovimientosCollection,
+            localField: '_id',
+            foreignField: 'movimientoId',
+            as: 'detalleMovimientos'
+          }
+        },
+        {
+          $lookup: {
+            from: almacenCollection,
+            localField: 'almacenDestino',
+            foreignField: '_id',
+            as: 'almacenDestino'
+          }
+        },
+        { $unwind: { path: '$almacenDestino', preserveNullAndEmptyArrays: true } },
+        { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+        { $limit: Number(itemsPorPagina) }
+      ]
+    })
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo: 'recepcion' } },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ comprasPendienteRecepcion, count: count && count[0] ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes por recibir ' + e.message })
+  }
+}
+export const getDataCompraRecepcion = async (req, res) => {
+  const { clienteId, compraId } = req.body
+  try {
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const detalleCompraCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleCompra' })
+    const compra = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: new ObjectId(compraId) } },
+        {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: 'proveedorId',
+            foreignField: '_id',
+            as: 'proveedor'
+          }
+        },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: almacenesCollection,
+            localField: 'almacenDestino',
+            foreignField: '_id',
+            as: 'almacenDestino'
+          }
+        },
+        { $unwind: { path: '$almacenDestino', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: detalleCompraCollection,
+            localField: '_id',
+            foreignField: 'compraId',
+            pipeline: [
+              { $match: { tipo: 'producto' } },
+              {
+                $addFields: {
+                  cantValid: { $subtract: ['$cantidad', '$recibido'] }
+                }
+              },
+              { $match: { cantValid: { $ne: 0 } } }
+            ],
+            as: 'detalleCompra'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ compra: compra[0] ? compra[0] : null })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })
+  }
+}
+export const recepcionInventarioCompra = async (req, res) => {
+  const { clienteId, _id: movimientoId, detalleMovimientos, almacenDestino, fechaActual } = req.body
+  console.log({ movimientoId, detalleMovimientos })
+  try {
+    if (detalleMovimientos[0]) {
+      const detalleUpdate = []
+      const productoPorAlmacen = []
+      const productosUpdate = []
+      const almacenTransito = await getItemSD({
+        nameCollection: 'almacenes',
+        enviromentClienteId: clienteId,
+        filters: { nombre: 'Transito' }
+      })
+      const almacenAudutoria = await getItemSD({
+        nameCollection: 'almacenes',
+        enviromentClienteId: clienteId,
+        filters: { nombre: 'Auditoria' }
+      })
+      for (const detalle of detalleMovimientos) {
+        if (detalle?.cantidaLotes) {
+          const inventarioAnterior = await agreggateCollectionsSD({
+            nameCollection: 'productosPorAlmacen',
+            enviromentClienteId: clienteId,
+            pipeline: [
+              {
+                $match:
+                {
+                  productoId: new ObjectId(detalle.productoId),
+                  $or: [
+                    { $and: [{ movimientoId: { $ne: new ObjectId(movimientoId) }, almacenId: { $ne: new ObjectId(almacenTransito?._id) } }] }
+                  ]
+                }
+              },
+              {
+                $group: {
+                  _id: {
+                    // costoUnitario: '$costoUnitario',
+                    productoId: '$productoId',
+                    // almacenId: '$almacenId',
+                    costoPromedio: '$costoPromedio'
+                  },
+                  // lote: { $first: '$lote' },
+                  entrada: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                      }
+                    }
+                  },
+                  salida: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                      }
+                    }
+                  }
+                }
+              },
+              { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  _id: 0,
+                  costoPromedio: '$_id.costoPromedio',
+                  productoId: '$_id.productoId',
+                  // almacenId: '$_id.almacenId',
+                  cantidad: { $subtract: ['$entrada', '$salida'] } // cantidad de producto en el almacen de origen
+                  // almacenNombre: '$detalleAlmacen.nombre'
+                }
+              },
+              { $match: { cantidad: { $gt: 0 } } }
+            ]
+          })
+          console.log({ inventarioAnterior })
+          /** Calculando costo promedio */
+          const costoPromedioTotalAnterior = (inventarioAnterior[0]?.costoPromedio || 0) * (inventarioAnterior[0]?.cantidad || 0)
+          // const costoPromedioTotalActualizado = ((detalle?.recibe || 0) * (detalle?.costoUnitario || 0)) + costoPromedioTotalAnterior
+          let costoPromedio = inventarioAnterior[0]?.costoPromedio || 0 // costoPromedioTotalActualizado / (Number(detalle?.recibe || 0) + Number(inventarioAnterior[0]?.cantidad || 0))
+          let diferencia = Number(detalle?.cantidad || 0) - Number(detalle?.recibido || 0)
+          if (diferencia >= Number(detalle?.recibe)) {
+            const costoPromedioTotalActualizado = (Number(detalle?.recibe) * (detalle?.costoUnitario || 0)) + costoPromedioTotalAnterior
+            costoPromedio = costoPromedioTotalActualizado / (Number(detalle?.recibe) + Number(inventarioAnterior[0]?.cantidad || 0))
+            console.log({ costoPromedioTotalActualizado })
+          } else if (diferencia > 0 && diferencia < Number(detalle?.recibe)) {
+            const costoPromedioTotalActualizado = (diferencia * (detalle?.costoUnitario || 0)) + costoPromedioTotalAnterior
+            costoPromedio = costoPromedioTotalActualizado / (diferencia + Number(inventarioAnterior[0]?.cantidad || 0))
+            console.log({ costoPromedioTotalActualizado })
+          }
+          console.log({ costoPromedioTotalAnterior, costoPromedio })
+          /** */
+          console.log({ diferencia })
+          for (const lote of detalle.cantidaLotes) {
+            const verifyLote = await getItemSD({
+              nameCollection: 'productosPorAlmacen',
+              enviromentClienteId: clienteId,
+              filters: { productoId: new ObjectId(detalle.productoId), lote: lote.lote }
+            })
+            if (verifyLote) return res.status(400).json({ error: 'Ya se encuentra un lote con el mismo codigo guardado en este producto' })
+            if (diferencia > 0 && diferencia >= Number(lote.cantidad)) {
+              diferencia -= Number(lote.cantidad)
+              console.log({ lote, diferencia })
+              productoPorAlmacen.push({
+                productoId: new ObjectId(detalle.productoId),
+                movimientoId: new ObjectId(detalle.movimientoId),
+                cantidad: Number(lote.cantidad),
+                almacenId: new ObjectId(almacenDestino._id),
+                almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenDestino: new ObjectId(almacenDestino._id),
+                tipo: 'movimiento',
+                tipoMovimiento: 'entrada',
+                lote: lote.lote,
+                fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                fechaIngreso: moment(fechaActual).toDate(),
+                fechaMovimiento: moment().toDate(),
+                costoUnitario: detalle.costoUnitario,
+                costoPromedio: Number(costoPromedio.toFixed(2)),
+                creadoPor: new ObjectId(req.uid)
+              },
+              {
+                productoId: new ObjectId(detalle.productoId),
+                movimientoId: new ObjectId(detalle.movimientoId),
+                cantidad: Number(lote.cantidad),
+                almacenId: new ObjectId(almacenTransito._id),
+                almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenDestino: new ObjectId(almacenDestino._id),
+                tipo: 'movimiento',
+                tipoMovimiento: 'salida',
+                lote: null, // lote.lote,
+                fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                fechaIngreso: moment(fechaActual).toDate(),
+                fechaMovimiento: moment().toDate(),
+                costoUnitario: detalle.costoUnitario,
+                costoPromedio: detalle.costoUnitario,
+                creadoPor: new ObjectId(req.uid)
+              })
+            } else if (diferencia > 0 && diferencia < Number(lote.cantidad)) {
+              const diferenciaLote = Number(lote.cantidad) - diferencia
+              console.log({ diferenciaLote })
+              productoPorAlmacen.push({
+                productoId: new ObjectId(detalle.productoId),
+                movimientoId: new ObjectId(detalle.movimientoId),
+                cantidad: Number(diferencia),
+                almacenId: new ObjectId(almacenDestino._id),
+                almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenDestino: new ObjectId(almacenDestino._id),
+                tipo: 'movimiento',
+                tipoMovimiento: 'entrada',
+                lote: lote.lote,
+                fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                fechaIngreso: moment(fechaActual).toDate(),
+                fechaMovimiento: moment().toDate(),
+                costoUnitario: detalle.costoUnitario,
+                costoPromedio: Number(costoPromedio.toFixed(2)),
+                creadoPor: new ObjectId(req.uid)
+              },
+              {
+                productoId: new ObjectId(detalle.productoId),
+                movimientoId: new ObjectId(detalle.movimientoId),
+                cantidad: Number(diferencia),
+                almacenId: new ObjectId(almacenTransito._id),
+                almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenDestino: new ObjectId(almacenDestino._id),
+                tipo: 'movimiento',
+                tipoMovimiento: 'salida',
+                lote: null, // lote.lote,
+                fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                fechaIngreso: moment(fechaActual).toDate(),
+                fechaMovimiento: moment().toDate(),
+                costoUnitario: detalle.costoUnitario,
+                costoPromedio: detalle.costoUnitario,
+                creadoPor: new ObjectId(req.uid)
+              })
+              if (diferenciaLote > 0) {
+                productoPorAlmacen.push({
+                  productoId: new ObjectId(detalle.productoId),
+                  movimientoId: new ObjectId(detalle.movimientoId),
+                  cantidad: Number(diferenciaLote),
+                  almacenId: new ObjectId(almacenAudutoria._id),
+                  almacenOrigen: new ObjectId(almacenTransito._id),
+                  almacenDestino: new ObjectId(almacenAudutoria._id),
+                  tipo: 'movimiento',
+                  tipoMovimiento: 'entrada',
+                  tipoAuditoria: 'sobrante',
+                  lote: lote.lote,
+                  fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                  fechaIngreso: moment(fechaActual).toDate(),
+                  fechaMovimiento: moment().toDate(),
+                  costoUnitario: detalle.costoUnitario,
+                  costoPromedio: Number(costoPromedio.toFixed(2)),
+                  creadoPor: new ObjectId(req.uid)
+                },
+                {
+                  productoId: new ObjectId(detalle.productoId),
+                  movimientoId: new ObjectId(detalle.movimientoId),
+                  cantidad: Number(diferenciaLote),
+                  almacenId: new ObjectId(almacenTransito._id),
+                  almacenOrigen: new ObjectId(almacenTransito._id),
+                  almacenDestino: new ObjectId(almacenAudutoria._id),
+                  tipo: 'movimiento',
+                  tipoMovimiento: 'salida',
+                  lote: null, // lote.lote,
+                  fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                  fechaIngreso: moment(fechaActual).toDate(),
+                  fechaMovimiento: moment().toDate(),
+                  costoUnitario: detalle.costoUnitario,
+                  costoPromedio: detalle.costoUnitario,
+                  creadoPor: new ObjectId(req.uid)
+                })
+              }
+            }
+            if (diferencia <= 0) {
+              diferencia -= lote.cantidad
+              productoPorAlmacen.push({
+                productoId: new ObjectId(detalle.productoId),
+                movimientoId: new ObjectId(detalle.movimientoId),
+                cantidad: Number(lote.cantidad),
+                almacenId: new ObjectId(almacenAudutoria._id),
+                // almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenDestino: new ObjectId(almacenAudutoria._id),
+                tipo: 'movimiento',
+                tipoMovimiento: 'entrada',
+                lote: lote.lote,
+                fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
+                fechaIngreso: moment(fechaActual).toDate(),
+                tipoAuditoria: 'sobrante',
+                fechaMovimiento: moment().toDate(),
+                costoUnitario: detalle.costoUnitario,
+                costoPromedio: Number(costoPromedio.toFixed(2)),
+                creadoPor: new ObjectId(req.uid)
+              })
+            }
+          }
+          detalleUpdate.push({
+            updateOne: {
+              filter: { _id: new ObjectId(detalle._id) },
+              update: { $set: { recibido: Number(detalle?.recibe || 0) + Number(detalle?.recibido || 0) } }
+            }
+          })
+          productosUpdate.push({
+            updateOne: {
+              filter: { _id: new ObjectId(detalle.productoId) },
+              update: { $set: { costoPromedio: Number(costoPromedio.toFixed(2)) } }
+            }
+          })
+        }
+      }
+      console.log({ productoPorAlmacen, detalleUpdate })
+      if (detalleUpdate[0]) {
+        bulkWriteSD({ nameCollection: 'detalleMovimientos', enviromentClienteId: clienteId, pipeline: detalleUpdate })
+        bulkWriteSD({ nameCollection: 'productos', enviromentClienteId: clienteId, pipeline: productosUpdate })
+        createItemSD({
+          nameCollection: 'historial',
+          enviromentClienteId: clienteId,
+          item: {
+            idMovimiento: new ObjectId(movimientoId),
+            categoria: 'creado',
+            tipo: 'Recepcion de inventario',
+            fecha: moment().toDate(),
+            descripcion: 'Inventario recibido parcialmente',
+            creadoPor: new ObjectId(req.uid)
+          }
+        })
+        if (productoPorAlmacen[0]) {
+          createManyItemsSD({
+            nameCollection: 'productosPorAlmacen',
+            enviromentClienteId: clienteId,
+            items: productoPorAlmacen
+          })
+        }
+      }
+    }
+    return res.status(200).json({ status: 'Inventario recibido exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de recibir inventario ' + e.message })
   }
 }

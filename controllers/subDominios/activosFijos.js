@@ -677,8 +677,8 @@ export const saveCalculosDepreciacion = async (req, res) => {
       const isMesActual = momentDate(ajustesSistema.timeZone, dato.fecha).format('YYYY-MM') === momentDate(ajustesSistema.timeZone).format('YYYY-MM')
       for (const result of dato.resultado) {
         const valorMovimiento = Number((
-          Number((result?.totalMes || 0).toFixed(2)) +
-          Number((result?.totalAccumulado || 0).toFixed(2)) -
+          Number((result?.totalMes || 0)) +
+          Number((result?.totalAccumulado || 0)) -
           // result?.totalMes + result?.totalAccumulado) -
           (result?.movimientos?.totalAcum || 0) -
           (result?.movimientosIniciales?.totalAcum || 0)
@@ -1433,14 +1433,14 @@ const depreciacionPorMesYAcumulado = async (fecha, clienteId, periodoId) => {
     const gastosCalculo = (meses[nombre] || 0)
     const acumuladaContabilidad = meses[nombre + 'ContabilidadAcumulado'] || 0
     const gastosContabilidad = meses[nombre + 'ContabilidaGastos'] || 0
-    const acumuladaDiferencia = acumuladaCalculo - acumuladaContabilidad
+    const acumuladaDiferencia = Number(acumuladaCalculo) - acumuladaContabilidad
     const gastosDiferencia = gastosCalculo - gastosContabilidad
 
-    totals.acumuladaCalculo = Number((totals.acumuladaCalculo + acumuladaCalculo).toFixed(2))
+    totals.acumuladaCalculo = Number((totals.acumuladaCalculo + acumuladaCalculo))
     totals.gastosCalculo = Number((totals.gastosCalculo + gastosCalculo).toFixed(2))
     totals.acumuladaContabilidad = Number((totals.acumuladaContabilidad + acumuladaContabilidad).toFixed(2))
     totals.gastosContabilidad = Number((totals.gastosContabilidad + gastosContabilidad).toFixed(2))
-    totals.acumuladaDiferencia = Number((totals.acumuladaDiferencia + acumuladaDiferencia).toFixed(2))
+    totals.acumuladaDiferencia = Number((totals.acumuladaDiferencia + acumuladaDiferencia))
     totals.gastosDiferencia = Number((totals.gastosDiferencia + gastosDiferencia).toFixed(2))
 
     const data = {

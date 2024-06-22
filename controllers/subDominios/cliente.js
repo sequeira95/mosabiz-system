@@ -201,7 +201,7 @@ export const createCliente = async (req, res) => {
         item: {
           periodoId: new ObjectId(periodo.insertedId),
           mesPeriodo: moment(periodoInit).format('YYYY/MM'),
-          codigo: '99998',
+          codigo: '00000',
           nombre: 'Saldos iniciales',
           isBloqueado: true,
           isPreCierre: true,

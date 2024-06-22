@@ -1,6 +1,6 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { cancelarMovimiento, createDevolucion, createMovimientos, getDataMovimientos, getDevoluciones, getMovimientosAjustes, getMovimientosParaDevoluciones, saveAjusteAlmacenAuditoria, updateCostoMovimiento, updateEstadoMovimiento } from '../../controllers/subDominios/movimientos.js'
+import { cancelarMovimiento, createDevolucion, createMovimientos, getComprasForRecepcion, getDataCompraRecepcion, getDataMovimientos, getDevoluciones, getMovimientosAjustes, getMovimientosParaDevoluciones, recepcionInventarioCompra, saveAjusteAlmacenAuditoria, updateCostoMovimiento, updateEstadoMovimiento } from '../../controllers/subDominios/movimientos.js'
 
 const router = express.Router()
 
@@ -14,4 +14,7 @@ router.post('/updateCostoMovimiento', requireSubDominioToken, updateCostoMovimie
 router.post('/getMovimientosForDevoluciones', requireSubDominioToken, getMovimientosParaDevoluciones)
 router.post('/createDevolucion', requireSubDominioToken, createDevolucion)
 router.post('/getDevoluciones', requireSubDominioToken, getDevoluciones)
+router.post('/get/dataCompra/recepcion', requireSubDominioToken, getDataCompraRecepcion)
+router.post('/get/comprasRecepcion', requireSubDominioToken, getComprasForRecepcion)
+router.post('/recepcionCompra', requireSubDominioToken, recepcionInventarioCompra)
 export default router

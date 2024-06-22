@@ -1126,13 +1126,16 @@ export async function datosESF ({ clienteId, periodoId, fecha, nivel, cuentaSinM
       return acc
     }, {})
     for (const cuenta of cuentasPadreEjercicioActual) {
+      if (cuenta.nivelCuenta > nivel) continue
       const existeCuenta = dataCuentasbyCodigo[cuenta.codigo]
       if (existeCuenta) existeCuenta.saldo += cuentaEjercicioActual.saldo
       else noExisten.push({ ...cuenta, saldo: cuentaEjercicioActual.saldo })
     }
-    const existeCuenta = dataCuentasbyCodigo[cuentaEjercicioActual.codigo]
-    if (existeCuenta) existeCuenta.saldo += cuentaEjercicioActual.saldo
-    else noExisten.push(cuentaEjercicioActual)
+    if (cuentaEjercicioActual.nivelCuenta < nivel) {
+      const existeCuenta = dataCuentasbyCodigo[cuentaEjercicioActual.codigo]
+      if (existeCuenta) existeCuenta.saldo += cuentaEjercicioActual.saldo
+      else noExisten.push(cuentaEjercicioActual)
+    }
     if (noExisten.length > 0) {
       dataCuentas.push(...noExisten)
       dataCuentas.sort((a, b) => a.codigo.localeCompare(b.codigo))

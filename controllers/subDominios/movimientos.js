@@ -3123,7 +3123,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 fechaIngreso: moment(fechaActual).toDate(),
                 fechaMovimiento: moment().toDate(),
                 costoUnitario: detalle.costoUnitario,
-                costoPromedio,
+                costoPromedio: Number(costoPromedio.toFixed(2)),
                 creadoPor: new ObjectId(req.uid)
               },
               {
@@ -3160,7 +3160,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 fechaIngreso: moment(fechaActual).toDate(),
                 fechaMovimiento: moment().toDate(),
                 costoUnitario: detalle.costoUnitario,
-                costoPromedio,
+                costoPromedio: Number(costoPromedio.toFixed(2)),
                 creadoPor: new ObjectId(req.uid)
               },
               {
@@ -3196,7 +3196,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                   fechaIngreso: moment(fechaActual).toDate(),
                   fechaMovimiento: moment().toDate(),
                   costoUnitario: detalle.costoUnitario,
-                  costoPromedio,
+                  costoPromedio: Number(costoPromedio.toFixed(2)),
                   creadoPor: new ObjectId(req.uid)
                 },
                 {
@@ -3235,7 +3235,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 tipoAuditoria: 'sobrante',
                 fechaMovimiento: moment().toDate(),
                 costoUnitario: detalle.costoUnitario,
-                costoPromedio,
+                costoPromedio: Number(costoPromedio.toFixed(2)),
                 creadoPor: new ObjectId(req.uid)
               })
             }
@@ -3249,7 +3249,7 @@ export const recepcionInventarioCompra = async (req, res) => {
           productosUpdate.push({
             updateOne: {
               filter: { _id: new ObjectId(detalle.productoId) },
-              update: { $set: { costoPromedio } }
+              update: { $set: { costoPromedio: Number(costoPromedio.toFixed(2)) } }
             }
           })
         }

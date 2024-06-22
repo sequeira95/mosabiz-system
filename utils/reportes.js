@@ -555,14 +555,12 @@ export async function dataComprobantes ({ clienteId, periodoId, order, comproban
     const fechaInit = moment(comprobanteDesde?.mesPeriodo, 'YYYY/MM').startOf('month').toDate()
     const fechaEnd = moment(comprobanteHasta?.mesPeriodo, 'YYYY/MM').endOf('month').toDate()
     if (comprobanteDesde && !comprobanteHasta) {
-      console.log(1)
       matchLimitComprobantes =
         {
           codigoToInt: { $gte: Number(comprobanteDesde.codigo) },
           periodoMes: { $gte: fechaInit }
         }
     } else if (!comprobanteDesde && comprobanteHasta) {
-      console.log(2)
       matchLimitComprobantes =
         {
           codigoToInt: { $lte: Number(comprobanteHasta.codigo) },
@@ -647,7 +645,6 @@ export async function dataComprobantes ({ clienteId, periodoId, order, comproban
         }
       ]
     })
-    console.log({matchLimitComprobantes})
     return ({ comprobantes })
   } catch (e) {
     console.log(e)
@@ -1457,7 +1454,7 @@ export async function datosER ({ clienteId, periodoId, fechaDesde, fechaHasta, n
             haber: 1,
             saldo: '$saldo'
           }
-        },
+        }
       ]
     })
     return { dataCuentas, ISLR: dataISLR?.saldo || 0 }

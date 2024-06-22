@@ -28,6 +28,7 @@ export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order
       { $match: { codigoToInt: { $gte: Number(cuentaDesde), $lte: Number(cuentaHasta) } } }
     ]
   }
+  const gtMatch = cuentaSinMovimientos ? '$gte' : '$gt'
   try {
     const dataCuentas = await agreggateCollectionsSD({
       nameCollection: 'planCuenta',
@@ -79,7 +80,38 @@ export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order
             as: 'detalleComprobantes'
           }
         },
-        { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: cuentaSinMovimientos } },
+        {
+          $lookup: {
+            from: detalleComprobanteCollectionName,
+            localField: '_id',
+            foreignField: 'cuentaId',
+            pipeline: [
+              {
+                $match: {
+                  periodoId: new ObjectId(periodoId),
+                  isPreCierre: { $eq: true }
+                }
+              },
+              {
+                $group: {
+                  _id: '$cuentaId',
+                  debe: { $sum: '$debe' },
+                  haber: { $sum: '$haber' }
+                }
+              }
+            ],
+            as: 'saldosIniciales'
+          }
+        },
+        { $match: {
+          $expr: {
+            $or: [
+              { [gtMatch]: [{ $size: '$detalleComprobantes' }, 0] },
+              { [gtMatch]: [{ $size: '$saldosIniciales' }, 0] },
+            ]
+          }
+        } },
+        { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
             from: detalleComprobanteCollectionName,
@@ -107,29 +139,6 @@ export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order
           }
         },
         { $unwind: { path: '$detalle', preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: detalleComprobanteCollectionName,
-            localField: '_id',
-            foreignField: 'cuentaId',
-            pipeline: [
-              {
-                $match: {
-                  periodoId: new ObjectId(periodoId),
-                  isPreCierre: { $eq: true }
-                }
-              },
-              {
-                $group: {
-                  _id: '$cuentaId',
-                  debe: { $sum: '$debe' },
-                  haber: { $sum: '$haber' }
-                }
-              }
-            ],
-            as: 'saldosIniciales'
-          }
-        },
         { $unwind: { path: '$saldosIniciales', preserveNullAndEmptyArrays: true } },
         {
           $project: {

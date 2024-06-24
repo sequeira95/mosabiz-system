@@ -3017,6 +3017,7 @@ export const recepcionInventarioCompra = async (req, res) => {
       const detalleUpdate = []
       const productoPorAlmacen = []
       const productosUpdate = []
+      const updateAllCostoPromedioPoducto = []
       const almacenTransito = await getItemSD({
         nameCollection: 'almacenes',
         enviromentClienteId: clienteId,
@@ -3252,6 +3253,12 @@ export const recepcionInventarioCompra = async (req, res) => {
               update: { $set: { costoPromedio: Number(costoPromedio.toFixed(2)) } }
             }
           })
+          updateAllCostoPromedioPoducto.push({
+            updateMany: {
+              filter: { productoId: new ObjectId(detalle.productoId) },
+              update: { $set: { costoPromedio: Number(costoPromedio.toFixed(2)) } }
+            }
+          })
         }
       }
       console.log({ productoPorAlmacen, detalleUpdate })
@@ -3276,10 +3283,77 @@ export const recepcionInventarioCompra = async (req, res) => {
             enviromentClienteId: clienteId,
             items: productoPorAlmacen
           })
+          bulkWriteSD({ nameCollection: 'productosPorAlmacen', enviromentClienteId: clienteId, pipeline: updateAllCostoPromedioPoducto })
         }
       }
     }
     return res.status(200).json({ status: 'Inventario recibido exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de recibir inventario ' + e.message })
+  }
+}
+export const cerrarRecepcionCompra = async (req, res) => {
+  const { clienteId, detalleMovimientos, numeroMovimiento, observacion, fechaActual } = req.body
+  console.log(req.body)
+  try {
+    if (detalleMovimientos[0]) {
+      const almacenTransito = await getItemSD({
+        nameCollection: 'almacenes',
+        enviromentClienteId: clienteId,
+        filters: { nombre: 'Transito' }
+      })
+      const almacenAudutoria = await getItemSD({
+        nameCollection: 'almacenes',
+        enviromentClienteId: clienteId,
+        filters: { nombre: 'Auditoria' }
+      })
+      const productosPorAlmacen = []
+      for (const detalle of detalleMovimientos) {
+        if (Number(detalle.recibido) < detalle.cantidad) {
+          const producto = await getItemSD({
+            nameCollection: 'productos',
+            enviromentClienteId: clienteId,
+            filters: { _id: new ObjectId(detalle.productoId) }
+          })
+          productosPorAlmacen.push({
+            productoId: new ObjectId(detalle.productoId),
+            movimientoId: new ObjectId(detalle.movimientoId),
+            cantidad: Number(detalle.cantidad) - Number(detalle.recibido),
+            almacenId: new ObjectId(almacenAudutoria._id),
+            almacenOrigen: new ObjectId(almacenTransito._id),
+            almacenDestino: new ObjectId(almacenAudutoria._id),
+            tipo: 'movimiento',
+            tipoMovimiento: 'entrada',
+            tipoAuditoria: 'faltante',
+            lote: null,
+            fechaVencimiento: null,
+            fechaIngreso: moment(fechaActual).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: producto.costoUnitario,
+            costoPromedio: producto.costoPromedio,
+            creadoPor: new ObjectId(req.uid)
+          }, {
+            productoId: new ObjectId(detalle.productoId),
+            movimientoId: new ObjectId(detalle.movimientoId),
+            cantidad: Number(detalle.cantidad) - Number(detalle.recibido),
+            almacenId: new ObjectId(almacenTransito._id),
+            almacenOrigen: new ObjectId(almacenTransito._id),
+            almacenDestino: new ObjectId(almacenAudutoria._id),
+            tipo: 'movimiento',
+            tipoMovimiento: 'salida',
+            lote: null,
+            fechaVencimiento: null,
+            fechaIngreso: moment(fechaActual).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: producto.costoUnitario,
+            costoPromedio: producto.costoPromedio,
+            creadoPor: new ObjectId(req.uid)
+          })
+        }
+      }
+      return res.status(200).json({ status: 'Recepción cerrada exitosamente ' })
+    }
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de recibir inventario ' + e.message })

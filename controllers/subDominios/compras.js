@@ -766,7 +766,7 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
             fechaVencimiento: null,
             tipo: 'recepcion',
             almacenOrigen: null,
-            almacenDestino: detalleCompra[0].almacenDestino,
+            almacenDestino: null, // detalleCompra[0].almacenDestino,
             zona: null,
             compraId: new ObjectId(compraId),
             numeroMovimiento: contador
@@ -792,25 +792,26 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
         crearla con tercero que seria la razon social
         */
         if (detalle.tipo !== 'producto') continue
-        movimientosAlmacen.push({
-          productoId: new ObjectId(detalle.productoId),
-          movimientoId: new ObjectId(detalle.compraId),
-          cantidad: Number(detalle.cantidad),
-          almacenId: new ObjectId(almacenTransito._id),
-          almacenOrigen: null,
-          almacenDestino: new ObjectId(almacenTransito._id),
-          tipo: 'compra',
-          tipoMovimiento: 'entrada',
-          lote: null, // movimientos.lote,
-          // fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
-          // fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
-          fechaMovimiento: moment().toDate(),
-          costoUnitario: Number(detalle.costoUnitario),
-          costoPromedio: Number(detalle.costoUnitario),
-          creadoPor: new ObjectId(req.uid)
-        })
-        /** Creamos el movimiento de recepcion de inventario (ESTO SE DEBERIA DE CONDICIONAR A SI LA PERSONA TIENE INVENTARIO ACTIVO) */
         if (tieneInventario) {
+          movimientosAlmacen.push({
+            isCompra: true,
+            productoId: new ObjectId(detalle.productoId),
+            movimientoId: new ObjectId(detalle.compraId),
+            cantidad: Number(detalle.cantidad),
+            almacenId: new ObjectId(almacenTransito._id),
+            almacenOrigen: null,
+            almacenDestino: new ObjectId(almacenTransito._id),
+            tipo: 'compra',
+            tipoMovimiento: 'entrada',
+            lote: null, // movimientos.lote,
+            // fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+            // fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
+            fechaMovimiento: moment().toDate(),
+            costoUnitario: Number(detalle.costoUnitario),
+            costoPromedio: Number(detalle.costoUnitario),
+            creadoPor: new ObjectId(req.uid)
+          })
+          /** Creamos el movimiento de recepcion de inventario (ESTO SE DEBERIA DE CONDICIONAR A SI LA PERSONA TIENE INVENTARIO ACTIVO) */
           detalleRecepcionInventario.push({
             movimientoId: movimientoInventario.insertedId,
             productoId: new ObjectId(detalle.productoId),
@@ -1334,5 +1335,23 @@ export const getSolicitudesInventario = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de bucar datos de los movimientos ' + e.message })
+  }
+}
+export const getOrdenesComprasForFacturas = async (req, res) => {
+  const { clienteId } = req.body
+  try {
+    const ordenes = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { estado: { $in: ['pendientePagos', 'pagada'] } } },
+        { $project: { numeroOrden: 1 } },
+        { $sort: { numeroOrden: 1 } }
+      ]
+    })
+    return res.status(200).json({ ordenes })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })
   }
 }

@@ -3,12 +3,13 @@ import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken
 import {
   aprobarOrdenCompra,
   aprobarPagosOrdenCompra,
-  cancelarCompra, createOrdenCompra,
+  cancelarCompra, createFacturas, createOrdenCompra,
   createPagoOrdenes,
   editOrden,
   getDataCompra,
   getDataOrdenesComprasPorPagar,
   getDetalleProveedor,
+  getFacturas,
   getListImpuestosIslr,
   getListImpuestosIva,
   getListProductosForCompra,
@@ -38,4 +39,6 @@ router.post('/create/pagosOrdenes', requireSubDominioToken, createPagoOrdenes)
 router.post('/get/listadoTransacciones', requireSubDominioToken, getListadoPagos)
 router.post('/get/solicitudesInventario', requireSubDominioToken, getSolicitudesInventario)
 router.post('/get/ordenesCompras', requireSubDominioToken, getOrdenesComprasForFacturas)
+router.post('/save/factura', requireSubDominioToken, createFacturas)
+router.post('/get/listadoFacturas', requireSubDominioToken, getFacturas)
 export default router

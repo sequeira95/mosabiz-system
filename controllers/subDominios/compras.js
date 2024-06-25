@@ -285,7 +285,7 @@ export const createOrdenCompra = async (req, res) => {
       item: {
         idMovimiento: newMovimiento.insertedId,
         categoria: 'creado',
-        tipo: 'Factura',
+        tipo: 'Orden de compra',
         fecha: moment().toDate(),
         descripcion: `Orden N° ${contador} creada`,
         creadoPor: new ObjectId(req.uid)
@@ -527,7 +527,7 @@ export const aprobarOrdenCompra = async (req, res) => {
       item: {
         idMovimiento: new ObjectId(compraId),
         categoria: 'editado',
-        tipo: 'Factura',
+        tipo: 'Orden de compra',
         fecha: moment().toDate(),
         descripcion: 'Orden aprobada',
         creadoPor: new ObjectId(req.uid)
@@ -620,7 +620,7 @@ export const editOrden = async (req, res) => {
       item: {
         idMovimiento: _id,
         categoria: 'editado',
-        tipo: 'Factura',
+        tipo: 'Orden de compra',
         fecha: moment().toDate(),
         descripcion: `Factura N° ${numeroOrden} editada`,
         creadoPor: new ObjectId(req.uid)
@@ -902,7 +902,7 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
       item: {
         idMovimiento: new ObjectId(compraId),
         categoria: 'editado',
-        tipo: 'Factura',
+        tipo: 'Orden de compra',
         fecha: moment().toDate(),
         descripcion: 'Cambio de estado a pendiente por pago',
         creadoPor: new ObjectId(req.uid)
@@ -1353,5 +1353,145 @@ export const getOrdenesComprasForFacturas = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })
+  }
+}
+export const createFacturas = async (req, res) => {
+  console.log(req.body)
+  const { clienteId, factura, fechaFactura } = req.body
+  try {
+    const newFactura = await createItemSD({
+      nameCollection: 'facturas',
+      enviromentClienteId: clienteId,
+      item: {
+        tipoMovimiento: 'compra',
+        fecha: moment(fechaFactura).toDate(),
+        numeroFactura: factura.numeroFactura,
+        proveedorId: new ObjectId(factura.proveedor._id),
+        moneda: factura.moneda,
+        monedaSecundaria: factura.monedaSecundaria,
+        hasIgtf: factura.hasIgtf,
+        isAgenteRetencionIva: factura.isAgenteRetencionIva,
+        compraFiscal: true,
+        retISLR: factura.retISLR,
+        valorRetIva: factura?.valorRetIva ? Number(factura?.valorRetIva) : null,
+        codigoRetIslr: factura?.valorRetISLR?.codigo || null,
+        nombreRetIslr: factura?.valorRetISLR?.nombre || null,
+        porcenjateIslr: factura?.valorRetISLR?.valorRet ? Number(factura?.valorRetISLR?.valorRet) : null,
+        valorBaseImponibleIslr: factura?.valorRetISLR?.valorBaseImponible ? Number(factura?.valorRetISLR?.valorBaseImponible) : null,
+        baseImponible: factura?.baseImponible ? Number(factura?.baseImponible) : null,
+        iva: factura?.iva ? Number(factura?.iva) : null,
+        retIva: factura?.retIva ? Number(factura?.retIva) : null,
+        retIslr: factura?.retIslr ? Number(factura?.retIslr) : null,
+        total: factura?.total ? Number(factura?.total) : null,
+        baseImponibleSecundaria: factura?.baseImponibleSecundaria ? Number(factura?.baseImponibleSecundaria) : null,
+        ivaSecundaria: factura?.ivaSecundaria ? Number(factura?.ivaSecundaria) : null,
+        retIvaSecundaria: factura?.retIvaSecundaria ? Number(factura?.retIvaSecundaria) : null,
+        retIslrSecundaria: factura?.retIslrSecundaria ? Number(factura?.retIslrSecundaria) : null,
+        totalSecundaria: factura?.totalSecundaria ? Number(factura?.totalSecundaria) : null,
+        creadoPor: new ObjectId(req.uid),
+        metodoPago: factura.proveedor.metodoPago,
+        formaPago: factura.proveedor.formaPago,
+        credito: factura.proveedor?.credito || null,
+        duracionCredito: factura.proveedor?.duracionCredito || null,
+        tasaDia: factura.tasaDia ? Number(factura.tasaDia) : null,
+        ordenCompraId: factura.ordenCompraId ? new ObjectId(factura.ordenCompraId) : null
+      }
+    })
+    createItemSD({
+      nameCollection: 'historial',
+      enviromentClienteId: clienteId,
+      item: {
+        idMovimiento: newFactura.insertedId,
+        categoria: 'creado',
+        tipo: 'Factura',
+        fecha: moment().toDate(),
+        descripcion: `Factura N° ${factura.numeroFactura} creada`,
+        creadoPor: new ObjectId(req.uid)
+      }
+    })
+    const detalle = factura.productosServicios.map(e => {
+      return {
+        facturaId: newFactura.insertedId,
+        productoId: new ObjectId(e._id),
+        codigo: e.codigo,
+        descripcion: e.descripcion,
+        nombre: e.nombre,
+        observacion: e.observacion,
+        unidad: e.unidad,
+        cantidad: e.cantidad,
+        tipo: e.tipo ? e.tipo : 'producto',
+        retIslr: e.retIslr,
+        costoUnitario: Number(e.costoUnitario),
+        baseImponible: Number(e.baseImponible),
+        montoIva: e.montoIva ? Number(e.montoIva) : null,
+        iva: e.iva ? Number(e.iva) : null,
+        costoTotal: Number(e.costoTotal)
+      }
+    })
+    await createManyItemsSD({
+      nameCollection: 'detalleFactura',
+      enviromentClienteId: clienteId,
+      items: [
+        ...detalle
+      ]
+    })
+    return res.status(200).json({ status: `Factura N° ${factura.numeroFactura} creada exitosamente` })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar la orden de compra ' + e.message })
+  }
+}
+export const getFacturas = async (req, res) => {
+  const { clienteId, itemsPorPagina, pagina } = req.body
+  try {
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const detalleFacturaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleFactura' })
+    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+    const facturas = await agreggateCollectionsSD({
+      nameCollection: 'facturas',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $skip: (pagina - 1) * itemsPorPagina },
+        { $limit: itemsPorPagina },
+        {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: 'proveedorId',
+            foreignField: '_id',
+            as: 'proveedor'
+          }
+        },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: detalleFacturaCollection,
+            localField: '_id',
+            foreignField: 'facturaId',
+            as: 'productosServicios'
+          }
+        },
+        {
+          $lookup:
+            {
+              from: subDominioPersonasCollectionsName,
+              localField: 'creadoPor',
+              foreignField: 'usuarioId',
+              as: 'personas'
+            }
+        },
+        { $unwind: { path: '$personas', preserveNullAndEmptyArrays: true } }
+      ]
+    })
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'facturas',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ facturas, count: count.length ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las facturas pendientes ' + e.message })
   }
 }

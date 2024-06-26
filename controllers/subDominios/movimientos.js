@@ -3023,10 +3023,10 @@ export const recepcionInventarioCompra = async (req, res) => {
         enviromentClienteId: clienteId,
         filters: { nombre: 'Transito' }
       })
-      const almacenAudutoria = await getItemSD({
+      const almacenDevoluciones = await getItemSD({
         nameCollection: 'almacenes',
         enviromentClienteId: clienteId,
-        filters: { nombre: 'Auditoria' }
+        filters: { nombre: 'Devoluciones' }
       })
       for (const detalle of detalleMovimientos) {
         if (detalle?.cantidaLotes) {
@@ -3186,12 +3186,13 @@ export const recepcionInventarioCompra = async (req, res) => {
                   productoId: new ObjectId(detalle.productoId),
                   movimientoId: new ObjectId(detalle.movimientoId),
                   cantidad: Number(diferenciaLote),
-                  almacenId: new ObjectId(almacenAudutoria._id),
+                  almacenId: new ObjectId(almacenDevoluciones._id),
                   almacenOrigen: new ObjectId(almacenTransito._id),
-                  almacenDestino: new ObjectId(almacenAudutoria._id),
+                  almacenDestino: new ObjectId(almacenDevoluciones._id),
                   tipo: 'movimiento',
                   tipoMovimiento: 'entrada',
                   tipoAuditoria: 'sobrante',
+                  tipoDevolucion: 'compra',
                   lote: lote.lote,
                   fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
                   fechaIngreso: moment(fechaActual).toDate(),
@@ -3199,14 +3200,14 @@ export const recepcionInventarioCompra = async (req, res) => {
                   costoUnitario: detalle.costoUnitario,
                   costoPromedio: Number(costoPromedio.toFixed(2)),
                   creadoPor: new ObjectId(req.uid)
-                },
-                {
+                }
+                /* {
                   productoId: new ObjectId(detalle.productoId),
                   movimientoId: new ObjectId(detalle.movimientoId),
                   cantidad: Number(diferenciaLote),
                   almacenId: new ObjectId(almacenTransito._id),
                   almacenOrigen: new ObjectId(almacenTransito._id),
-                  almacenDestino: new ObjectId(almacenAudutoria._id),
+                  almacenDestino: new ObjectId(almacenDevoluciones._id),
                   tipo: 'movimiento',
                   tipoMovimiento: 'salida',
                   lote: null, // lote.lote,
@@ -3216,24 +3217,25 @@ export const recepcionInventarioCompra = async (req, res) => {
                   costoUnitario: detalle.costoUnitario,
                   costoPromedio: detalle.costoUnitario,
                   creadoPor: new ObjectId(req.uid)
-                })
+                } */)
               }
-            }
-            if (diferencia <= 0) {
+            } else if (diferencia <= 0) {
+              console.log({ diferenciaMenor: diferencia })
               diferencia -= lote.cantidad
               productoPorAlmacen.push({
                 productoId: new ObjectId(detalle.productoId),
                 movimientoId: new ObjectId(detalle.movimientoId),
                 cantidad: Number(lote.cantidad),
-                almacenId: new ObjectId(almacenAudutoria._id),
+                almacenId: new ObjectId(almacenDevoluciones._id),
                 // almacenOrigen: new ObjectId(almacenTransito._id),
-                almacenDestino: new ObjectId(almacenAudutoria._id),
+                almacenDestino: new ObjectId(almacenDevoluciones._id),
                 tipo: 'movimiento',
                 tipoMovimiento: 'entrada',
                 lote: lote.lote,
                 fechaVencimiento: moment(lote.fechaVencimiento).toDate(),
                 fechaIngreso: moment(fechaActual).toDate(),
                 tipoAuditoria: 'sobrante',
+                tipoDevolucion: 'compra',
                 fechaMovimiento: moment().toDate(),
                 costoUnitario: detalle.costoUnitario,
                 costoPromedio: Number(costoPromedio.toFixed(2)),
@@ -3261,7 +3263,7 @@ export const recepcionInventarioCompra = async (req, res) => {
           })
         }
       }
-      console.log({ productoPorAlmacen, detalleUpdate })
+      console.log({ productoPorAlmacen, detalleUpdate, productosUpdate, updateAllCostoPromedioPoducto })
       if (detalleUpdate[0]) {
         bulkWriteSD({ nameCollection: 'detalleMovimientos', enviromentClienteId: clienteId, pipeline: detalleUpdate })
         bulkWriteSD({ nameCollection: 'productos', enviromentClienteId: clienteId, pipeline: productosUpdate })
@@ -3278,7 +3280,7 @@ export const recepcionInventarioCompra = async (req, res) => {
           }
         })
         if (productoPorAlmacen[0]) {
-          createManyItemsSD({
+          await createManyItemsSD({
             nameCollection: 'productosPorAlmacen',
             enviromentClienteId: clienteId,
             items: productoPorAlmacen
@@ -3294,23 +3296,25 @@ export const recepcionInventarioCompra = async (req, res) => {
   }
 }
 export const cerrarRecepcionCompra = async (req, res) => {
-  const { clienteId, detalleMovimientos, numeroMovimiento, observacion, fechaActual } = req.body
+  const { clienteId, detalleMovimientos, _id: movimientoId, observacion, fechaActual } = req.body
   console.log(req.body)
   try {
     if (detalleMovimientos[0]) {
+      const diferencia = detalleMovimientos.some(e => e.cantidad !== e.recibo)
       const almacenTransito = await getItemSD({
         nameCollection: 'almacenes',
         enviromentClienteId: clienteId,
         filters: { nombre: 'Transito' }
       })
-      const almacenAudutoria = await getItemSD({
+      const almacenDevoluciones = await getItemSD({
         nameCollection: 'almacenes',
         enviromentClienteId: clienteId,
-        filters: { nombre: 'Auditoria' }
+        filters: { nombre: 'Devoluciones' }
       })
       const productosPorAlmacen = []
       for (const detalle of detalleMovimientos) {
         if (Number(detalle.recibido) < detalle.cantidad) {
+          console.log('entramos al for', detalle)
           const producto = await getItemSD({
             nameCollection: 'productos',
             enviromentClienteId: clienteId,
@@ -3320,17 +3324,18 @@ export const cerrarRecepcionCompra = async (req, res) => {
             productoId: new ObjectId(detalle.productoId),
             movimientoId: new ObjectId(detalle.movimientoId),
             cantidad: Number(detalle.cantidad) - Number(detalle.recibido),
-            almacenId: new ObjectId(almacenAudutoria._id),
+            almacenId: new ObjectId(almacenDevoluciones._id),
             almacenOrigen: new ObjectId(almacenTransito._id),
-            almacenDestino: new ObjectId(almacenAudutoria._id),
+            almacenDestino: new ObjectId(almacenDevoluciones._id),
             tipo: 'movimiento',
             tipoMovimiento: 'entrada',
             tipoAuditoria: 'faltante',
+            tipoDevolucion: 'compra',
             lote: null,
             fechaVencimiento: null,
             fechaIngreso: moment(fechaActual).toDate(),
             fechaMovimiento: moment().toDate(),
-            costoUnitario: producto.costoUnitario,
+            costoUnitario: detalle.costoUnitario,
             costoPromedio: producto.costoPromedio,
             creadoPor: new ObjectId(req.uid)
           }, {
@@ -3339,19 +3344,31 @@ export const cerrarRecepcionCompra = async (req, res) => {
             cantidad: Number(detalle.cantidad) - Number(detalle.recibido),
             almacenId: new ObjectId(almacenTransito._id),
             almacenOrigen: new ObjectId(almacenTransito._id),
-            almacenDestino: new ObjectId(almacenAudutoria._id),
+            almacenDestino: new ObjectId(almacenDevoluciones._id),
             tipo: 'movimiento',
             tipoMovimiento: 'salida',
             lote: null,
             fechaVencimiento: null,
             fechaIngreso: moment(fechaActual).toDate(),
             fechaMovimiento: moment().toDate(),
-            costoUnitario: producto.costoUnitario,
+            costoUnitario: detalle.costoUnitario,
             costoPromedio: producto.costoPromedio,
             creadoPor: new ObjectId(req.uid)
           })
         }
       }
+      createManyItemsSD({
+        nameCollection: 'productosPorAlmacen',
+        enviromentClienteId: clienteId,
+        items: productosPorAlmacen
+      })
+      const prueba = await updateItemSD({
+        nameCollection: 'movimientos',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(movimientoId) },
+        update: { $set: { estado: 'recibido', observacion, estadoRecepcion: diferencia ? 'Con diferencia' : 'Satisfactorio' } }
+      })
+      console.log({ prueba })
       return res.status(200).json({ status: 'Recepción cerrada exitosamente ' })
     }
   } catch (e) {

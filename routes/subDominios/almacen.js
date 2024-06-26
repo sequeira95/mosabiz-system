@@ -1,6 +1,6 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { addImagenToAlmacen, createAlmacen, deleteAlmacen, deleteImgAlmacen, detalleAlmacenAuditoria, detalleMovimientoAuditado, editAlmacen, getAlmacenes, getDataAlmacenAuditoria, getDetalleLotePorAlmacen, getProductosPorAlmacen, listCategoriaPorAlmacen, saveCategoriaPorAlmacen, saveToArray } from '../../controllers/subDominios/almacen.js'
+import { addImagenToAlmacen, createAlmacen, deleteAlmacen, deleteImgAlmacen, detalleAlmacenAuditoria, detalleAlmacenDevoluciones, detalleMovimientoAuditado, detalleMovimientoDevolucion, editAlmacen, getAlmacenes, getDataAlmacenAuditoria, getDataAlmacenDecoluciones, getDetalleLotePorAlmacen, getProductosPorAlmacen, listCategoriaPorAlmacen, saveCategoriaPorAlmacen, saveToArray } from '../../controllers/subDominios/almacen.js'
 
 const router = express.Router()
 
@@ -18,4 +18,7 @@ router.post('/getDetalleAlmacenAuditoria', requireSubDominioToken, detalleAlmace
 router.post('/getDetalleMovimientoAuditado', requireSubDominioToken, detalleMovimientoAuditado)
 router.post('/getDetalleLotePorAlmacen', requireSubDominioToken, getDetalleLotePorAlmacen)
 router.post('/getProductosPorAlmacen', requireSubDominioToken, getProductosPorAlmacen)
+router.post('/getAlmacenDevoluciones', requireSubDominioToken, getDataAlmacenDecoluciones)
+router.post('/getDetalleAlmacenDevoluciones', requireSubDominioToken, detalleAlmacenDevoluciones)
+router.post('/getDetalleMovimientoDevolucion', requireSubDominioToken, detalleMovimientoDevolucion)
 export default router

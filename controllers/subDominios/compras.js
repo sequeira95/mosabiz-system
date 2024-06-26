@@ -1340,12 +1340,30 @@ export const getSolicitudesInventario = async (req, res) => {
 export const getOrdenesComprasForFacturas = async (req, res) => {
   const { clienteId } = req.body
   try {
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const detalleCompraCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleCompra' })
     const ordenes = await agreggateCollectionsSD({
       nameCollection: 'compras',
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: { estado: { $in: ['pendientePagos', 'pagada'] } } },
-        { $project: { numeroOrden: 1 } },
+        {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: 'proveedorId',
+            foreignField: '_id',
+            as: 'proveedor'
+          }
+        },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: detalleCompraCollection,
+            localField: '_id',
+            foreignField: 'compraId',
+            as: 'detalleCompra'
+          }
+        },
         { $sort: { numeroOrden: 1 } }
       ]
     })
@@ -1360,12 +1378,14 @@ export const createFacturas = async (req, res) => {
   const { clienteId, factura, fechaFactura } = req.body
   try {
     const newFactura = await createItemSD({
-      nameCollection: 'facturas',
+      nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       item: {
         tipoMovimiento: 'compra',
         fecha: moment(fechaFactura).toDate(),
         numeroFactura: factura.numeroFactura,
+        tipoDocumento: factura.tipoDocumento,
+        numeroControl: factura.numeroControl,
         proveedorId: new ObjectId(factura.proveedor._id),
         moneda: factura.moneda,
         monedaSecundaria: factura.monedaSecundaria,
@@ -1429,7 +1449,7 @@ export const createFacturas = async (req, res) => {
       }
     })
     await createManyItemsSD({
-      nameCollection: 'detalleFactura',
+      nameCollection: 'detalleDocumentosFiscales',
       enviromentClienteId: clienteId,
       items: [
         ...detalle

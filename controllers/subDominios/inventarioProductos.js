@@ -13,7 +13,7 @@ export const getProductos = async (req, res) => {
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
     const ivaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'iva' })
     const matchAlmacen = almacenOrigen ? { almacenId: new ObjectId(almacenOrigen) } : {}
-    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria'] } } })
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones'] } } })
     const productos = await agreggateCollectionsSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
@@ -200,7 +200,7 @@ export const saveToArray = async (req, res) => {
 export const getDetalleCantidad = async (req, res) => {
   const { clienteId, productoId } = req.body
   try {
-    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria'] } } })
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones'] } } })
     const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
     const cantidadPorALmacen = await agreggateCollectionsSD({
       nameCollection: 'productosPorAlmacen',

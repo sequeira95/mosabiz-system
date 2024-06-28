@@ -13,6 +13,7 @@ import {
   getMovimientosParaDevoluciones,
   recepcionInventarioCompra,
   saveAjusteAlmacenAuditoria,
+  saveAjusteAlmacenDevoluciones,
   updateCostoMovimiento,
   updateEstadoMovimiento
 } from '../../controllers/subDominios/movimientos.js'
@@ -33,4 +34,5 @@ router.post('/get/dataCompra/recepcion', requireSubDominioToken, getDataCompraRe
 router.post('/get/comprasRecepcion', requireSubDominioToken, getComprasForRecepcion)
 router.post('/recepcionCompra', requireSubDominioToken, recepcionInventarioCompra)
 router.post('/cierreRecepcionCompra', requireSubDominioToken, cerrarRecepcionCompra)
+router.post('/saveAjusteAlmacenDevoluciones', requireSubDominioToken, saveAjusteAlmacenDevoluciones)
 export default router

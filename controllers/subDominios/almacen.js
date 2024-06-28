@@ -1021,12 +1021,12 @@ export const getDataAlmacenDecoluciones = async (req, res) => {
                 }
               },
               { $unwind: { path: '$detalleMovimiento', preserveNullAndEmptyArrays: true } },
-              { $match: { 'detalleMovimiento.estado': { $eq: 'recibido' } } },
+              { $match: { 'detalleMovimiento.estado': { $in: ['recibido', 'devolucion'] } } },
               {
                 $group: {
                   _id: {
-                    productoId: '$productoId',
-                    lote: '$lote'
+                    productoId: '$productoId'
+                    // lote: '$lote'
                   },
                   sobrante: {
                     $sum: {
@@ -1035,9 +1035,11 @@ export const getDataAlmacenDecoluciones = async (req, res) => {
                           $and:
                           [
                             { $eq: ['$tipoAuditoria', 'sobrante'] },
-                            { $ne: ['$afecta', 'Faltante'] },
-                            { $ne: ['$afecta', 'Sobrante'] },
-                            { $ne: ['$afecta', 'Almacen'] }
+                            { $ne: ['$afecta', 'Perdida'] },
+                            { $ne: ['$afecta', 'Descuento'] },
+                            { $ne: ['$afecta', 'Almacen'] },
+                            { $ne: ['$afecta', 'Ganancia'] },
+                            { $ne: ['$afecta', 'Por pagar proveedor'] }
                           ]
                         },
                         then: '$cantidad',
@@ -1052,9 +1054,11 @@ export const getDataAlmacenDecoluciones = async (req, res) => {
                           $and:
                           [
                             { $eq: ['$tipoAuditoria', 'faltante'] },
-                            { $ne: ['$afecta', 'Faltante'] },
-                            { $ne: ['$afecta', 'Sobrante'] },
-                            { $ne: ['$afecta', 'Almacen'] }
+                            { $ne: ['$afecta', 'Perdida'] },
+                            { $ne: ['$afecta', 'Descuento'] },
+                            { $ne: ['$afecta', 'Almacen'] },
+                            { $ne: ['$afecta', 'Ganancia'] },
+                            { $ne: ['$afecta', 'Por pagar proveedor'] }
                           ]
                         },
                         then: '$cantidad',
@@ -1072,9 +1076,9 @@ export const getDataAlmacenDecoluciones = async (req, res) => {
                             {
                               $or:
                             [
-                              { $eq: ['$afecta', 'Faltante'] },
-                              { $eq: ['$afecta', 'Sobrante'] },
-                              { $eq: ['$afecta', 'Almacen'] }
+                              { $eq: ['$afecta', 'Almacen'] },
+                              { $eq: ['$afecta', 'Ganancia'] },
+                              { $eq: ['$afecta', 'Por pagar proveedor'] }
                             ]
                             }
                           ]
@@ -1094,8 +1098,8 @@ export const getDataAlmacenDecoluciones = async (req, res) => {
                             {
                               $or:
                             [
-                              { $eq: ['$afecta', 'Faltante'] },
-                              { $eq: ['$afecta', 'Sobrante'] },
+                              { $eq: ['$afecta', 'Perdida'] },
+                              { $eq: ['$afecta', 'Descuento'] },
                               { $eq: ['$afecta', 'Almacen'] }
                             ]
                             }

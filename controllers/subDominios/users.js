@@ -34,6 +34,33 @@ export const getUsersClientes = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de obtener usuarios del clientes' })
   }
 }
+export const getUsuariosYAlmacenesClientes = async (req, res) => {
+  try {
+    const usuarios = await agreggateCollectionsSD({
+      nameCollection: 'personas',
+      pipeline: [
+        { $match: { isCliente: true, clienteId: new ObjectId(req.body._id) } }
+      ]
+    })
+    const almacenes = await agreggateCollectionsSD({
+      nameCollection: 'almacenes',
+      enviromentClienteId: req.body._id,
+      pipeline: [
+        { $match: { nombre: { $nin: ['Transito', 'Auditoria'] } } },
+        {
+          $project: {
+            _id: 1,
+            nombre: { $concat: ['$codigo', ' - ', '$nombre'] }
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ usuarios, almacenes })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtener usuarios del clientes' })
+  }
+}
 export const createUser = async (req, res) => {
   const { nombre, email, clientes, telefono, modulos } = req.body
   try {

@@ -4,7 +4,9 @@ import {
   createSucursal,
   getSucursales,
   saveSucursales,
-  deleteSucursales
+  deleteSucursales,
+  listSucursalesPorZonas,
+  saveSucursalesPorZonas
 } from '../../controllers/subDominios/ventas/sucursales.js'
 
 import {
@@ -20,6 +22,8 @@ router.post('/sucursales/get', requireSubDominioToken, getSucursales)
 router.post('/sucursales/set', requireSubDominioToken, createSucursal)
 router.post('/sucursales/save', requireSubDominioToken, saveSucursales)
 router.post('/sucursales/delete', requireSubDominioToken, deleteSucursales)
+router.post('/sucursales/zonas', requireSubDominioToken, listSucursalesPorZonas)
+router.post('/sucursales/zonas/save', requireSubDominioToken, saveSucursalesPorZonas)
 
 router.post('/zonas/get', requireSubDominioToken, getZonas)
 router.post('/zonas/set', requireSubDominioToken, saveZonas)

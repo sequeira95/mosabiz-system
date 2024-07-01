@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, updateManyItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
 import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
 import { subDominioName } from '../../../constants.js'
@@ -183,5 +183,77 @@ export const deleteSucursales = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la sucursal' + e.message })
+  }
+}
+
+export const listSucursalesPorZonas = async (req, res) => {
+  const { clienteId, sucursalId } = req.body
+  try {
+    const zonasPorSucursales = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonasPorSucursales' })
+    const list = await agreggateCollectionsSD({
+      nameCollection: 'ventaszonas',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $lookup: {
+            from: zonasPorSucursales,
+            localField: '_id',
+            foreignField: 'zonaId',
+            pipeline: [
+              { $match: { sucursalId: new ObjectId(sucursalId) } },
+            ],
+            as: 'zonasPorSucursales'
+          }
+        },
+        { $unwind: { path: '$zonasPorSucursales', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            zona: '$nombre',
+            zonaId: '$_id',
+            sucursalId: '$zonasPorSucursales.sucursalId',
+            cuentaId: '$zonasPorSucursales.cuentaId'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ list })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la lista de categorías por zonas ' + e.message })
+  }
+}
+
+export const saveSucursalesPorZonas = async (req, res) => {
+  const { clienteId, tipo, categoriasPorZona, sucursalId } = req.body
+  try {
+    await saveSucursalPorZona({ clienteId, tipo, categoriasPorZona, sucursalId })
+    return res.status(200).json({ status: 'Categorias guardadas exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar las categoria por zona ' + e.message })
+  }
+}
+
+const saveSucursalPorZona = async ({ clienteId, categoriasPorZona, sucursalId }) => {
+  const bulkWrite = []
+  try {
+    for (const categoriaZona of categoriasPorZona) {
+      bulkWrite.push({
+        updateOne: {
+          filter: { zonaId: new ObjectId(categoriaZona.zonaId), sucursalId: new ObjectId(sucursalId) },
+          update: {
+            $set: {
+              cuentaId: categoriaZona.cuentaId ? new ObjectId(categoriaZona.cuentaId) : null
+            }
+          },
+          upsert: true
+        }
+      })
+    }
+    if (bulkWrite[0]) await bulkWriteSD({ nameCollection: 'zonasPorSucursales', enviromentClienteId: clienteId, pipeline: bulkWrite })
+  } catch (e) {
+    console.log(e)
+    throw e
   }
 }

@@ -4,10 +4,12 @@ import {
   cancelarMovimiento,
   cerrarRecepcionCompra,
   createDevolucion,
+  createDevolucionCompra,
   createMovimientos,
   getComprasForRecepcion,
   getDataCompraRecepcion,
   getDataMovimientos,
+  getDataOrdenCompra,
   getDevoluciones,
   getMovimientosAjustes,
   getMovimientosParaDevoluciones,
@@ -35,4 +37,6 @@ router.post('/get/comprasRecepcion', requireSubDominioToken, getComprasForRecepc
 router.post('/recepcionCompra', requireSubDominioToken, recepcionInventarioCompra)
 router.post('/cierreRecepcionCompra', requireSubDominioToken, cerrarRecepcionCompra)
 router.post('/saveAjusteAlmacenDevoluciones', requireSubDominioToken, saveAjusteAlmacenDevoluciones)
+router.post('/get/getDataOrden', requireSubDominioToken, getDataOrdenCompra)
+router.post('/createDevolucionCompra', requireSubDominioToken, createDevolucionCompra)
 export default router

@@ -1229,7 +1229,8 @@ export const detalleAlmacenDevoluciones = async (req, res) => {
         }
       },
       { $unwind: { path: '$detalleMovimiento', preserveNullAndEmptyArrays: true } },
-      { $match: { 'detalleMovimiento.estado': { $eq: 'recibido' } } },
+      // { $match: { 'detalleMovimiento.estado': { $eq: 'recibido' } } },
+      { $match: { 'detalleMovimiento.estado': { $in: ['recibido', 'devolucion'] } } },
       {
         $group: {
           _id: {

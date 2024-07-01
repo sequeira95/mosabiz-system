@@ -1338,15 +1338,22 @@ export const getSolicitudesInventario = async (req, res) => {
   }
 }
 export const getOrdenesComprasForFacturas = async (req, res) => {
-  const { clienteId } = req.body
+  const { clienteId, estatusInventario } = req.body
   try {
+    const configMatch = {}
+    console.log({ estatusInventario })
+    if (estatusInventario) {
+      configMatch.statusInventario = { $eq: estatusInventario }
+    } else {
+      configMatch.estado = { $in: ['pendientePagos', 'pagada'] }
+    }
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const detalleCompraCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleCompra' })
     const ordenes = await agreggateCollectionsSD({
       nameCollection: 'compras',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: { $in: ['pendientePagos', 'pagada'] } } },
+        { $match: configMatch/* { estado: { $in: ['pendientePagos', 'pagada'] } } */ },
         {
           $lookup: {
             from: proveedoresCollection,

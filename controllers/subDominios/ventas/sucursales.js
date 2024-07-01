@@ -40,7 +40,7 @@ export const getSucursales = async (req, res) => {
 }
 
 export const createSucursal = async (req, res) => {
-  const { _id, codigo, nombre, rif, direccion, usuarios, almacenes, clienteId } = req.body
+  const { _id, codigo, nombre, rif, logo: logoRef, direccion, usuarios, almacenes, clienteId } = req.body
   const file = req.files?.logo
   if (!codigo || !nombre) throw new Error('Debe un gresar un nombre y codigo valido')
   try {
@@ -94,6 +94,7 @@ export const createSucursal = async (req, res) => {
         : undefined
     if (_id) {
       const logo = {}
+      if (!logoRef) logo.logo = null
       if (documentosAdjuntos[0]) logo.logo = documentosAdjuntos[0]
       sucursal = await updateItemSD({
         nameCollection: 'ventassucursales',
@@ -152,9 +153,7 @@ export const saveSucursales = async (req, res) => {
           $set: {
             nombre: item.nombre,
             rif: item.rif,
-            direccion: item.direccion,
-            usuarios: (item.usuarios || []).map(e => new ObjectId(e)),
-            almacenes: (item.almacenes || []).map(e => new ObjectId(e))
+            direccion: item.direccion
           }
         }
       })
@@ -167,8 +166,6 @@ export const saveSucursales = async (req, res) => {
           nombre: item.nombre,
           rif: item.rif,
           direccion: item.direccion,
-          usuarios: (item.usuarios || []).map(e => new ObjectId(e)),
-          almacenes: (item.almacenes || []).map(e => new ObjectId(e)),
           fechaCreacion: momentDate().toDate()
         }
       })

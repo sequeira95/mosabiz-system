@@ -34,7 +34,6 @@ export const saveZonas = async (req, res) => {
         }
       ]
     })
-    console.log(verify);
     if ((_id && verify && String(verify._id) !== _id) || (verify && !_id)) return res.status(400).json({ error: 'Ya existe una zona con este nombre' })
     let zona
     if (_id) {

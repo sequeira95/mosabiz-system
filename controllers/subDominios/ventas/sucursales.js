@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, updateManyItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
 import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
 import { subDominioName } from '../../../constants.js'
@@ -96,6 +96,9 @@ export const createSucursal = async (req, res) => {
       const logo = {}
       if (!logoRef) logo.logo = null
       if (documentosAdjuntos[0]) logo.logo = documentosAdjuntos[0]
+      if (((!logoRef && verify.logo) || (verify.logo.fileId !== logo.logo?.fileId))) {
+        await deleteImg(verify.logo.fileId)
+      }
       sucursal = await updateItemSD({
         nameCollection: 'ventassucursales',
         enviromentClienteId: clienteId,

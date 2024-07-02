@@ -7,10 +7,22 @@ import { subDominioName } from '../../../constants.js'
 export const getSucursales = async (req, res) => {
   const { clienteId } = req.body
   try {
+    const zonasNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
     const sucursales = await agreggateCollectionsSD({
       nameCollection: 'ventassucursales',
       enviromentClienteId: clienteId,
-      pipeline: []
+      pipeline: [
+        {
+          $lookup: {
+            from: zonasNameCol,
+            localField: 'zonaId',
+            foreignField: '_id',
+            as: 'zonaData'
+          }
+        },
+        { $unwind: '$zonaData' },
+        { $addFields: { zona: '$zonaData.nombre' } }
+      ]
     })
     const usuarios = await agreggateCollectionsSD({
       nameCollection: 'personas',
@@ -40,7 +52,7 @@ export const getSucursales = async (req, res) => {
 }
 
 export const createSucursal = async (req, res) => {
-  const { _id, codigo, nombre, rif, logo: logoRef, direccion, usuarios, almacenes, clienteId } = req.body
+  const { _id, zonaId, codigo, nombre, rif, logo: logoRef, direccion, usuarios, almacenes, clienteId } = req.body
   const file = req.files?.logo
   if (!codigo || !nombre) throw new Error('Debe un gresar un nombre y codigo valido')
   try {
@@ -94,9 +106,13 @@ export const createSucursal = async (req, res) => {
         : undefined
     if (_id) {
       const logo = {}
+      console.log({
+        logoRef,
+        v: verify.logo
+      })
       if (!logoRef) logo.logo = null
       if (documentosAdjuntos[0]) logo.logo = documentosAdjuntos[0]
-      if (((!logoRef && verify.logo) || (verify.logo.fileId !== logo.logo?.fileId))) {
+      if (((!logoRef && verify.logo) || (logo.logo?.fileId && verify.logo.fileId !== logo.logo.fileId))) {
         await deleteImg(verify.logo.fileId)
       }
       sucursal = await updateItemSD({
@@ -111,6 +127,7 @@ export const createSucursal = async (req, res) => {
             direccion,
             usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
             almacenes: (almacenesArray || []).map(e => new ObjectId(e)),
+            zonaId: new ObjectId(zonaId),
             ...logo
           }
         }
@@ -126,11 +143,15 @@ export const createSucursal = async (req, res) => {
           logo: documentosAdjuntos[0],
           direccion,
           usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
-          almacenes: (almacenesArray || []).map(e => new ObjectId(e))
+          almacenes: (almacenesArray || []).map(e => new ObjectId(e)),
+          zonaId: new ObjectId(zonaId)
         }
       })
       sucursal = await getItemSD({ nameCollection: 'ventassucursales', enviromentClienteId: clienteId, filters: { _id: newSucursal.insertedId } })
     }
+    const zona = await getItemSD({ nameCollection: 'zonas', enviromentClienteId: clienteId, filters: { _id: new ObjectId(sucursal.zonaId) } })
+    sucursal.zona = zona.nombre
+    sucursal.zonaData = zona
     return res.status(200).json({ status: 'Sucursal guardada exitosamente', sucursal })
   } catch (e) {
     console.log(e)
@@ -140,39 +161,54 @@ export const createSucursal = async (req, res) => {
 
 export const saveSucursales = async (req, res) => {
   const { clienteId, items } = req.body
+  let index = 1
   if (!items[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de sucursales' })
-  for (const item of items) {
-    const existItem = await getItemSD({
-      nameCollection: 'ventassucursales',
-      enviromentClienteId: clienteId,
-      filters: { codigo: item.codigo }
-    })
-    if (existItem) {
-      await updateItemSD({
+  try {
+    for (const item of items) {
+      index++
+      const existItem = await getItemSD({
         nameCollection: 'ventassucursales',
         enviromentClienteId: clienteId,
-        filters: { codigo: item.codigo },
-        update: {
-          $set: {
+        filters: { codigo: item.codigo }
+      })
+      const zona = await getItemSD({
+        nameCollection: 'zonas',
+        enviromentClienteId: clienteId,
+        filters: { nombre: item.zona, tipo: 'inventario' }
+      })
+      if (!zona) throw new Error(`La linea ${index} no tiene una zona valida`)
+      if (existItem) {
+        await updateItemSD({
+          nameCollection: 'ventassucursales',
+          enviromentClienteId: clienteId,
+          filters: { codigo: item.codigo },
+          update: {
+            $set: {
+              nombre: item.nombre,
+              rif: item.rif,
+              direccion: item.direccion,
+              zonaId: zona._id
+            }
+          }
+        })
+      } else {
+        await createItemSD({
+          nameCollection: 'ventassucursales',
+          enviromentClienteId: clienteId,
+          item: {
+            codigo: item.codigo,
             nombre: item.nombre,
             rif: item.rif,
-            direccion: item.direccion
+            direccion: item.direccion,
+            zonaId: zona._id,
+            fechaCreacion: momentDate().toDate()
           }
-        }
-      })
-    } else {
-      await createItemSD({
-        nameCollection: 'ventassucursales',
-        enviromentClienteId: clienteId,
-        item: {
-          codigo: item.codigo,
-          nombre: item.nombre,
-          rif: item.rif,
-          direccion: item.direccion,
-          fechaCreacion: momentDate().toDate()
-        }
-      })
+        })
+      }
     }
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar la sucursal' + e.message })
   }
   return res.status(200).json({ status: 'Sucursales guardados exitosamente' })
 }
@@ -181,7 +217,6 @@ export const deleteSucursales = async (req, res) => {
   const { clienteId, _id } = req.body
   try {
     await deleteItemSD({ nameCollection: 'ventassucursales', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
-    deleteManyItemsSD({ nameCollection: 'zonasPorSucursales', enviromentClienteId: clienteId, filters: { sucursalId: new ObjectId(_id) } })
     return res.status(200).json({ status: 'sucursal eliminada exitosamente' })
   } catch (e) {
     console.log(e)
@@ -203,7 +238,7 @@ export const listSucursalesPorZonas = async (req, res) => {
             localField: '_id',
             foreignField: 'zonaId',
             pipeline: [
-              { $match: { sucursalId: new ObjectId(sucursalId) } },
+              { $match: { sucursalId: new ObjectId(sucursalId) } }
             ],
             as: 'zonasPorSucursales'
           }

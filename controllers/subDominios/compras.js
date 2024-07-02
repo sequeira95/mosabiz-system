@@ -1,4 +1,4 @@
-import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName, tipoMovimientosShort } from '../../constants.js'
 import moment from 'moment-timezone'
 import { ObjectId } from 'mongodb'
@@ -894,7 +894,7 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
       nameCollection: 'compras',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(compraId) },
-      update: { $set: { estado: 'pendientePagos', fechaAprobacionPagos: moment(fechaAprobacionPagos).toDate(), statusInventario: 'Pendiente' } }
+      update: { $set: { estado: 'porRecibir', fechaAprobacionPagos: moment(fechaAprobacionPagos).toDate(), statusInventario: 'Pendiente' } }
     })
     createItemSD({
       nameCollection: 'historial',
@@ -931,109 +931,142 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
   }
 }
 export const getDataOrdenesComprasPorPagar = async (req, res) => {
-  const { clienteId, itemsPorPagina, pagina, fechaActual, timeZone } = req.body
-  console.log(req.body)
+  const { clienteId, itemsPorPagina, pagina, fechaActual, timeZone, rangoFechaVencimiento, fechaTasa } = req.body
   try {
     const transaccionesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
+    const rango1 = rangoFechaVencimiento
+    const rango2 = rangoFechaVencimiento * 2
+    const rango3 = rangoFechaVencimiento * 3
+    let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa } })
+    if (!tasa) {
+      const ultimaTasa = await agreggateCollections({
+        nameCollection: 'tasas',
+        pipeline: [
+          { $sort: { fechaOperacion: -1 } },
+          { $limit: 1 }
+        ]
+      })
+      tasa = ultimaTasa[0] ? ultimaTasa[0] : null
+    }
+    // console.log({ tasa })
     const conteosPendientesPorPago = await agreggateCollectionsSD({
-      nameCollection: 'compras',
+      nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: 'pendientePagos' } },
+        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] } } },
         {
           $lookup: {
             from: transaccionesCollection,
             localField: '_id',
             foreignField: 'compraId',
-            pipeline: [
+            /* pipeline: [
               {
                 $group: {
                   _id: '$compraId',
                   totalAbono: { $sum: '$pago' }
                 }
               }
-            ],
+            ], */
             as: 'detalleTransacciones'
           }
         },
-        { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
+        // { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
         {
           $project: {
-            numeroOrden: '$numeroOrden',
+            numeroFactura: '$numeroFactura',
             fechaVencimiento: '$fechaVencimiento',
             diffFechaVencimiento:
             {
               $dateDiff: { startDate: moment(fechaActual).toDate(), endDate: '$fechaVencimiento', unit: 'day', timezone: timeZone }
             },
             total: '$total',
-            totalAbono: '$detalleTransacciones.totalAbono',
-            hasAbono: { $ifNull: ['$detalleTransacciones.totalAbono', false] }
+            totalSecundaria: '$totalSecundaria',
+            monedaSecundaria: '$monedaSecundaria',
+            detalleTransacciones: '$detalleTransacciones'
+            // totalAbono: '$detalleTransacciones.totalAbono',
+            // hasAbono: { $ifNull: ['$detalleTransacciones.totalAbono', false] }
             // totalPorPagar: { $subtract: ['$total', '$detalleTransacciones.totalAbono'] }
           }
-        },
-        {
+        }
+        /* {
           $group: {
             _id: 0,
-            menorDos: {
+            rango1: {
               $sum: {
                 $cond: {
-                  if: { $lte: ['$diffFechaVencimiento', 2] }, then: 1, else: 0
+                  if: { $lte: ['$diffFechaVencimiento', rango1] }, then: 1, else: 0
                 }
               }
             },
-            menorTres: {
+            rango2: {
               $sum: {
                 $cond: {
                   if: {
-                    $and: [{ $gt: ['$diffFechaVencimiento', 2] }, { $lte: ['$diffFechaVencimiento', 3] }]
+                    $and: [{ $gt: ['$diffFechaVencimiento', rango1] }, { $lte: ['$diffFechaVencimiento', rango2] }]
                   },
                   then: 1,
                   else: 0
                 }
               }
             },
-            menorCinco: {
+            rango3: {
               $sum: {
                 $cond: {
                   if: {
-                    $and: [{ $gt: ['$diffFechaVencimiento', 3] }, { $lte: ['$diffFechaVencimiento', 5] }]
+                    $and: [{ $gt: ['$diffFechaVencimiento', rango2] }, { $lte: ['$diffFechaVencimiento', rango3] }]
                   },
                   then: 1,
                   else: 0
                 }
               }
             },
-            /* totalPorPagar: {
-              $sum: {
-                $cond: { if: { $ne: ['$hasAbono', false] }, then: '$totalPorPagar', else: 0 }
-              }
-            }, */
             totalAbono: {
               $sum: {
                 $cond: { if: { $ne: ['$hasAbono', false] }, then: '$totalAbono', else: 0 }
               }
             },
-            total: { $sum: '$total' }
+            total: { $sum: '$total' },
+            totalSecundario: { $sum: '$totalSecundaria' }
           }
         },
         {
           $project: {
-            menorDos: '$menorDos',
-            menorTres: '$menorTres',
-            menorCinco: '$menorCinco',
+            rango1: '$rango1',
+            rango2: '$rango2',
+            rango3: '$rango3',
             totalAbono: '$totalAbono',
             total: '$total',
             totalPorPagar: { $subtract: ['$total', '$totalAbono'] }
           }
-        }
+        } */
       ]
     })
+    const datosConteo = {
+      rango1: 0,
+      rango2: 0,
+      rango3: 0,
+      totalAbono: 0,
+      total: 0,
+      totalPrincipal: 0,
+      totalSecundaria: 0,
+      totalPorPagar: 0
+    }
+    for (const conteo of conteosPendientesPorPago) {
+      const total = conteo.totalSecundaria * tasa[conteo.monedaSecundaria]
+      if (conteo.diffFechaVencimiento <= rango1) datosConteo.rango1 += 1
+      if (conteo.diffFechaVencimiento > rango1 && conteo.diffFechaVencimiento <= rango2) datosConteo.rango2 += 1
+      if (conteo.diffFechaVencimiento > rango2 && conteo.diffFechaVencimiento <= rango3) datosConteo.rango3 += 1
+      datosConteo.total += total
+      datosConteo.totalPorPagar += total
+      datosConteo.totalPrincipal += conteo.total
+      datosConteo.totalSecundaria += conteo.totalSecundaria
+    }
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const comprasPorProveedor = await agreggateCollectionsSD({
-      nameCollection: 'compras',
+      nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: 'pendientePagos' } },
+        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] } } },
         { $sort: { fechaVencimiento: 1 } },
         {
           $lookup: {
@@ -1051,21 +1084,21 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             as: 'detalleTransacciones'
           }
         },
-        { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
-        {
+        // { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
+        /* {
           $group: {
             _id: '$proveedorId',
             fechaVencimiento: { $first: '$fechaVencimiento' },
             costoTotal: { $sum: '$total' },
             totalAbono: { $sum: '$detalleTransacciones.totalAbono' }
           }
-        },
+        }, */
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) },
         {
           $lookup: {
             from: proveedoresCollection,
-            localField: '_id',
+            localField: 'proveedorId',
             foreignField: '_id',
             as: 'proveedor'
           }
@@ -1073,26 +1106,64 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
         { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
         {
           $project: {
-            proveedorId: '$_id',
+            proveedorId: '$proveedorId',
             proveedor: '$proveedor.razonSocial',
             documentoIdentidad: { $concat: ['$proveedor.tipoDocumento', '-', '$proveedor.documentoIdentidad'] },
-            costoTotal: '$costoTotal',
-            totalAbono: '$totalAbono',
-            porPagar: { $subtract: ['$costoTotal', '$totalAbono'] },
+            // costoTotal: '$costoTotal',
+            // totalAbono: '$totalAbono',
+            // porPagar: { $subtract: ['$costoTotal', '$totalAbono'] },
             fechaVencimiento: '$fechaVencimiento',
+            monedaSecundaria: '$monedaSecundaria',
+            totalSecundaria: '$totalSecundaria',
+            total: '$total',
             diffFechaVencimiento:
             {
               $dateDiff: { startDate: moment(fechaActual).toDate(), endDate: '$fechaVencimiento', unit: 'day', timezone: timeZone }
-            }
+            },
+            detalleTransacciones: '$detalleTransacciones'
           }
-        }
+        },
+        { $sort: { diffFechaVencimiento: 1 } }
       ]
     })
+    const dataCompraProveedor = {}
+    const dataCompra = []
+    for (const compra of comprasPorProveedor) {
+      const total = compra.totalSecundaria * tasa[compra.monedaSecundaria]
+      if (!dataCompraProveedor[compra.proveedorId]) {
+        dataCompraProveedor[compra.proveedorId] = {
+          proveedorId: compra.proveedorId,
+          proveedor: compra.proveedor,
+          documentoIdentidad: compra.documentoIdentidad,
+          total: compra.total,
+          totalSecundaria: compra.totalSecundaria,
+          totalAbono: compra?.totalAbono || 0,
+          costoTotal: total,
+          porPagar: total - (compra?.totalAbono || 0),
+          fechaVencimiento: compra.fechaVencimiento,
+          diffFechaVencimiento: compra.diffFechaVencimiento,
+          detalleTransacciones: []
+        }
+      } else {
+        dataCompraProveedor[compra.proveedorId].total += compra.total
+        dataCompraProveedor[compra.proveedorId].totalSecundaria += compra.totalSecundaria
+        dataCompraProveedor[compra.proveedorId].totalAbono += compra?.totalAbono || 0
+        dataCompraProveedor[compra.proveedorId].costoTotal += total
+        dataCompraProveedor[compra.proveedorId].porPagar += (total - (compra?.totalAbono || 0))
+        if (dataCompraProveedor[compra.proveedorId].diffFechaVencimiento > compra.diffFechaVencimiento) {
+          dataCompraProveedor[compra.proveedorId].diffFechaVencimiento = compra.diffFechaVencimiento
+          dataCompraProveedor[compra.proveedorId].fechaVencimiento = compra.fechaVencimiento
+        }
+      }
+    }
+    for (const key in dataCompraProveedor) {
+      dataCompra.push(dataCompraProveedor[key])
+    }
     const count = await agreggateCollectionsSD({
-      nameCollection: 'compras',
+      nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: 'pendientePagos' } },
+        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] } } },
         { $sort: { fechaVencimiento: 1 } },
         {
           $group: {
@@ -1102,15 +1173,26 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ conteosPendientesPorPago: conteosPendientesPorPago[0] ? conteosPendientesPorPago[0] : null, count: count.count, comprasPorProveedor })
+    return res.status(200).json({ conteosPendientesPorPago: datosConteo, count: count[0].count, comprasPorProveedor: dataCompra })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })
   }
 }
 export const getDetalleProveedor = async (req, res) => {
-  const { clienteId, proveedorId, itemsPorPagina, pagina } = req.body
+  const { clienteId, proveedorId, itemsPorPagina, pagina, fechaActual, timeZone, rangoFechaVencimiento, fechaTasa } = req.body
   try {
+    let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa } })
+    if (!tasa) {
+      const ultimaTasa = await agreggateCollections({
+        nameCollection: 'tasas',
+        pipeline: [
+          { $sort: { fechaOperacion: -1 } },
+          { $limit: 1 }
+        ]
+      })
+      tasa = ultimaTasa[0] ? ultimaTasa[0] : null
+    }
     const pagination = []
     if (itemsPorPagina && pagina) {
       pagination.push(
@@ -1120,12 +1202,10 @@ export const getDetalleProveedor = async (req, res) => {
     }
     const transaccionesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
     const comprasPorProveedor = await agreggateCollectionsSD({
-      nameCollection: 'compras',
+      nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: 'pendientePagos', proveedorId: new ObjectId(proveedorId) } },
-        /* { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
-        { $limit: Number(itemsPorPagina) }, */
+        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, proveedorId: new ObjectId(proveedorId) } },
         ...pagination,
         {
           $lookup: {
@@ -1143,28 +1223,41 @@ export const getDetalleProveedor = async (req, res) => {
             as: 'detalleTransacciones'
           }
         },
-        { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
+        // { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
         {
           $project: {
             proveedorId: 1,
-            numeroOrden: 1,
-            costoTotal: '$total',
-            totalAbono: '$detalleTransacciones.totalAbono',
-            porPagar: { $subtract: ['$total', '$detalleTransacciones.totalAbono'] },
-            fechaVencimiento: 1
+            numeroFactura: 1,
+            totalPrincipal: '$total',
+            totalSecundaria: '$totalSecundaria',
+            monedaSecundaria: '$monedaSecundaria',
+            // totalAbono: '$detalleTransacciones.totalAbono',
+            // porPagar: { $subtract: ['$total', '$detalleTransacciones.totalAbono'] },
+            fechaVencimiento: 1,
+            detalleTransacciones: '$detalleTransacciones',
+            diffFechaVencimiento:
+            {
+              $dateDiff: { startDate: moment(fechaActual).toDate(), endDate: '$fechaVencimiento', unit: 'day', timezone: timeZone }
+            }
           }
         }
       ]
     })
+    const dataDetalle = comprasPorProveedor.map(e => {
+      return {
+        ...e,
+        costoTotal: e.totalSecundaria * tasa[e.monedaSecundaria]
+      }
+    })
     const count = await agreggateCollectionsSD({
-      nameCollection: 'compras',
+      nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: 'pendientePagos', proveedorId: new ObjectId(proveedorId) } },
+        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, proveedorId: new ObjectId(proveedorId) } },
         { $count: 'total' }
       ]
     })
-    return res.status(200).json({ comprasPorProveedor, count: count && count[0] ? count[0].total : 0 })
+    return res.status(200).json({ comprasPorProveedor: dataDetalle, count: count && count[0] ? count[0].total : 0 })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar el listados de compras del proveedor ' + e.message })
@@ -1338,22 +1431,31 @@ export const getSolicitudesInventario = async (req, res) => {
   }
 }
 export const getOrdenesComprasForFacturas = async (req, res) => {
-  const { clienteId, estatusInventario } = req.body
+  const { clienteId, estatusInventario, factura, search } = req.body
   try {
     const configMatch = {}
     console.log({ estatusInventario })
     if (estatusInventario) {
       configMatch.statusInventario = { $eq: estatusInventario }
     } else {
-      configMatch.estado = { $in: ['pendientePagos', 'pagada'] }
+      configMatch.estado = { $in: ['porRecibir'] }
     }
+    const regex = {}
+    if (search) {
+      regex.$or = [
+        { numeroOrden: { $regex: search, $options: 'i' } },
+        { numeroFactura: { $regex: search, $options: 'i' } }
+      ]
+    }
+    let facturas = []
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const detalleCompraCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleCompra' })
+    const detalleDocumentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
     const ordenes = await agreggateCollectionsSD({
       nameCollection: 'compras',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: configMatch/* { estado: { $in: ['pendientePagos', 'pagada'] } } */ },
+        { $match: { ...configMatch, ...regex }/* { estado: { $in: ['pendientePagos', 'pagada'] } } */ },
         {
           $lookup: {
             from: proveedoresCollection,
@@ -1374,7 +1476,35 @@ export const getOrdenesComprasForFacturas = async (req, res) => {
         { $sort: { numeroOrden: 1 } }
       ]
     })
-    return res.status(200).json({ ordenes })
+    if (factura) {
+      facturas = await agreggateCollectionsSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { estado: { $ne: 'pagada' }, ...regex } },
+          {
+            $lookup: {
+              from: proveedoresCollection,
+              localField: 'proveedorId',
+              foreignField: '_id',
+              as: 'proveedor'
+            }
+          },
+          { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: detalleDocumentosFiscalesCollection,
+              localField: '_id',
+              foreignField: 'facturaId',
+              as: 'detalleCompra'
+            }
+          },
+          { $sort: { numeroOrden: 1 } },
+          { $limit: 10 }
+        ]
+      })
+    }
+    return res.status(200).json({ ordenes, facturas })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })
@@ -1382,7 +1512,7 @@ export const getOrdenesComprasForFacturas = async (req, res) => {
 }
 export const createFacturas = async (req, res) => {
   console.log(req.body)
-  const { clienteId, factura, fechaFactura } = req.body
+  const { clienteId, factura, fechaFactura, fechaVencimiento } = req.body
   try {
     const newFactura = await createItemSD({
       nameCollection: 'documentosFiscales',
@@ -1390,6 +1520,7 @@ export const createFacturas = async (req, res) => {
       item: {
         tipoMovimiento: 'compra',
         fecha: moment(fechaFactura).toDate(),
+        fechaVencimiento: moment(fechaVencimiento).toDate(),
         numeroFactura: factura.numeroFactura,
         tipoDocumento: factura.tipoDocumento,
         numeroControl: factura.numeroControl,
@@ -1421,7 +1552,8 @@ export const createFacturas = async (req, res) => {
         credito: factura.proveedor?.credito || null,
         duracionCredito: factura.proveedor?.duracionCredito || null,
         tasaDia: factura.tasaDia ? Number(factura.tasaDia) : null,
-        ordenCompraId: factura.ordenCompraId ? new ObjectId(factura.ordenCompraId) : null
+        ordenCompraId: factura.ordenCompraId ? new ObjectId(factura.ordenCompraId) : null,
+        facturaAsociada: factura.facturaAsociada ? new ObjectId(factura.facturaAsociada) : null
       }
     })
     createItemSD({
@@ -1472,10 +1604,10 @@ export const getFacturas = async (req, res) => {
   const { clienteId, itemsPorPagina, pagina } = req.body
   try {
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
-    const detalleFacturaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleFactura' })
+    const detalleFacturaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const facturas = await agreggateCollectionsSD({
-      nameCollection: 'facturas',
+      nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
         { $skip: (pagina - 1) * itemsPorPagina },

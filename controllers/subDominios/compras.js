@@ -793,7 +793,7 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
         */
         if (detalle.tipo !== 'producto') continue
         if (tieneInventario) {
-          movimientosAlmacen.push({
+          /* movimientosAlmacen.push({
             isCompra: true,
             productoId: new ObjectId(detalle.productoId),
             movimientoId: new ObjectId(detalle.compraId),
@@ -810,7 +810,7 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
             costoUnitario: Number(detalle.costoUnitario),
             costoPromedio: Number(detalle.costoUnitario),
             creadoPor: new ObjectId(req.uid)
-          })
+          }) */
           /** Creamos el movimiento de recepcion de inventario (ESTO SE DEBERIA DE CONDICIONAR A SI LA PERSONA TIENE INVENTARIO ACTIVO) */
           detalleRecepcionInventario.push({
             movimientoId: movimientoInventario.insertedId,
@@ -955,6 +955,18 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
       pipeline: [
         { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] } } },
         {
+          $addFields: {
+            tasa: { $objectToArray: tasa }
+          }
+        },
+        { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+        { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+        {
+          $addFields: {
+            valor: { $multiply: ['$tasa.v', '$totalSecundaria'] }
+          }
+        },
+        {
           $lookup: {
             from: transaccionesCollection,
             localField: '_id',
@@ -973,6 +985,8 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
         // { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
         {
           $project: {
+            tasa: '$tasa',
+            valor: '$valor',
             numeroFactura: '$numeroFactura',
             fechaVencimiento: '$fechaVencimiento',
             diffFechaVencimiento:
@@ -1041,6 +1055,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
         } */
       ]
     })
+    console.log({ conteosPendientesPorPago })
     const datosConteo = {
       rango1: 0,
       rango2: 0,

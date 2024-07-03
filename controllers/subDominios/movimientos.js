@@ -3027,16 +3027,14 @@ export const recepcionInventarioCompra = async (req, res) => {
       const productoPorAlmacen = []
       const productosUpdate = []
       const updateAllCostoPromedioPoducto = []
-      const almacenTransito = await getItemSD({
-        nameCollection: 'almacenes',
-        enviromentClienteId: clienteId,
-        filters: { nombre: 'Transito' }
-      })
       const almacenDevoluciones = await getItemSD({
         nameCollection: 'almacenes',
         enviromentClienteId: clienteId,
         filters: { nombre: 'Devoluciones' }
       })
+      const productosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+      const categoriaPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
+      const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
       for (const detalle of detalleMovimientos) {
         if (detalle?.cantidaLotes) {
           const inventarioAnterior = await agreggateCollectionsSD({
@@ -3048,7 +3046,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 {
                   productoId: new ObjectId(detalle.productoId),
                   $or: [
-                    { $and: [{ movimientoId: { $ne: new ObjectId(movimientoId) }, almacenId: { $ne: new ObjectId(almacenTransito?._id) } }] }
+                    { $and: [{ movimientoId: { $ne: new ObjectId(movimientoId) } }] }
                   ]
                 }
               },
@@ -3077,13 +3075,45 @@ export const recepcionInventarioCompra = async (req, res) => {
                   }
                 }
               },
-              { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: productosCollection,
+                  localField: '_id.productoId',
+                  foreignField: '_id',
+                  as: 'detalleProducto'
+                }
+              },
+              { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: categoriaPorAlmacenCollection,
+                  localField: 'detalleProducto.categoria',
+                  foreignField: 'categoriaId',
+                  pipeline: [
+                    { $match: { almacenId: new ObjectId(almacenDestino._id) } }
+                  ],
+                  as: 'categoriaAlmacen'
+                }
+              },
+              { $unwind: { path: '$categoriaAlmacen', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: planCuentaCollection,
+                  localField: 'categoriaAlmacen.cuentaId',
+                  foreignField: '_id',
+                  as: 'cuantaDestino'
+                }
+              },
+              { $unwind: { path: '$cuantaDestino', preserveNullAndEmptyArrays: true } },
               {
                 $project: {
                   _id: 0,
                   costoPromedio: '$_id.costoPromedio',
                   productoId: '$_id.productoId',
                   // almacenId: '$_id.almacenId',
+                  cuentaId: '$cuantaDestino._id',
+                  cuentaCodigo: '$cuantaDestino.codigo',
+                  cuntaNombre: '$cuantaDestino.descripcion',
                   cantidad: { $subtract: ['$entrada', '$salida'] } // cantidad de producto en el almacen de origen
                   // almacenNombre: '$detalleAlmacen.nombre'
                 }
@@ -3124,7 +3154,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 movimientoId: new ObjectId(detalle.movimientoId),
                 cantidad: Number(lote.cantidad),
                 almacenId: new ObjectId(almacenDestino._id),
-                almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenOrigen: null, // new ObjectId(almacenTransito._id),
                 almacenDestino: new ObjectId(almacenDestino._id),
                 tipo: 'movimiento',
                 tipoMovimiento: 'entrada',
@@ -3135,8 +3165,8 @@ export const recepcionInventarioCompra = async (req, res) => {
                 costoUnitario: detalle.costoUnitario,
                 costoPromedio: Number(costoPromedio.toFixed(2)),
                 creadoPor: new ObjectId(req.uid)
-              },
-              {
+              }
+              /* {
                 productoId: new ObjectId(detalle.productoId),
                 movimientoId: new ObjectId(detalle.movimientoId),
                 cantidad: Number(lote.cantidad),
@@ -3152,7 +3182,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 costoUnitario: detalle.costoUnitario,
                 costoPromedio: detalle.costoUnitario,
                 creadoPor: new ObjectId(req.uid)
-              })
+              } */)
             } else if (diferencia > 0 && diferencia < Number(lote.cantidad)) {
               const diferenciaLote = Number(lote.cantidad) - diferencia
               console.log({ diferenciaLote })
@@ -3161,7 +3191,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 movimientoId: new ObjectId(detalle.movimientoId),
                 cantidad: Number(lote.cantidad), // Number(diferencia),
                 almacenId: new ObjectId(almacenDestino._id),
-                almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenOrigen: null, // new ObjectId(almacenTransito._id),
                 almacenDestino: new ObjectId(almacenDestino._id),
                 tipo: 'movimiento',
                 tipoMovimiento: 'entrada',
@@ -3172,8 +3202,8 @@ export const recepcionInventarioCompra = async (req, res) => {
                 costoUnitario: detalle.costoUnitario,
                 costoPromedio: Number(costoPromedio.toFixed(2)),
                 creadoPor: new ObjectId(req.uid)
-              },
-              {
+              }
+              /* {
                 productoId: new ObjectId(detalle.productoId),
                 movimientoId: new ObjectId(detalle.movimientoId),
                 cantidad: Number(diferencia),
@@ -3189,14 +3219,14 @@ export const recepcionInventarioCompra = async (req, res) => {
                 costoUnitario: detalle.costoUnitario,
                 costoPromedio: detalle.costoUnitario,
                 creadoPor: new ObjectId(req.uid)
-              })
+              } */)
               if (diferenciaLote > 0) {
                 productoPorAlmacen.push({
                   productoId: new ObjectId(detalle.productoId),
                   movimientoId: new ObjectId(detalle.movimientoId),
                   cantidad: Number(diferenciaLote),
                   almacenId: new ObjectId(almacenDevoluciones._id),
-                  almacenOrigen: new ObjectId(almacenTransito._id),
+                  almacenOrigen: null, // new ObjectId(almacenTransito._id),
                   almacenDestino: new ObjectId(almacenDevoluciones._id),
                   tipo: 'movimiento',
                   tipoMovimiento: 'entrada',
@@ -3236,7 +3266,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 movimientoId: new ObjectId(detalle.movimientoId),
                 cantidad: Number(lote.cantidad),
                 almacenId: new ObjectId(almacenDestino._id),
-                almacenOrigen: new ObjectId(almacenTransito._id),
+                almacenOrigen: null, // new ObjectId(almacenTransito._id),
                 almacenDestino: new ObjectId(almacenDestino._id),
                 tipo: 'movimiento',
                 tipoMovimiento: 'entrada',

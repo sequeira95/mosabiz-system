@@ -1,14 +1,31 @@
 import { ObjectId } from 'mongodb'
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, createItemSD, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, createItemSD, getItemSD, updateItemSD, formatCollectionName } from '../../../utils/dataBaseConfing.js'
+import { subDominioName } from '../../../constants.js'
 
 export const getZonas = async (req, res) => {
   const { clienteId } = req.body
   try {
+    const cuentasColName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
     const zonas = await agreggateCollectionsSD({
       nameCollection: 'ventaszonas',
       enviromentClienteId: clienteId,
-      pipeline: []
+      pipeline: [
+        {
+          $lookup: {
+            from: cuentasColName,
+            localField: 'cuentaId',
+            foreignField: '_id',
+            as: 'cuentaData'
+          }
+        },
+        { $unwind: '$cuentaData' },
+        {
+          $addFields: {
+            cuenta: '$cuentaData.codigo'
+          }
+        }
+      ]
     })
     return res.status(200).json({ zonas })
   } catch (e) {
@@ -17,8 +34,9 @@ export const getZonas = async (req, res) => {
   }
 }
 export const saveZonas = async (req, res) => {
-  const { _id, clienteId, nombre, observacion } = req.body
+  const { _id, clienteId, nombre, cuentaId, observacion } = req.body
   try {
+    const cuentasColName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
     const [verify] = await agreggateCollectionsSD({
       nameCollection: 'ventaszonas',
       enviromentClienteId: clienteId,
@@ -44,9 +62,31 @@ export const saveZonas = async (req, res) => {
         update: {
           $set: {
             nombre,
-            observacion
+            observacion,
+            cuentaId: new ObjectId(cuentaId)
           }
         }
+      })
+      zona = await agreggateCollectionsSD({
+        nameCollection: 'ventaszonas',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { _id: zona._id } },
+          {
+            $lookup: {
+              from: cuentasColName,
+              localField: 'cuentaId',
+              foreignField: '_id',
+              as: 'cuentaData'
+            }
+          },
+          { $unwind: '$cuentaData' },
+          {
+            $addFields: {
+              cuenta: '$cuentaData.codigo'
+            }
+          }
+        ]
       })
     } else {
       const newSucursal = await createItemSD({
@@ -54,12 +94,33 @@ export const saveZonas = async (req, res) => {
         enviromentClienteId: clienteId,
         item: {
           nombre,
-          observacion
+          observacion,
+          cuentaId: new ObjectId(cuentaId)
         }
       })
-      zona = await getItemSD({ nameCollection: 'ventaszonas', enviromentClienteId: clienteId, filters: { _id: newSucursal.insertedId } })
+      zona = await agreggateCollectionsSD({
+        nameCollection: 'ventaszonas',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { _id: newSucursal.insertedId } },
+          {
+            $lookup: {
+              from: cuentasColName,
+              localField: 'cuentaId',
+              foreignField: '_id',
+              as: 'cuentaData'
+            }
+          },
+          { $unwind: '$cuentaData' },
+          {
+            $addFields: {
+              cuenta: '$cuentaData.codigo'
+            }
+          }
+        ]
+      })
     }
-    return res.status(200).json({ status: 'Zona guardada exitosamente', zona })
+    return res.status(200).json({ status: 'Zona guardada exitosamente', zona: zona[0] })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar la zona' + e.message })

@@ -401,33 +401,30 @@ export async function validComprobantesDescuadre ({ clienteId, periodoId }) {
     return e
   }
 }
-export async function validProductosAprobarCompras ({ clienteId, compraId }) {
+export async function validProductosRecepcionCompras ({ clienteId, movimientoId, detalleMovimientos, almacenDestino, tipo }) {
   const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
   // console.log({ ajusteInventario })
   if (ajusteInventario && !ajusteInventario.codigoComprobanteMovimientos) throw new Error('No existe en ajustes el codigo del comprobante para actualizar el movimiento')
-  if (ajusteInventario && !ajusteInventario.cuentaVariacionInventario) throw new Error('No existe en ajustes la cuenta de variación de inventario')
-  const productosCollections = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
   const categoriaPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
   const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
-  const almacenTransito = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Transito' } })
+  const almacenDevoluciones = await getItemSD({
+    nameCollection: 'almacenes',
+    enviromentClienteId: clienteId,
+    filters: { nombre: 'Devoluciones' }
+  })
+  let existDiferencia = false
+  const validdiferencia = detalleMovimientos.some(e => Number(e.recibido) < e.cantidad)
+  if (validdiferencia) existDiferencia = true
+  const IdProductos = detalleMovimientos.filter(e => e.recibe > 0).map(e => new ObjectId(e.productoId))
   const dataMovimiento = await agreggateCollectionsSD({
-    nameCollection: 'detalleCompra',
+    nameCollection: 'productos',
     enviromentClienteId: clienteId,
     pipeline: [
-      { $match: { compraId: new ObjectId(compraId) } },
-      {
-        $lookup: {
-          from: productosCollections,
-          localField: 'productoId',
-          foreignField: '_id',
-          as: 'detalleProducto'
-        }
-      },
-      { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+      { $match: { _id: { $in: IdProductos } } },
       {
         $lookup: {
           from: categoriaPorAlmacenCollection,
-          let: { categoriaId: '$detalleProducto.categoria' },
+          let: { categoriaId: '$categoria' },
           pipeline: [
             {
               $match:
@@ -437,7 +434,7 @@ export async function validProductosAprobarCompras ({ clienteId, compraId }) {
                     $and:
                       [
                         { $eq: ['$categoriaId', '$$categoriaId'] },
-                        { $eq: ['$almacenId', new ObjectId(almacenTransito?._id)] }
+                        { $eq: ['$almacenId', new ObjectId(almacenDestino?._id)] }
                       ]
                   }
                 }
@@ -448,40 +445,158 @@ export async function validProductosAprobarCompras ({ clienteId, compraId }) {
               }
             }
           ],
-          as: 'detalleCategoriaAlmacenTransito'
+          as: 'detalleCategoriaDestino'
         }
       },
-      { $unwind: { path: '$detalleCategoriaAlmacenTransito', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$detalleCategoriaDestino', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: categoriaPorAlmacenCollection,
+          let: { categoriaId: '$categoria' },
+          pipeline: [
+            {
+              $match:
+                {
+                  $expr:
+                  {
+                    $and:
+                      [
+                        { $eq: ['$categoriaId', '$$categoriaId'] },
+                        { $eq: ['$almacenId', new ObjectId(almacenDevoluciones?._id)] }
+                      ]
+                  }
+                }
+            },
+            {
+              $project: {
+                cuentaId: '$cuentaId'
+              }
+            }
+          ],
+          as: 'detalleCategoriaDevoluciones'
+        }
+      },
+      { $unwind: { path: '$detalleCategoriaDevoluciones', preserveNullAndEmptyArrays: true } },
       {
         $project: {
-          productoId: '$productoId',
-          producto: '$detalleProducto.nombre',
-          categoria: '$detalleProducto.categoria',
-          cuentaTransito: '$detalleCategoriaAlmacenTransito.cuentaId'
+          productoId: '$_id',
+          producto: '$nombre',
+          categoria: '$categoria',
+          cuentaDestino: '$detalleCategoriaDestino.cuentaId',
+          cuentaDevolucion: '$detalleCategoriaDevoluciones.cuentaId'
         }
       },
       {
         $lookup: {
           from: planCuentaCollection,
-          localField: 'cuentaTransito',
+          localField: 'cuentaDestino',
           foreignField: '_id',
-          as: 'cuentaTransito'
+          as: 'cuentaDestino'
         }
       },
-      { $unwind: { path: '$cuentaTransito', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$cuentaDestino', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: planCuentaCollection,
+          localField: 'cuentaDevolucion',
+          foreignField: '_id',
+          as: 'cuentaDevolucion'
+        }
+      },
+      { $unwind: { path: '$cuentaDevolucion', preserveNullAndEmptyArrays: true } },
       {
         $project: {
           productoId: 1,
           producto: 1,
           categoria: 1,
-          cuentaTransitoId: '$cuentaTransito._id',
-          cuentaTransitoCodigo: '$cuentaTransito.codigo',
-          cuentaTransitoNombre: '$cuentaTransito.descripcion'
+          cuentaDestinoId: '$cuentaDestino._id',
+          cuentaDestinoCodigo: '$cuentaDestino.codigo',
+          cuentaDestinoNombre: '$cuentaDestino.descripcion',
+          cuentaDevolucionId: '$cuentaDevolucion._id',
+          cuentaDevolucionCodigo: '$cuentaDevolucion.codigo',
+          cuentaDevolucionNombre: '$cuentaDevolucion.descripcion'
         }
       }
     ]
   })
-  const isValidCuentas = dataMovimiento.every(item => item.cuentaTransitoId)
-  if (!isValidCuentas) throw new Error('Existen productos que no tienen cuenta asignada para el almacen de devoluciones.')
-  return isValidCuentas
+  if (tipo === 'cerrar' && existDiferencia) {
+    const isValidCuentas = dataMovimiento.every(item => item.cuentaDevolucionId)
+    if (!isValidCuentas) throw new Error('Existen productos que no tienen cuenta asignada para el almacen de devoluciones.')
+  } else {
+    const isValidCuentas = dataMovimiento.every(item => item.cuentaDestinoId && item.cuentaDevolucionId)
+    if (!isValidCuentas) throw new Error('Existen productos que no tienen cuenta asignada para el almacen de destino o el almacen de devoluciones.')
+  }
+  const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+  const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+  const comprasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'compras' })
+  const detalleCompra = await agreggateCollectionsSD({
+    nameCollection: 'movimientos',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      { $match: { _id: new ObjectId(movimientoId) } },
+      {
+        $lookup: {
+          from: comprasCollection,
+          localField: 'compraId',
+          foreignField: '_id',
+          pipeline: [
+            {
+              $lookup: {
+                from: proveedoresCollection,
+                localField: 'proveedorId',
+                foreignField: '_id',
+                pipeline: [
+                  {
+                    $lookup: {
+                      from: categoriasCollection,
+                      localField: 'categoria',
+                      foreignField: '_id',
+                      as: 'detalleCategoria'
+                    }
+                  },
+                  { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+                  {
+                    $lookup: {
+                      from: planCuentaCollection,
+                      localField: 'detalleCategoria.cuentaId',
+                      foreignField: '_id',
+                      as: 'detalleCuenta'
+                    }
+                  },
+                  { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+                  {
+                    $project: {
+                      proveedor: '$razonSocial',
+                      categoria: '$detalleCategoria.nombre',
+                      cuentaId: '$detalleCuenta._id',
+                      cuentaNombre: '$detalleCuenta.descripcion',
+                      cuentaCodigo: '$detalleCuenta.codigo'
+                    }
+                  }
+                ],
+                as: 'detalleProveedor'
+              }
+            },
+            { $unwind: { path: '$detalleProveedor', preserveNullAndEmptyArrays: true } }],
+          as: 'detalleCompra'
+        }
+      },
+      { $unwind: { path: '$detalleCompra', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          movimientoId: '$_id',
+          numeroMovimiento: '$numeroMovimiento',
+          tipoMovimiento: '$tipo',
+          compraId: '$detalleCompra._id',
+          proveedor: '$detalleCompra.detalleProveedor.proveedor',
+          categoria: '$detalleCompra.detalleProveedor.categoria',
+          cuentaId: '$detalleCompra.detalleProveedor.cuentaId',
+          cuentaNombre: '$detalleCompra.detalleProveedor.cuentaNombre',
+          cuentaCodigo: '$detalleCompra.detalleProveedor.cuentaCodigo'
+        }
+      }
+    ]
+  })
+  const isValidCuentasProveedor = detalleCompra.every(item => item.cuentaId)
+  if (!isValidCuentasProveedor) throw new Error('El proveedor no posee asignada una cuenta contable en su categoria .')
 }

@@ -2,7 +2,6 @@ import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createItemSD
 import { subDominioName, tipoMovimientosShort } from '../../constants.js'
 import moment from 'moment-timezone'
 import { ObjectId } from 'mongodb'
-import { hasContabilidad } from '../../utils/hasContabilidad.js'
 import { hasInventario } from '../../utils/validModulos.js'
 
 export const getListImpuestosIslr = async (req, res) => {
@@ -665,9 +664,7 @@ export const editOrden = async (req, res) => {
 }
 export const aprobarPagosOrdenCompra = async (req, res) => {
   const { clienteId, compraId, fechaAprobacionPagos } = req.body
-  // console.log(req.body)
   try {
-    const tieneContabilidad = await hasContabilidad({ clienteId })
     const tieneInventario = await hasInventario({ clienteId })
     const almacenTransito = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Transito' } })
     const productosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
@@ -744,11 +741,6 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
         { $unwind: { path: '$detalleProveedor', preserveNullAndEmptyArrays: true } }
       ]
     })
-    const movimientosAlmacen = []
-    const asientosContable = []
-    let totalPorPagarProveedor = 0
-    let cuentaProveedor = null
-    let terceroProveedor = null
     const detalleRecepcionInventario = []
     let movimientoInventario = null
     if (detalleCompra[0]) {
@@ -784,34 +776,8 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
             creadoPor: new ObjectId(req.uid)
           }
         })
-      }
-      for (const detalle of detalleCompra[0]?.detalleCompra) {
-        console.log({ detalle })
-        /* registrarlo normal como viene  que seria el costo promedio el como el costo unitario original
-        contabilidad: la cuenta de la categoria del almacen de transito por el debe y por haber cuentas por pagar proveedor que seria la cuenta agregada en la categoria del proveedor
-        crearla con tercero que seria la razon social
-        */
-        if (detalle.tipo !== 'producto') continue
-        if (tieneInventario) {
-          /* movimientosAlmacen.push({
-            isCompra: true,
-            productoId: new ObjectId(detalle.productoId),
-            movimientoId: new ObjectId(detalle.compraId),
-            cantidad: Number(detalle.cantidad),
-            almacenId: new ObjectId(almacenTransito._id),
-            almacenOrigen: null,
-            almacenDestino: new ObjectId(almacenTransito._id),
-            tipo: 'compra',
-            tipoMovimiento: 'entrada',
-            lote: null, // movimientos.lote,
-            // fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
-            // fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
-            fechaMovimiento: moment().toDate(),
-            costoUnitario: Number(detalle.costoUnitario),
-            costoPromedio: Number(detalle.costoUnitario),
-            creadoPor: new ObjectId(req.uid)
-          }) */
-          /** Creamos el movimiento de recepcion de inventario (ESTO SE DEBERIA DE CONDICIONAR A SI LA PERSONA TIENE INVENTARIO ACTIVO) */
+        for (const detalle of detalleCompra[0]?.detalleCompra) {
+          if (detalle.tipo !== 'producto') continue
           detalleRecepcionInventario.push({
             movimientoId: movimientoInventario.insertedId,
             productoId: new ObjectId(detalle.productoId),
@@ -824,70 +790,6 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
             costoUnitario: Number(detalle.costoUnitario)
           })
         }
-        /** */
-        if (tieneContabilidad) {
-          totalPorPagarProveedor += Number(detalle.costoUnitario) * Number(detalle.cantidad)
-          asientosContable.push({
-            cuentaId: new ObjectId(detalle.cuentaTransito._id),
-            cuentaCodigo: detalle.cuentaTransito.codigo,
-            cuentaNombre: detalle.cuentaTransito.descripcion,
-            // comprobanteId: new ObjectId(comprobante._id),
-            // periodoId: new ObjectId(periodo._id),
-            // descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} CANCELADO`,
-            fecha: moment(fechaAprobacionPagos).toDate(),
-            debe: Number(detalle.costoUnitario) * Number(detalle.cantidad),
-            haber: 0,
-            fechaCreacion: moment().toDate()
-            // docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
-            /* documento: {
-              docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
-              docFecha: moment(fechaCancelado).toDate()
-            } */
-          })
-        }
-      }
-      if (tieneContabilidad) {
-        cuentaProveedor = await getItemSD({
-          nameCollection: 'planCuenta',
-          enviromentClienteId: clienteId,
-          filters: { _id: new ObjectId(detalleCompra[0].detalleProveedor?.detalleCategoria?.cuentaId) }
-        })
-        terceroProveedor = await getItemSD({
-          nameCollection: 'terceros',
-          enviromentClienteId: clienteId,
-          filters: { cuentaId: new ObjectId(cuentaProveedor._id), nombre: detalleCompra[0].detalleProveedor?.razonSocial }
-        })
-        if (!terceroProveedor) {
-          terceroProveedor = await upsertItemSD({
-            nameCollection: 'terceros',
-            enviromentClienteId: clienteId,
-            update: {
-              $set: {
-                nombre: detalleCompra[0].detalleProveedor?.razonSocial,
-                cuentaId: new ObjectId(cuentaProveedor._id)
-              }
-            }
-          })
-        }
-        asientosContable.push({
-          cuentaId: new ObjectId(cuentaProveedor._id),
-          cuentaCodigo: cuentaProveedor.codigo,
-          cuentaNombre: cuentaProveedor.descripcion,
-          // comprobanteId: new ObjectId(comprobante._id),
-          // periodoId: new ObjectId(periodo._id),
-          // descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} CANCELADO`,
-          fecha: moment(fechaAprobacionPagos).toDate(),
-          debe: 0,
-          haber: totalPorPagarProveedor,
-          fechaCreacion: moment().toDate(),
-          terceroId: new ObjectId(terceroProveedor._id),
-          terceroNombre: terceroProveedor.nombre
-          // docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
-          /* documento: {
-            docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
-            docFecha: moment(fechaCancelado).toDate()
-          } */
-        })
       }
     }
     updateItemSD({
@@ -912,16 +814,7 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
       createManyItemsSD({
         nameCollection: 'detalleMovimientos',
         enviromentClienteId: clienteId,
-        items: [
-          ...detalleRecepcionInventario
-        ]
-      })
-      createManyItemsSD({
-        nameCollection: 'productosPorAlmacen',
-        enviromentClienteId: clienteId,
-        items: [
-          ...movimientosAlmacen
-        ]
+        items: detalleRecepcionInventario
       })
     }
     return res.status(200).json({ status: 'Orden aprobada exitosamente' })
@@ -931,13 +824,13 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
   }
 }
 export const getDataOrdenesComprasPorPagar = async (req, res) => {
-  const { clienteId, itemsPorPagina, pagina, fechaActual, timeZone, rangoFechaVencimiento, fechaTasa } = req.body
+  const { clienteId, itemsPorPagina, pagina, fechaActual, timeZone, rangoFechaVencimiento, fechaTasa, monedaPrincipal } = req.body
   try {
     const transaccionesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
     const rango1 = rangoFechaVencimiento
     const rango2 = rangoFechaVencimiento * 2
     const rango3 = rangoFechaVencimiento * 3
-    let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa } })
+    let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa, monedaPrincipal } })
     if (!tasa) {
       const ultimaTasa = await agreggateCollections({
         nameCollection: 'tasas',
@@ -970,19 +863,33 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
           $lookup: {
             from: transaccionesCollection,
             localField: '_id',
-            foreignField: 'compraId',
-            /* pipeline: [
+            foreignField: 'documentoId',
+            pipeline: [
+              {
+                $addFields: {
+                  tasa: { $objectToArray: tasa }
+                }
+              },
+              { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+              {
+                $addFields: {
+                  valor: { $multiply: ['$tasa.v', '$pagoSecundario'] }
+                }
+              },
               {
                 $group: {
-                  _id: '$compraId',
-                  totalAbono: { $sum: '$pago' }
+                  _id: '$documentoId',
+                  totalAbono: { $sum: '$valor' },
+                  totalAbonoPrincipal: { $sum: '$pago' },
+                  totalAbonoSecondario: { $sum: '$pagoSecundario' }
                 }
               }
-            ], */
+            ],
             as: 'detalleTransacciones'
           }
         },
-        // { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
         {
           $project: {
             tasa: '$tasa',
@@ -996,19 +903,25 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             total: '$total',
             totalSecundaria: '$totalSecundaria',
             monedaSecundaria: '$monedaSecundaria',
-            detalleTransacciones: '$detalleTransacciones'
-            // totalAbono: '$detalleTransacciones.totalAbono',
-            // hasAbono: { $ifNull: ['$detalleTransacciones.totalAbono', false] }
+            detalleTransacciones: '$detalleTransacciones',
+            totalAbono: '$detalleTransacciones.totalAbono',
+            hasAbono: { $ifNull: ['$detalleTransacciones.totalAbono', false] },
+            totalAbonoPrincipal: '$detalleTransacciones.totalAbonoPrincipal',
+            totalAbonoSecondario: '$detalleTransacciones, totalAbonoSecondario'
             // totalPorPagar: { $subtract: ['$total', '$detalleTransacciones.totalAbono'] }
           }
-        }
-        /* {
+        },
+        {
           $group: {
             _id: 0,
             rango1: {
               $sum: {
                 $cond: {
-                  if: { $lte: ['$diffFechaVencimiento', rango1] }, then: 1, else: 0
+                  if: {
+                    $and: [{ $gte: ['$diffFechaVencimiento', 0] }, { $lte: ['$diffFechaVencimiento', rango1] }]
+                  },
+                  then: 1,
+                  else: 0
                 }
               }
             },
@@ -1034,13 +947,47 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
                 }
               }
             },
+            rango1Vencido: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [{ $lte: ['$diffFechaVencimiento', 0] }, { $gte: ['$diffFechaVencimiento', (rango1 * -1)] }]
+                  },
+                  then: 1,
+                  else: 0
+                }
+              }
+            },
+            rango2Vencido: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [{ $lt: ['$diffFechaVencimiento', (rango1 * -1)] }, { $gte: ['$diffFechaVencimiento', (rango2 * -1)] }]
+                  },
+                  then: 1,
+                  else: 0
+                }
+              }
+            },
+            rango3Vencido: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [{ $lt: ['$diffFechaVencimiento', (rango2 * -1)] }, { $gte: ['$diffFechaVencimiento', (rango3 * -1)] }]
+                  },
+                  then: 1,
+                  else: 0
+                }
+              }
+            },
             totalAbono: {
               $sum: {
                 $cond: { if: { $ne: ['$hasAbono', false] }, then: '$totalAbono', else: 0 }
               }
             },
-            total: { $sum: '$total' },
-            totalSecundario: { $sum: '$totalSecundaria' }
+            totalPricipal: { $sum: '$total' },
+            totalSecundario: { $sum: '$totalSecundaria' },
+            total: { $sum: '$valor' }
           }
         },
         {
@@ -1048,34 +995,17 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             rango1: '$rango1',
             rango2: '$rango2',
             rango3: '$rango3',
+            rango1Vencido: '$rango1Vencido',
+            rango2Vencido: '$rango2Vencido',
+            rango3Vencido: '$rango3Vencido',
             totalAbono: '$totalAbono',
             total: '$total',
+            totalPricipal: '$totalPricipal',
             totalPorPagar: { $subtract: ['$total', '$totalAbono'] }
           }
-        } */
+        }
       ]
     })
-    console.log({ conteosPendientesPorPago })
-    const datosConteo = {
-      rango1: 0,
-      rango2: 0,
-      rango3: 0,
-      totalAbono: 0,
-      total: 0,
-      totalPrincipal: 0,
-      totalSecundaria: 0,
-      totalPorPagar: 0
-    }
-    for (const conteo of conteosPendientesPorPago) {
-      const total = conteo.totalSecundaria * tasa[conteo.monedaSecundaria]
-      if (conteo.diffFechaVencimiento <= rango1) datosConteo.rango1 += 1
-      if (conteo.diffFechaVencimiento > rango1 && conteo.diffFechaVencimiento <= rango2) datosConteo.rango2 += 1
-      if (conteo.diffFechaVencimiento > rango2 && conteo.diffFechaVencimiento <= rango3) datosConteo.rango3 += 1
-      datosConteo.total += total
-      datosConteo.totalPorPagar += total
-      datosConteo.totalPrincipal += conteo.total
-      datosConteo.totalSecundaria += conteo.totalSecundaria
-    }
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const comprasPorProveedor = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
@@ -1087,33 +1017,63 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
           $lookup: {
             from: transaccionesCollection,
             localField: '_id',
-            foreignField: 'compraId',
+            foreignField: 'documentoId',
             pipeline: [
               {
+                $addFields: {
+                  tasa: { $objectToArray: tasa }
+                }
+              },
+              { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+              {
+                $addFields: {
+                  valor: { $multiply: ['$tasa.v', '$pagoSecundario'] }
+                }
+              },
+              {
                 $group: {
-                  _id: '$compraId',
-                  totalAbono: { $sum: '$pago' }
+                  _id: '$documentoId',
+                  totalAbono: { $sum: '$valor' },
+                  totalAbonoPrincipal: { $sum: '$pago' },
+                  totalAbonoSecundario: { $sum: '$pagoSecundario' }
                 }
               }
             ],
             as: 'detalleTransacciones'
           }
         },
-        // { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
-        /* {
+        { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            tasa: { $objectToArray: tasa }
+          }
+        },
+        { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+        { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+        {
+          $addFields: {
+            valor: { $multiply: ['$tasa.v', '$totalSecundaria'] }
+          }
+        },
+        {
           $group: {
             _id: '$proveedorId',
             fechaVencimiento: { $first: '$fechaVencimiento' },
-            costoTotal: { $sum: '$total' },
-            totalAbono: { $sum: '$detalleTransacciones.totalAbono' }
+            costoTotal: { $sum: '$valor' },
+            totalPrincipal: { $sum: 'total' },
+            totalSecundaria: { $sum: '$totalSecundaria' },
+            totalAbono: { $sum: '$detalleTransacciones.totalAbono' },
+            totalAbonoPrincipal: { $sum: '$detalleTransacciones.totalAbonoPrincipal' },
+            totalAbonoSecundario: { $sum: '$detalleTransacciones.totalAbonoSecundario' }
           }
-        }, */
+        },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) },
         {
           $lookup: {
             from: proveedoresCollection,
-            localField: 'proveedorId',
+            localField: '_id',
             foreignField: '_id',
             as: 'proveedor'
           }
@@ -1121,16 +1081,18 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
         { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
         {
           $project: {
-            proveedorId: '$proveedorId',
+            proveedorId: '$_id',
             proveedor: '$proveedor.razonSocial',
             documentoIdentidad: { $concat: ['$proveedor.tipoDocumento', '-', '$proveedor.documentoIdentidad'] },
-            // costoTotal: '$costoTotal',
-            // totalAbono: '$totalAbono',
-            // porPagar: { $subtract: ['$costoTotal', '$totalAbono'] },
+            costoTotal: '$costoTotal',
+            totalAbono: '$totalAbono',
+            porPagar: { $subtract: ['$costoTotal', '$totalAbono'] },
+            totalAbonoPrincipal: 'totalAbonoPrincipal',
+            totalAbonoSecundario: 'totalAbonoSecundario',
             fechaVencimiento: '$fechaVencimiento',
             monedaSecundaria: '$monedaSecundaria',
             totalSecundaria: '$totalSecundaria',
-            total: '$total',
+            totalPrincipal: '$totalPrincipal',
             diffFechaVencimiento:
             {
               $dateDiff: { startDate: moment(fechaActual).toDate(), endDate: '$fechaVencimiento', unit: 'day', timezone: timeZone }
@@ -1141,61 +1103,28 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
         { $sort: { diffFechaVencimiento: 1 } }
       ]
     })
-    const dataCompraProveedor = {}
-    const dataCompra = []
-    for (const compra of comprasPorProveedor) {
-      const total = compra.totalSecundaria * tasa[compra.monedaSecundaria]
-      if (!dataCompraProveedor[compra.proveedorId]) {
-        dataCompraProveedor[compra.proveedorId] = {
-          proveedorId: compra.proveedorId,
-          proveedor: compra.proveedor,
-          documentoIdentidad: compra.documentoIdentidad,
-          total: compra.total,
-          totalSecundaria: compra.totalSecundaria,
-          totalAbono: compra?.totalAbono || 0,
-          costoTotal: total,
-          porPagar: total - (compra?.totalAbono || 0),
-          fechaVencimiento: compra.fechaVencimiento,
-          diffFechaVencimiento: compra.diffFechaVencimiento,
-          detalleTransacciones: []
-        }
-      } else {
-        dataCompraProveedor[compra.proveedorId].total += compra.total
-        dataCompraProveedor[compra.proveedorId].totalSecundaria += compra.totalSecundaria
-        dataCompraProveedor[compra.proveedorId].totalAbono += compra?.totalAbono || 0
-        dataCompraProveedor[compra.proveedorId].costoTotal += total
-        dataCompraProveedor[compra.proveedorId].porPagar += (total - (compra?.totalAbono || 0))
-        if (dataCompraProveedor[compra.proveedorId].diffFechaVencimiento > compra.diffFechaVencimiento) {
-          dataCompraProveedor[compra.proveedorId].diffFechaVencimiento = compra.diffFechaVencimiento
-          dataCompraProveedor[compra.proveedorId].fechaVencimiento = compra.fechaVencimiento
-        }
-      }
-    }
-    for (const key in dataCompraProveedor) {
-      dataCompra.push(dataCompraProveedor[key])
-    }
     const count = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] } } },
-        { $sort: { fechaVencimiento: 1 } },
         {
           $group: {
-            _id: '$proveedorId',
-            count: { $sum: 1 }
+            _id: '$proveedorId'
+            // count: { $sum: 1 }
           }
-        }
+        },
+        { $count: 'count' }
       ]
     })
-    return res.status(200).json({ conteosPendientesPorPago: datosConteo, count: count[0].count, comprasPorProveedor: dataCompra })
+    return res.status(200).json({ conteosPendientesPorPago: conteosPendientesPorPago[0], count: count[0]?.count || 0, comprasPorProveedor })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes ' + e.message })
   }
 }
 export const getDetalleProveedor = async (req, res) => {
-  const { clienteId, proveedorId, itemsPorPagina, pagina, fechaActual, timeZone, rangoFechaVencimiento, fechaTasa } = req.body
+  const { clienteId, proveedorId, itemsPorPagina, pagina, fechaActual, timeZone, fechaTasa } = req.body
   try {
     let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa } })
     if (!tasa) {
@@ -1216,53 +1145,124 @@ export const getDetalleProveedor = async (req, res) => {
       )
     }
     const transaccionesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
+    const detalleFacturaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const comprasPorProveedor = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, proveedorId: new ObjectId(proveedorId) } },
+        { $sort: { fechaVencimiento: 1 } },
         ...pagination,
+        {
+          $addFields: {
+            tasa: { $objectToArray: tasa }
+          }
+        },
+        { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+        { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+        {
+          $addFields: {
+            valor: { $multiply: ['$tasa.v', '$totalSecundaria'] }
+          }
+        },
         {
           $lookup: {
             from: transaccionesCollection,
             localField: '_id',
-            foreignField: 'compraId',
+            foreignField: 'documentoId',
             pipeline: [
               {
+                $addFields: {
+                  tasa: { $objectToArray: tasa }
+                }
+              },
+              { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+              {
+                $addFields: {
+                  valor: { $multiply: ['$tasa.v', '$pagoSecundario'] }
+                }
+              },
+              {
                 $group: {
-                  _id: '$compraId',
-                  totalAbono: { $sum: '$pago' }
+                  _id: '$documentoId',
+                  totalAbono: { $sum: '$valor' },
+                  totalAbonoPrincipal: { $sum: '$pago' },
+                  totalAbonoSecundario: { $sum: '$pagoSecundario' }
                 }
               }
             ],
             as: 'detalleTransacciones'
           }
         },
-        // { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: 'proveedorId',
+            foreignField: '_id',
+            as: 'proveedor'
+          }
+        },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: detalleFacturaCollection,
+            localField: '_id',
+            foreignField: 'facturaId',
+            as: 'productosServicios'
+          }
+        },
         {
           $project: {
+            costoTotal: '$valor',
+            proveedor: '$proveedor',
+            productosServicios: '$productosServicios',
             proveedorId: 1,
             numeroFactura: 1,
             totalPrincipal: '$total',
             totalSecundaria: '$totalSecundaria',
             monedaSecundaria: '$monedaSecundaria',
-            // totalAbono: '$detalleTransacciones.totalAbono',
-            // porPagar: { $subtract: ['$total', '$detalleTransacciones.totalAbono'] },
+            totalAbono: '$detalleTransacciones.totalAbono',
+            porPagar: { $subtract: ['$valor', '$detalleTransacciones.totalAbono'] },
             fechaVencimiento: 1,
-            detalleTransacciones: '$detalleTransacciones',
+            // detalleTransacciones: '$detalleTransacciones',
             diffFechaVencimiento:
             {
               $dateDiff: { startDate: moment(fechaActual).toDate(), endDate: '$fechaVencimiento', unit: 'day', timezone: timeZone }
-            }
+            },
+            fecha: 1,
+            tipoDocumento: 1,
+            numeroControl: 1,
+            moneda: 1,
+            hasIgtf: 1,
+            isAgenteRetencionIva: 1,
+            retISLR: 1,
+            valorRetIva: 1,
+            codigoRetIslr: 1,
+            nombreRetIslr: 1,
+            porcenjateIslr: 1,
+            valorBaseImponibleIslr: 1,
+            baseImponible: 1,
+            iva: 1,
+            retIva: 1,
+            retIslr: 1,
+            total: 1,
+            baseImponibleSecundaria: 1,
+            ivaSecundaria: 1,
+            retIvaSecundaria: 1,
+            retIslrSecundaria: 1,
+            metodoPago: 1,
+            formaPago: 1,
+            credito: 1,
+            duracionCredito: 1,
+            tasaDia: 1,
+            ordenCompraId: 1,
+            facturaAsociada: 1
           }
         }
       ]
-    })
-    const dataDetalle = comprasPorProveedor.map(e => {
-      return {
-        ...e,
-        costoTotal: e.totalSecundaria * tasa[e.monedaSecundaria]
-      }
     })
     const count = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
@@ -1272,7 +1272,7 @@ export const getDetalleProveedor = async (req, res) => {
         { $count: 'total' }
       ]
     })
-    return res.status(200).json({ comprasPorProveedor: dataDetalle, count: count && count[0] ? count[0].total : 0 })
+    return res.status(200).json({ comprasPorProveedor, count: count && count[0] ? count[0].total : 0 })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar el listados de compras del proveedor ' + e.message })
@@ -1311,7 +1311,7 @@ export const createPagoOrdenes = async (req, res) => {
           })
         }
         datosAbonos.push({
-          compraId: new ObjectId(abono.compraId),
+          documentoId: new ObjectId(abono.compraId),
           proveedorId: new ObjectId(proveedorId),
           pago: Number(abono.abono),
           fechaPago: moment(abono.fechaPago).toDate(),
@@ -1319,8 +1319,8 @@ export const createPagoOrdenes = async (req, res) => {
           banco: new ObjectId(abono.banco._id),
           porcentajeIgtf: Number(abono?.porcentajeIgtf || 0),
           baseImponibleIgtf: Number(abono?.baseImponibleIgtf || 0),
-          pagoIgtf: abono?.pagoIgtf,
-          abonoSecundario: abono?.abonoSecundario,
+          pagoIgtf: Number(abono?.pagoIgtf.toFixed(2)),
+          pagoSecundario: Number(abono?.abonoSecundario.toFixed(2)),
           baseImponibleIgtfSecundario: Number(abono?.baseImponibleIgtfSecundario.toFixed(2)),
           pagoIgtfSecundario: Number(abono?.pagoIgtfSecundario.toFixed(2)),
           moneda: abono.moneda,
@@ -1334,13 +1334,13 @@ export const createPagoOrdenes = async (req, res) => {
           categoria: 'creado',
           tipo: 'Pago',
           fecha: moment().toDate(),
-          descripcion: abono.porPagar === abono.abono ? 'Orden pagada' : 'Abonó ' + abono.abono?.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          descripcion: abono.porPagar === abono.abono ? 'Factura pagada' : 'Abonó ' + abono.abono?.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
           creadoPor: new ObjectId(req.uid)
         })
       }
     }
     if (updateCompraPagada[0]) {
-      await bulkWriteSD({ nameCollection: 'compras', enviromentClienteId: clienteId, pipeline: updateCompraPagada })
+      await bulkWriteSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, pipeline: updateCompraPagada })
     }
     if (createHistorial[0]) {
       createManyItemsSD({

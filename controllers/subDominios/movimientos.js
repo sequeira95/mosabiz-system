@@ -2,7 +2,7 @@ import moment from 'moment'
 import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { subDominioName, tipoMovimientosShort } from '../../constants.js'
-import { hasContabilidad, validMovimientoAuditoria, validMovimientoPenditeEnvio, validMovimientoPenditeRecepcion } from '../../utils/hasContabilidad.js'
+import { hasContabilidad, validMovimientoAuditoria, validMovimientoPenditeEnvio, validMovimientoPenditeRecepcion, validProductosRecepcionCompras } from '../../utils/hasContabilidad.js'
 export const getDataMovimientos = async (req, res) => {
   const { clienteId, estado } = req.body
   try {
@@ -3023,6 +3023,7 @@ export const recepcionInventarioCompra = async (req, res) => {
   console.log({ movimientoId, detalleMovimientos })
   try {
     if (detalleMovimientos[0]) {
+      const tieneContabilidad = await hasContabilidad({ clienteId })
       const detalleUpdate = []
       const productoPorAlmacen = []
       const productosUpdate = []
@@ -3032,10 +3033,46 @@ export const recepcionInventarioCompra = async (req, res) => {
         enviromentClienteId: clienteId,
         filters: { nombre: 'Devoluciones' }
       })
+      let totalPorPagarProveedor = 0
+      const asientosContable = []
+      const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
+      let periodo = null
+      let comprobante = null
+      if (tieneContabilidad) {
+        const validContabilidad = await validProductosRecepcionCompras({ clienteId, movimientoId, detalleMovimientos, almacenDestino })
+        if (validContabilidad && validContabilidad.message) {
+          return res.status(500).json({ error: 'Error al momento de validar información contable: ' + validContabilidad.message })
+        }
+        periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaActual).toDate() }, fechaFin: { $gte: moment(fechaActual).toDate() } } })
+        // console.log({ periodo })
+        if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha de envio o de recepción')
+        const mesPeriodo = moment(fechaActual).format('YYYY/MM')
+        comprobante = await getItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteInventario.codigoComprobanteMovimientos, periodoId: periodo._id, mesPeriodo }
+        })
+        if (!comprobante) {
+          comprobante = await upsertItemSD({
+            nameCollection: 'comprobantes',
+            enviromentClienteId: clienteId,
+            filters: { codigo: ajusteInventario.codigoComprobanteMovimientos, periodoId: periodo._id, mesPeriodo },
+            update: {
+              $set: {
+                nombre: 'Movimientos de inventario',
+                isBloqueado: false,
+                fechaCreacion: moment().toDate()
+              }
+            }
+          })
+        }
+      }
       const productosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
       const categoriaPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
       const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+      const movimiento = await getItemSD({ nameCollection: 'movimientos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(movimientoId) } })
       for (const detalle of detalleMovimientos) {
+        let totalDevolucionesProducto = 0
         if (detalle?.cantidaLotes) {
           const inventarioAnterior = await agreggateCollectionsSD({
             nameCollection: 'productosPorAlmacen',
@@ -3085,35 +3122,12 @@ export const recepcionInventarioCompra = async (req, res) => {
               },
               { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
               {
-                $lookup: {
-                  from: categoriaPorAlmacenCollection,
-                  localField: 'detalleProducto.categoria',
-                  foreignField: 'categoriaId',
-                  pipeline: [
-                    { $match: { almacenId: new ObjectId(almacenDestino._id) } }
-                  ],
-                  as: 'categoriaAlmacen'
-                }
-              },
-              { $unwind: { path: '$categoriaAlmacen', preserveNullAndEmptyArrays: true } },
-              {
-                $lookup: {
-                  from: planCuentaCollection,
-                  localField: 'categoriaAlmacen.cuentaId',
-                  foreignField: '_id',
-                  as: 'cuantaDestino'
-                }
-              },
-              { $unwind: { path: '$cuantaDestino', preserveNullAndEmptyArrays: true } },
-              {
                 $project: {
                   _id: 0,
+                  producto: '$detalleProducto.nombre',
                   costoPromedio: '$_id.costoPromedio',
                   productoId: '$_id.productoId',
                   // almacenId: '$_id.almacenId',
-                  cuentaId: '$cuantaDestino._id',
-                  cuentaCodigo: '$cuantaDestino.codigo',
-                  cuntaNombre: '$cuantaDestino.descripcion',
                   cantidad: { $subtract: ['$entrada', '$salida'] } // cantidad de producto en el almacen de origen
                   // almacenNombre: '$detalleAlmacen.nombre'
                 }
@@ -3130,15 +3144,15 @@ export const recepcionInventarioCompra = async (req, res) => {
           if (diferencia >= Number(detalle?.recibe)) {
             const costoPromedioTotalActualizado = (Number(detalle?.recibe) * (detalle?.costoUnitario || 0)) + costoPromedioTotalAnterior
             costoPromedio = costoPromedioTotalActualizado / (Number(detalle?.recibe) + Number(inventarioAnterior[0]?.cantidad || 0))
-            console.log({ costoPromedioTotalActualizado })
+            // console.log({ costoPromedioTotalActualizado })
           } else if (diferencia > 0 && diferencia < Number(detalle?.recibe)) {
             const costoPromedioTotalActualizado = (diferencia * (detalle?.costoUnitario || 0)) + costoPromedioTotalAnterior
             costoPromedio = costoPromedioTotalActualizado / (diferencia + Number(inventarioAnterior[0]?.cantidad || 0))
-            console.log({ costoPromedioTotalActualizado })
+            // console.log({ costoPromedioTotalActualizado })
           }
-          console.log({ costoPromedioTotalAnterior, costoPromedio })
+          // console.log({ costoPromedioTotalAnterior, costoPromedio })
           /** */
-          console.log({ diferencia })
+          // console.log({ diferencia })
           for (const lote of detalle.cantidaLotes) {
             const verifyLote = await getItemSD({
               nameCollection: 'productosPorAlmacen',
@@ -3147,6 +3161,7 @@ export const recepcionInventarioCompra = async (req, res) => {
             })
             if (verifyLote) return res.status(400).json({ error: 'Ya se encuentra un lote con el mismo codigo guardado en este producto' })
             if (diferencia > 0 && diferencia >= Number(lote.cantidad)) {
+              totalPorPagarProveedor += (lote.cantidad * detalle.costoUnitario)
               diferencia -= Number(lote.cantidad)
               console.log({ lote, diferencia })
               productoPorAlmacen.push({
@@ -3186,6 +3201,7 @@ export const recepcionInventarioCompra = async (req, res) => {
             } else if (diferencia > 0 && diferencia < Number(lote.cantidad)) {
               const diferenciaLote = Number(lote.cantidad) - diferencia
               console.log({ diferenciaLote })
+              totalPorPagarProveedor += ((lote.cantidad - diferenciaLote) * detalle.costoUnitario)
               productoPorAlmacen.push({
                 productoId: new ObjectId(detalle.productoId),
                 movimientoId: new ObjectId(detalle.movimientoId),
@@ -3221,6 +3237,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 creadoPor: new ObjectId(req.uid)
               } */)
               if (diferenciaLote > 0) {
+                totalDevolucionesProducto += (diferenciaLote * detalle.costoUnitario)
                 productoPorAlmacen.push({
                   productoId: new ObjectId(detalle.productoId),
                   movimientoId: new ObjectId(detalle.movimientoId),
@@ -3260,6 +3277,7 @@ export const recepcionInventarioCompra = async (req, res) => {
               }
             } else if (diferencia <= 0) {
               console.log({ diferenciaMenor: diferencia })
+              totalDevolucionesProducto += (Number(lote.cantidad) * detalle.costoUnitario)
               diferencia -= lote.cantidad
               productoPorAlmacen.push({
                 productoId: new ObjectId(detalle.productoId),
@@ -3297,6 +3315,112 @@ export const recepcionInventarioCompra = async (req, res) => {
                 creadoPor: new ObjectId(req.uid)
               })
             }
+            if (tieneContabilidad) {
+              const infoProducto = await agreggateCollectionsSD({
+                nameCollection: 'productos',
+                enviromentClienteId: clienteId,
+                pipeline: [
+                  {
+                    $match:
+                    {
+                      _id: new ObjectId(detalle.productoId)
+                    }
+                  },
+                  {
+                    $lookup: {
+                      from: categoriaPorAlmacenCollection,
+                      localField: 'categoria',
+                      foreignField: 'categoriaId',
+                      pipeline: [
+                        { $match: { almacenId: new ObjectId(almacenDestino._id) } }
+                      ],
+                      as: 'categoriaAlmacen'
+                    }
+                  },
+                  { $unwind: { path: '$categoriaAlmacen', preserveNullAndEmptyArrays: true } },
+                  {
+                    $lookup: {
+                      from: planCuentaCollection,
+                      localField: 'categoriaAlmacen.cuentaId',
+                      foreignField: '_id',
+                      as: 'cuantaDestino'
+                    }
+                  },
+                  { $unwind: { path: '$cuantaDestino', preserveNullAndEmptyArrays: true } },
+                  {
+                    $lookup: {
+                      from: categoriaPorAlmacenCollection,
+                      localField: 'categoria',
+                      foreignField: 'categoriaId',
+                      pipeline: [
+                        { $match: { almacenId: new ObjectId(almacenDevoluciones._id) } }
+                      ],
+                      as: 'categoriaAlmacenDevoluciones'
+                    }
+                  },
+                  { $unwind: { path: '$categoriaAlmacenDevoluciones', preserveNullAndEmptyArrays: true } },
+                  {
+                    $lookup: {
+                      from: planCuentaCollection,
+                      localField: 'categoriaAlmacenDevoluciones.cuentaId',
+                      foreignField: '_id',
+                      as: 'cuentaDevoluciones'
+                    }
+                  },
+                  { $unwind: { path: '$cuentaDevoluciones', preserveNullAndEmptyArrays: true } },
+                  {
+                    $project: {
+                      _id: 0,
+                      producto: '$nombre',
+                      productoId: '$_id',
+                      // almacenId: '$_id.almacenId',
+                      cuentaId: '$cuantaDestino._id',
+                      cuentaCodigo: '$cuantaDestino.codigo',
+                      cuntaNombre: '$cuantaDestino.descripcion',
+                      cuentaDevolucionesId: '$cuentaDevoluciones._id',
+                      cuentaDevolucionesCodigo: '$cuentaDevoluciones.codigo',
+                      cuntaDevolucionesNombre: '$cuentaDevoluciones.descripcion'
+                    }
+                  }
+                ]
+              })
+              asientosContable.push({
+                cuentaId: new ObjectId(infoProducto[0].cuentaId),
+                cuentaCodigo: infoProducto[0].cuentaCodigo,
+                cuentaNombre: infoProducto[0].cuntaNombre,
+                comprobanteId: new ObjectId(comprobante._id),
+                periodoId: new ObjectId(periodo._id),
+                descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} RECEPCIPON DE ${inventarioAnterior[0].producto}`,
+                fecha: moment(fechaActual).toDate(),
+                debe: Number(detalle.costoUnitario) * Number(detalle.cantidad),
+                haber: 0,
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+                documento: {
+                  docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+                  docFecha: moment(fechaActual).toDate()
+                }
+              })
+              if (totalDevolucionesProducto) {
+                asientosContable.push({
+                  cuentaId: new ObjectId(infoProducto[0].cuentaDevolucionesId),
+                  cuentaCodigo: infoProducto[0].cuentaDevolucionesCodigo,
+                  cuentaNombre: infoProducto[0].cuntaDevolucionesNombre,
+                  comprobanteId: new ObjectId(comprobante._id),
+                  periodoId: new ObjectId(periodo._id),
+                  descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} RECEPCIPON DE ${inventarioAnterior[0].producto}`,
+                  fecha: moment(fechaActual).toDate(),
+                  debe: 0,
+                  haber: totalDevolucionesProducto,
+                  fechaCreacion: moment().toDate(),
+                  docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+                  documento: {
+                    docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+                    docFecha: moment(fechaActual).toDate()
+                  }
+                })
+              }
+            }
           }
           detalleUpdate.push({
             updateOne: {
@@ -3318,14 +3442,89 @@ export const recepcionInventarioCompra = async (req, res) => {
           })
         }
       }
-      console.log({ productoPorAlmacen, detalleUpdate, productosUpdate, updateAllCostoPromedioPoducto })
+      // console.log({ productoPorAlmacen, detalleUpdate, productosUpdate, updateAllCostoPromedioPoducto })
       if (detalleUpdate[0]) {
-        /* updateItemSD({
-          nameCollection: 'movimientos',
-          enviromentClienteId: clienteId,
-          filters: { _id: new ObjectId(movimientoId) },
-          update: { $set: { almacenDestino: new ObjectId(almacenDestino._id) } }
-        }) */
+        const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+        const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+        if (tieneContabilidad) {
+          const detalleCompra = await agreggateCollectionsSD({
+            nameCollection: 'compras',
+            enviromentClienteId: clienteId,
+            pipeline: [
+              { $match: { _id: new ObjectId(movimiento.compraId) } },
+              {
+                $lookup: {
+                  from: proveedoresCollection,
+                  localField: 'proveedorId',
+                  foreignField: '_id',
+                  pipeline: [
+                    {
+                      $lookup: {
+                        from: categoriasCollection,
+                        localField: 'categoria',
+                        foreignField: '_id',
+                        as: 'detalleCategoria'
+                      }
+                    },
+                    { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } }
+                  ],
+                  as: 'detalleProveedor'
+                }
+              },
+              { $unwind: { path: '$detalleProveedor', preserveNullAndEmptyArrays: true } }
+            ]
+          })
+          const cuentaProveedor = await getItemSD({
+            nameCollection: 'planCuenta',
+            enviromentClienteId: clienteId,
+            filters: { _id: new ObjectId(detalleCompra[0].detalleProveedor?.detalleCategoria?.cuentaId) }
+          })
+          let terceroProveedor = await getItemSD({
+            nameCollection: 'terceros',
+            enviromentClienteId: clienteId,
+            filters: { cuentaId: new ObjectId(cuentaProveedor._id), nombre: detalleCompra[0].detalleProveedor?.razonSocial }
+          })
+          if (!terceroProveedor) {
+            terceroProveedor = await upsertItemSD({
+              nameCollection: 'terceros',
+              enviromentClienteId: clienteId,
+              update: {
+                $set: {
+                  nombre: detalleCompra[0].detalleProveedor?.razonSocial,
+                  cuentaId: new ObjectId(cuentaProveedor._id)
+                }
+              }
+            })
+          }
+          if (totalPorPagarProveedor > 0) {
+            asientosContable.push({
+              cuentaId: new ObjectId(cuentaProveedor._id),
+              cuentaCodigo: cuentaProveedor.codigo,
+              cuentaNombre: cuentaProveedor.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+              fecha: moment(fechaActual).toDate(),
+              debe: 0,
+              haber: totalPorPagarProveedor,
+              fechaCreacion: moment().toDate(),
+              terceroId: new ObjectId(terceroProveedor._id),
+              terceroNombre: terceroProveedor.nombre,
+              docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+              documento: {
+                docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+                docFecha: moment(fechaActual).toDate()
+              }
+            })
+          }
+        }
+        if (asientosContable[0]) {
+          createManyItemsSD({
+            nameCollection: 'detallesComprobantes',
+            enviromentClienteId: clienteId,
+            items: asientosContable
+          })
+        }
         bulkWriteSD({ nameCollection: 'detalleMovimientos', enviromentClienteId: clienteId, pipeline: detalleUpdate })
         bulkWriteSD({ nameCollection: 'productos', enviromentClienteId: clienteId, pipeline: productosUpdate })
         createItemSD({
@@ -3360,6 +3559,39 @@ export const cerrarRecepcionCompra = async (req, res) => {
   const { clienteId, detalleMovimientos, _id: movimientoId, observacion, fechaActual } = req.body
   console.log(req.body)
   try {
+    const tieneContabilidad = await hasContabilidad({ clienteId })
+    const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
+    let periodo = null
+    let comprobante = null
+    if (tieneContabilidad) {
+      const validContabilidad = await validProductosRecepcionCompras({ clienteId, movimientoId, detalleMovimientos, tipo: 'cerrar' })
+      if (validContabilidad && validContabilidad.message) {
+        return res.status(500).json({ error: 'Error al momento de validar información contable: ' + validContabilidad.message })
+      }
+      periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaActual).toDate() }, fechaFin: { $gte: moment(fechaActual).toDate() } } })
+      // console.log({ periodo })
+      if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha de envio o de recepción')
+      const mesPeriodo = moment(fechaActual).format('YYYY/MM')
+      comprobante = await getItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: ajusteInventario.codigoComprobanteMovimientos, periodoId: periodo._id, mesPeriodo }
+      })
+      if (!comprobante) {
+        comprobante = await upsertItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteInventario.codigoComprobanteMovimientos, periodoId: periodo._id, mesPeriodo },
+          update: {
+            $set: {
+              nombre: 'Movimientos de inventario',
+              isBloqueado: false,
+              fechaCreacion: moment().toDate()
+            }
+          }
+        })
+      }
+    }
     const movimiento = await getItemSD({
       nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
@@ -3367,31 +3599,63 @@ export const cerrarRecepcionCompra = async (req, res) => {
     })
     if (detalleMovimientos[0]) {
       const diferencia = detalleMovimientos.some(e => e.cantidad !== e.recibo)
-      const almacenTransito = await getItemSD({
-        nameCollection: 'almacenes',
-        enviromentClienteId: clienteId,
-        filters: { nombre: 'Transito' }
-      })
       const almacenDevoluciones = await getItemSD({
         nameCollection: 'almacenes',
         enviromentClienteId: clienteId,
         filters: { nombre: 'Devoluciones' }
       })
       const productosPorAlmacen = []
+      const asientosContables = []
       for (const detalle of detalleMovimientos) {
         if (Number(detalle.recibido) < detalle.cantidad) {
           console.log('entramos al for', detalle)
-          const producto = await getItemSD({
+          const categoriaPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
+          const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+          const producto = await agreggateCollectionsSD({
             nameCollection: 'productos',
             enviromentClienteId: clienteId,
-            filters: { _id: new ObjectId(detalle.productoId) }
+            pipeline: [
+              { $match: { _id: new ObjectId(detalle.productoId) } },
+              {
+                $lookup: {
+                  from: categoriaPorAlmacenCollection,
+                  localField: 'categoria',
+                  foreignField: 'categoriaId',
+                  pipeline: [
+                    { $match: { almacenId: new ObjectId(almacenDevoluciones._id) } }
+                  ],
+                  as: 'categoriaAlmacenDevoluciones'
+                }
+              },
+              { $unwind: { path: '$categoriaAlmacenDevoluciones', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: planCuentaCollection,
+                  localField: 'categoriaAlmacenDevoluciones.cuentaId',
+                  foreignField: '_id',
+                  as: 'cuentaDevoluciones'
+                }
+              },
+              { $unwind: { path: '$cuentaDevoluciones', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  _id: 0,
+                  producto: '$nombre',
+                  productoId: '$_id',
+                  cuentaDevolucionesId: '$cuentaDevoluciones._id',
+                  cuentaDevolucionesCodigo: '$cuentaDevoluciones.codigo',
+                  cuntaDevolucionesNombre: '$cuentaDevoluciones.descripcion',
+                  costoPromedio: '$costoPromedio'
+                }
+              }
+            ]
           })
           productosPorAlmacen.push({
             productoId: new ObjectId(detalle.productoId),
             movimientoId: new ObjectId(detalle.movimientoId),
             cantidad: Number(detalle.cantidad) - Number(detalle.recibido),
             almacenId: new ObjectId(almacenDevoluciones._id),
-            almacenOrigen: new ObjectId(almacenTransito._id),
+            // almacenOrigen: new ObjectId(almacenTransito._id),
             almacenDestino: new ObjectId(almacenDevoluciones._id),
             tipo: 'movimiento',
             tipoMovimiento: 'entrada',
@@ -3402,9 +3666,9 @@ export const cerrarRecepcionCompra = async (req, res) => {
             fechaIngreso: moment(fechaActual).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: detalle.costoUnitario,
-            costoPromedio: producto.costoPromedio,
+            costoPromedio: producto[0].costoPromedio,
             creadoPor: new ObjectId(req.uid)
-          }, {
+          } /* {
             productoId: new ObjectId(detalle.productoId),
             movimientoId: new ObjectId(detalle.movimientoId),
             cantidad: Number(detalle.cantidad) - Number(detalle.recibido),
@@ -3420,14 +3684,35 @@ export const cerrarRecepcionCompra = async (req, res) => {
             costoUnitario: detalle.costoUnitario,
             costoPromedio: producto.costoPromedio,
             creadoPor: new ObjectId(req.uid)
-          })
+          } */)
+          if (tieneContabilidad) {
+            asientosContables.push({
+              cuentaId: new ObjectId(producto[0].cuentaDevolucionesId),
+              cuentaCodigo: producto[0].cuentaDevolucionesCodigo,
+              cuentaNombre: producto[0].cuntaDevolucionesNombre,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} RECEPCIPON DE ${producto[0].producto}`,
+              fecha: moment(fechaActual).toDate(),
+              debe: Number(detalle.costoUnitario) * Number(detalle.cantidad),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+              documento: {
+                docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+                docFecha: moment(fechaActual).toDate()
+              }
+            })
+          }
         }
       }
-      createManyItemsSD({
-        nameCollection: 'productosPorAlmacen',
-        enviromentClienteId: clienteId,
-        items: productosPorAlmacen
-      })
+      if (productosPorAlmacen[0]) {
+        createManyItemsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          items: productosPorAlmacen
+        })
+      }
       updateItemSD({
         nameCollection: 'movimientos',
         enviromentClienteId: clienteId,
@@ -3440,6 +3725,18 @@ export const cerrarRecepcionCompra = async (req, res) => {
           enviromentClienteId: clienteId,
           filters: { _id: new ObjectId(movimiento.compraId) },
           update: { $set: { statusInventario: 'Recibido' } }
+        })
+        createItemSD({
+          nameCollection: 'historial',
+          enviromentClienteId: clienteId,
+          item: {
+            idMovimiento: new ObjectId(movimientoId),
+            categoria: 'creado',
+            tipo: 'Recepcion de inventario',
+            fecha: moment().toDate(),
+            descripcion: 'Recepción de inventario cerrada',
+            creadoPor: new ObjectId(req.uid)
+          }
         })
       }
       // console.log({ prueba })

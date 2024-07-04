@@ -401,3 +401,87 @@ export async function validComprobantesDescuadre ({ clienteId, periodoId }) {
     return e
   }
 }
+export async function validProductosAprobarCompras ({ clienteId, compraId }) {
+  const ajusteInventario = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'inventario' } })
+  // console.log({ ajusteInventario })
+  if (ajusteInventario && !ajusteInventario.codigoComprobanteMovimientos) throw new Error('No existe en ajustes el codigo del comprobante para actualizar el movimiento')
+  if (ajusteInventario && !ajusteInventario.cuentaVariacionInventario) throw new Error('No existe en ajustes la cuenta de variación de inventario')
+  const productosCollections = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+  const categoriaPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
+  const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+  const almacenTransito = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Transito' } })
+  const dataMovimiento = await agreggateCollectionsSD({
+    nameCollection: 'detalleCompra',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      { $match: { compraId: new ObjectId(compraId) } },
+      {
+        $lookup: {
+          from: productosCollections,
+          localField: 'productoId',
+          foreignField: '_id',
+          as: 'detalleProducto'
+        }
+      },
+      { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: categoriaPorAlmacenCollection,
+          let: { categoriaId: '$detalleProducto.categoria' },
+          pipeline: [
+            {
+              $match:
+                {
+                  $expr:
+                  {
+                    $and:
+                      [
+                        { $eq: ['$categoriaId', '$$categoriaId'] },
+                        { $eq: ['$almacenId', new ObjectId(almacenTransito?._id)] }
+                      ]
+                  }
+                }
+            },
+            {
+              $project: {
+                cuentaId: '$cuentaId'
+              }
+            }
+          ],
+          as: 'detalleCategoriaAlmacenTransito'
+        }
+      },
+      { $unwind: { path: '$detalleCategoriaAlmacenTransito', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          productoId: '$productoId',
+          producto: '$detalleProducto.nombre',
+          categoria: '$detalleProducto.categoria',
+          cuentaTransito: '$detalleCategoriaAlmacenTransito.cuentaId'
+        }
+      },
+      {
+        $lookup: {
+          from: planCuentaCollection,
+          localField: 'cuentaTransito',
+          foreignField: '_id',
+          as: 'cuentaTransito'
+        }
+      },
+      { $unwind: { path: '$cuentaTransito', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          productoId: 1,
+          producto: 1,
+          categoria: 1,
+          cuentaTransitoId: '$cuentaTransito._id',
+          cuentaTransitoCodigo: '$cuentaTransito.codigo',
+          cuentaTransitoNombre: '$cuentaTransito.descripcion'
+        }
+      }
+    ]
+  })
+  const isValidCuentas = dataMovimiento.every(item => item.cuentaTransitoId)
+  if (!isValidCuentas) throw new Error('Existen productos que no tienen cuenta asignada para el almacen de devoluciones.')
+  return isValidCuentas
+}

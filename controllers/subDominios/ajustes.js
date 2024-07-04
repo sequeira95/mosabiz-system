@@ -32,9 +32,11 @@ export const getTipoAjustesCliente = async (req, res) => {
 export const upsertAjusteCliente = async (req, res) => {
   const ajuste = req.body.ajuste
   const clienteId = req.body.clienteId
+  console.log({ ajuste })
   if (ajuste.cuentaSuperAvitAcum && ajuste.cuentaSuperAvitAcum._id) ajuste.cuentaSuperAvitAcum = new ObjectId(ajuste.cuentaSuperAvitAcum._id)
   if (ajuste.cuentaPerdidaAcum && ajuste.cuentaPerdidaAcum._id) ajuste.cuentaPerdidaAcum = new ObjectId(ajuste.cuentaPerdidaAcum._id)
   if (ajuste.cuentaSuperAvitOperdidaActual && ajuste.cuentaSuperAvitOperdidaActual._id) ajuste.cuentaSuperAvitOperdidaActual = new ObjectId(ajuste.cuentaSuperAvitOperdidaActual._id)
+  if (ajuste.cuentaVariacionInventario && ajuste.cuentaVariacionInventario._id) ajuste.cuentaVariacionInventario = new ObjectId(ajuste.cuentaVariacionInventario._id)
   if (ajuste.cuentaISLR && ajuste.cuentaISLR._id) ajuste.cuentaISLR = new ObjectId(ajuste.cuentaISLR._id)
   if (ajuste._id) delete ajuste._id
   if (ajuste.puedeDesbloquearComprobantes) {

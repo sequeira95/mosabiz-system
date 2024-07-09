@@ -37,7 +37,12 @@ export const upsertAjusteCliente = async (req, res) => {
   if (ajuste.cuentaPerdidaAcum && ajuste.cuentaPerdidaAcum._id) ajuste.cuentaPerdidaAcum = new ObjectId(ajuste.cuentaPerdidaAcum._id)
   if (ajuste.cuentaSuperAvitOperdidaActual && ajuste.cuentaSuperAvitOperdidaActual._id) ajuste.cuentaSuperAvitOperdidaActual = new ObjectId(ajuste.cuentaSuperAvitOperdidaActual._id)
   if (ajuste.cuentaVariacionInventario && ajuste.cuentaVariacionInventario._id) ajuste.cuentaVariacionInventario = new ObjectId(ajuste.cuentaVariacionInventario._id)
+  if (ajuste.cuentaDescuentoCompra && ajuste.cuentaDescuentoCompra._id) ajuste.cuentaDescuentoCompra = new ObjectId(ajuste.cuentaDescuentoCompra._id)
   if (ajuste.cuentaISLR && ajuste.cuentaISLR._id) ajuste.cuentaISLR = new ObjectId(ajuste.cuentaISLR._id)
+  if (ajuste.cuentaIva && ajuste.cuentaIva._id) ajuste.cuentaIva = new ObjectId(ajuste.cuentaIva._id)
+  if (ajuste.cuentaRetIva && ajuste.cuentaRetIva._id) ajuste.cuentaRetIva = new ObjectId(ajuste.cuentaRetIva._id)
+  if (ajuste.cuentaRetIslrCompra && ajuste.cuentaRetIslrCompra._id) ajuste.cuentaRetIslrCompra = new ObjectId(ajuste.cuentaRetIslrCompra._id)
+  if (ajuste.cuentaIgtf && ajuste.cuentaIgtf._id) ajuste.cuentaIgtf = new ObjectId(ajuste.cuentaIgtf._id)
   if (ajuste._id) delete ajuste._id
   if (ajuste.puedeDesbloquearComprobantes) {
     ajuste.puedeDesbloquearComprobantes = ajuste.puedeDesbloquearComprobantes.map(userId => new ObjectId(userId))

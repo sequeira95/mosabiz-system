@@ -3,6 +3,7 @@ import { subDominioName, tipoMovimientosShort } from '../../constants.js'
 import moment from 'moment-timezone'
 import { ObjectId } from 'mongodb'
 import { hasInventario } from '../../utils/validModulos.js'
+import { hasContabilidad } from '../../utils/hasContabilidad.js'
 
 export const getListImpuestosIslr = async (req, res) => {
   const { pais } = req.body
@@ -841,12 +842,12 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
       })
       tasa = ultimaTasa[0] ? ultimaTasa[0] : null
     }
-    // console.log({ tasa })
+    console.log({ fechaActual })
     const conteosPendientesPorPago = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] } } },
+        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, fecha: { $lte: moment(fechaActual).endOf('day').toDate() } } },
         {
           $addFields: {
             tasa: { $objectToArray: tasa }
@@ -865,6 +866,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             localField: '_id',
             foreignField: 'documentoId',
             pipeline: [
+              { $match: { fechaPago: { $lte: moment(fechaActual).endOf('day').toDate() } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -1011,7 +1013,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] } } },
+        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, fecha: { $lte: moment(fechaActual).endOf('day').toDate() } } },
         { $sort: { fechaVencimiento: 1 } },
         {
           $lookup: {
@@ -1019,6 +1021,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             localField: '_id',
             foreignField: 'documentoId',
             pipeline: [
+              { $match: { fechaPago: { $lte: moment(fechaActual).endOf('day').toDate() } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -1107,7 +1110,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] } } },
+        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, fecha: { $lte: moment(fechaActual).toDate() } } },
         {
           $group: {
             _id: '$proveedorId'
@@ -1147,11 +1150,21 @@ export const getDetalleProveedor = async (req, res) => {
     const transaccionesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
     const detalleFacturaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const comprasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'compras' })
+    const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const comprasPorProveedor = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, proveedorId: new ObjectId(proveedorId) } },
+        {
+          $match:
+          {
+            estado: { $ne: 'pagada' },
+            tipoDocumento: { $in: ['Factura', 'Nota de entrega'] },
+            proveedorId: new ObjectId(proveedorId),
+            fecha: { $lte: moment(fechaActual).endOf('day').toDate() }
+          }
+        },
         { $sort: { fechaVencimiento: 1 } },
         ...pagination,
         {
@@ -1172,6 +1185,7 @@ export const getDetalleProveedor = async (req, res) => {
             localField: '_id',
             foreignField: 'documentoId',
             pipeline: [
+              { $match: { fechaPago: { $lte: moment(fechaActual).endOf('day').toDate() } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -1197,6 +1211,24 @@ export const getDetalleProveedor = async (req, res) => {
           }
         },
         { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: comprasCollection,
+            localField: 'ordenCompraId',
+            foreignField: '_id',
+            as: 'ordenCompraDetalle'
+          }
+        },
+        { $unwind: { path: '$ordenCompraDetalle', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: 'facturaAsociada',
+            foreignField: '_id',
+            as: 'facturaDetalle'
+          }
+        },
+        { $unwind: { path: '$facturaDetalle', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
             from: proveedoresCollection,
@@ -1259,7 +1291,9 @@ export const getDetalleProveedor = async (req, res) => {
             duracionCredito: 1,
             tasaDia: 1,
             ordenCompraId: 1,
-            facturaAsociada: 1
+            facturaAsociada: 1,
+            facturaDetalle: 1,
+            ordenCompraDetalle: 1
           }
         }
       ]
@@ -1268,7 +1302,15 @@ export const getDetalleProveedor = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, proveedorId: new ObjectId(proveedorId) } },
+        {
+          $match:
+          {
+            estado: { $ne: 'pagada' },
+            tipoDocumento: { $in: ['Factura', 'Nota de entrega'] },
+            proveedorId: new ObjectId(proveedorId),
+            fecha: { $lte: moment(fechaActual).endOf('day').toDate() }
+          }
+        },
         { $count: 'total' }
       ]
     })
@@ -1527,8 +1569,70 @@ export const getOrdenesComprasForFacturas = async (req, res) => {
 }
 export const createFacturas = async (req, res) => {
   console.log(req.body)
-  const { clienteId, factura, fechaFactura, fechaVencimiento } = req.body
+  const { clienteId, factura, fechaFactura, fechaVencimiento, fechaActual } = req.body
   try {
+    const tieneContabilidad = await hasContabilidad({ clienteId })
+    const ajusteCompra = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'compras' } })
+    let periodo = null
+    let comprobante = null
+    let cuentaProveedor = null
+    let terceroProveedor = null
+    if (tieneContabilidad) {
+      /* const validContabilidad = await validProductosRecepcionCompras({ clienteId, movimientoId, detalleMovimientos, tipo: 'cerrar' })
+      if (validContabilidad && validContabilidad.message) {
+        return res.status(500).json({ error: 'Error al momento de validar información contable: ' + validContabilidad.message })
+      } */
+      periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaActual).toDate() }, fechaFin: { $gte: moment(fechaActual).toDate() } } })
+      // console.log({ periodo })
+      if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha de envio o de recepción')
+      const mesPeriodo = moment(fechaActual).format('YYYY/MM')
+      comprobante = await getItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
+      })
+      if (!comprobante) {
+        comprobante = await upsertItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
+          update: {
+            $set: {
+              nombre: 'Movimientos de compras',
+              isBloqueado: false,
+              fechaCreacion: moment().toDate()
+            }
+          }
+        })
+      }
+      const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+      const detalleProveedor = await agreggateCollectionsSD({
+        nameCollection: 'proveedores',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { _id: new ObjectId(factura.proveedor._id) } },
+          {
+            $lookup: {
+              from: categoriasCollection,
+              localField: 'categoria',
+              foreignField: '_id',
+              as: 'detalleCategoria'
+            }
+          },
+          { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } }
+        ]
+      })
+      cuentaProveedor = await getItemSD({
+        nameCollection: 'planCuenta',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(detalleProveedor[0]?.detalleCategoria?.cuentaId) }
+      })
+      terceroProveedor = await getItemSD({
+        nameCollection: 'terceros',
+        enviromentClienteId: clienteId,
+        filters: { cuentaId: new ObjectId(cuentaProveedor._id), nombre: detalleProveedor[0]?.razonSocial }
+      })
+    }
     const newFactura = await createItemSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
@@ -1602,6 +1706,37 @@ export const createFacturas = async (req, res) => {
         costoTotal: Number(e.costoTotal)
       }
     })
+    if (tieneContabilidad) {
+      if (factura.tipoDocumento !== 'Nota de entrega') {
+        const asientosContables = []
+        if (factura?.iva) {
+          const cuentaIva = await getItemSD({
+            nameCollection: 'planCuenta',
+            enviromentClienteId: clienteId,
+            filters: { _id: new ObjectId(ajusteCompra.cuentaIva) }
+          })
+          asientosContables.push({
+            cuentaId: new ObjectId(cuentaIva._id),
+            cuentaCodigo: cuentaIva.codigo,
+            cuentaNombre: cuentaIva.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `${factura.tipoDocumento}-${factura.numeroFactura}`,
+            fecha: moment(fechaActual).toDate(),
+            debe: factura.iva,
+            haber: 0,
+            fechaCreacion: moment().toDate(),
+            terceroId: new ObjectId(terceroProveedor._id),
+            terceroNombre: terceroProveedor.nombre,
+            docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+            documento: {
+              docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+              docFecha: moment(fechaActual).toDate()
+            }
+          })
+        }
+      }
+    }
     await createManyItemsSD({
       nameCollection: 'detalleDocumentosFiscales',
       enviromentClienteId: clienteId,
@@ -1620,6 +1755,8 @@ export const getFacturas = async (req, res) => {
   try {
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const detalleFacturaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
+    const comprasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'compras' })
+    const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
     const facturas = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
@@ -1627,6 +1764,24 @@ export const getFacturas = async (req, res) => {
       pipeline: [
         { $skip: (pagina - 1) * itemsPorPagina },
         { $limit: itemsPorPagina },
+        {
+          $lookup: {
+            from: comprasCollection,
+            localField: 'ordenCompraId',
+            foreignField: '_id',
+            as: 'ordenCompraDetalle'
+          }
+        },
+        { $unwind: { path: '$ordenCompraDetalle', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: 'facturaAsociada',
+            foreignField: '_id',
+            as: 'facturaDetalle'
+          }
+        },
+        { $unwind: { path: '$facturaDetalle', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
             from: proveedoresCollection,

@@ -102,7 +102,6 @@ export const getProductos = async (req, res) => {
         { $count: 'total' }
       ]
     })
-    // console.log(productos)
     return res.status(200).json({ productos, cantidad: cantidad[0]?.total || 0 })
   } catch (e) {
     console.log(e)
@@ -349,7 +348,6 @@ export const getListCostos = async (req, res) => {
         }
       ]
     })
-    console.log({ costosPorAlmacen })
     return res.status(200).json({ costosPorAlmacen })
   } catch (e) {
     console.log(e)
@@ -358,7 +356,6 @@ export const getListCostos = async (req, res) => {
 }
 export const saveAjusteAlmacen = async (req, res) => {
   const { clienteId, productoId, almacen, cantidad, costoPromedio, tipo, lote, fechaAjuste, fechaVencimiento, fechaIngreso } = req.body
-  console.log({ body: req.body })
   if (tipo === 'Ingreso') {
     const validProductoPorAlmacen = await getItemSD({
       nameCollection: 'productosPorAlmacen',
@@ -767,7 +764,6 @@ export const saveAjusteAlmacen = async (req, res) => {
 }
 export const saveProductosVentas = async (req, res) => {
   const { descripcion, observacion, clienteId, _id, moneda, isExento, precioVenta, iva } = req.body
-  console.log(req.body, 1)
   try {
     const producto = await updateItemSD({
       nameCollection: 'productos',
@@ -871,7 +867,6 @@ export const saveDataInicial = async (req, res) => {
 }
 export const updateCostoPorLote = async (req, res) => {
   const { clienteId, productoId, nuevoCostoPromedio, lote, tipoAjuste, fechaActual } = req.body
-  console.log(req.body)
   const almacenAuditoria = await getItemSD({
     nameCollection: 'almacenes',
     enviromentClienteId: clienteId,

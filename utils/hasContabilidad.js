@@ -600,3 +600,105 @@ export async function validProductosRecepcionCompras ({ clienteId, movimientoId,
   const isValidCuentasProveedor = detalleCompra.every(item => item.cuentaId)
   if (!isValidCuentasProveedor) throw new Error('El proveedor no posee asignada una cuenta contable en su categoria .')
 }
+export async function validPagoFacturas ({ clienteId, abonos }) {
+  try {
+    const ajusteCompra = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'compras' } })
+    console.log({ clienteId, abonos })
+    if (ajusteCompra && !ajusteCompra.codigoComprobanteCompras) throw new Error('No existe en ajustes el codigo del comprobante para crear el pago')
+    if (ajusteCompra && !ajusteCompra.cuentaIgtf) throw new Error('No existe en ajustes la cuenta para pagos de IGTF')
+    if (ajusteCompra && !ajusteCompra.cuentaVariacionCambiaria) throw new Error('No existe en ajustes la cuenta para la variacion cambiaría')
+    const bancosId = abonos.map(e => new ObjectId(e.banco._id))
+    const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+    const listBancos = await agreggateCollectionsSD({
+      nameCollection: 'bancos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: { $in: bancosId } } },
+        {
+          $lookup: {
+            from: planCuentaCollection,
+            localField: 'cuentaId',
+            foreignField: '_id',
+            as: 'cuenta'
+          }
+        },
+        { $unwind: { path: '$cuenta', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            bancoId: '$_id',
+            banco: '$nombre',
+            cuentaId: '$cuenta._id',
+            cuentaNombre: '$cuenta.descripcion',
+            cuentaCodigo: '$cuenta.codigo'
+          }
+        }
+      ]
+    })
+    const verifyBancos = listBancos.every(item => item.cuentaId)
+    if (!verifyBancos) throw new Error('Existen bancos que no tienen cuenta asignada.')
+    const documentosId = abonos.map(e => new ObjectId(e.compraId))
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    const listDocumentos = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: { $in: documentosId } } },
+        {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: 'proveedorId',
+            foreignField: '_id',
+            pipeline: [
+              {
+                $lookup: {
+                  from: categoriasCollection,
+                  localField: 'categoria',
+                  foreignField: '_id',
+                  as: 'detalleCategoria'
+                }
+              },
+              { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: planCuentaCollection,
+                  localField: 'detalleCategoria.cuentaId',
+                  foreignField: '_id',
+                  as: 'detalleCuenta'
+                }
+              },
+              { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  proveedor: '$razonSocial',
+                  categoria: '$detalleCategoria.nombre',
+                  cuentaId: '$detalleCuenta._id',
+                  cuentaNombre: '$detalleCuenta.descripcion',
+                  cuentaCodigo: '$detalleCuenta.codigo'
+                }
+              }
+            ],
+            as: 'detalleProveedor'
+          }
+        },
+        { $unwind: { path: '$detalleProveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            documentoId: '$_id',
+            numero: '$numero',
+            fecha: '$fecha',
+            proveedor: '$detalleProveedor.proveedor',
+            categoria: '$detalleProveedor.categoria',
+            cuentaId: '$detalleProveedor.cuentaId',
+            cuentaNombre: '$detalleProveedor.cuentaNombre',
+            cuentaCodigo: '$detalleProveedor.cuentaCodigo'
+          }
+        }
+      ]
+    })
+    const verifyDocumentos = listDocumentos.every(item => item.cuentaId)
+    if (!verifyDocumentos) throw new Error('Existen proveedores que no tienen cuenta asignada.')
+  } catch (e) {
+    return e
+  }
+}

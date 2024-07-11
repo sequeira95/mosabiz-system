@@ -1294,7 +1294,8 @@ export const getDetalleProveedor = async (req, res) => {
             ordenCompraId: 1,
             facturaAsociada: 1,
             facturaDetalle: 1,
-            ordenCompraDetalle: 1
+            ordenCompraDetalle: 1,
+            totalAbonoSecundario: '$detalleTransacciones.totalAbonoSecundario'
           }
         }
       ]
@@ -1322,8 +1323,9 @@ export const getDetalleProveedor = async (req, res) => {
   }
 }
 export const createPagoOrdenes = async (req, res) => {
-  console.log(req.body)
-  const { clienteId, proveedorId, abonos } = req.body
+  const { clienteId, proveedorId, abonos, tasaDia, fechaPago } = req.body
+  // console.log(req.body)
+  // console.log({ tasaDia })
   /* contabilidad
     Debe:
     cuenta categoria proveedor
@@ -1336,10 +1338,108 @@ export const createPagoOrdenes = async (req, res) => {
     const updateCompraPagada = []
     const createHistorial = []
     // const asientosContables = []
-    // const tieneContabilidad = await hasContabilidad({ clienteId })
+    const tieneContabilidad = await hasContabilidad({ clienteId })
+    const asientosVariacionCambiaria = []
+    const ajusteCompra = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'compras' } })
+    let periodo = null
+    let comprobante = null
+    let cuentaProveedor = null
+    let terceroProveedor = null
+    const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    if (tieneContabilidad) {
+      const validContabilidad = await validProductosRecepcionCompras({ clienteId, movimientoId, detalleMovimientos, tipo: 'cerrar' })
+      if (validContabilidad && validContabilidad.message) {
+        return res.status(500).json({ error: 'Error al momento de validar información contable: ' + validContabilidad.message })
+      }
+      periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaPago).toDate() }, fechaFin: { $gte: moment(fechaPago).toDate() } } })
+      // console.log({ periodo })
+      if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
+      const mesPeriodo = moment(fechaPago).format('YYYY/MM')
+      comprobante = await getItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
+      })
+      if (!comprobante) {
+        comprobante = await upsertItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
+          update: {
+            $set: {
+              nombre: 'Movimientos de compras',
+              isBloqueado: false,
+              fechaCreacion: moment().toDate()
+            }
+          }
+        })
+      }
+    }
     if (abonos[0]) {
       for (const abono of abonos) {
-        if (abono.porPagar === abono.abono) {
+        const documento = (await agreggateCollectionsSD({
+          nameCollection: 'documentosFiscales',
+          enviromentClienteId: clienteId,
+          pipeline: [
+            { $match: { _id: new ObjectId(abono.compraId) } }
+          ]
+        }))[0]
+        console.log({ documento, abono })
+        const tasaVerify = documento.tasaAux ? documento.tasaAux : documento.tasaDia
+        const totalSecundarioAux = documento.totalSecundarioAux ? documento.totalSecundarioAux : documento.totalSecundaria
+        const totalPrincipalAux = documento.totalAux ? documento.totalAux : documento.total
+        const totalDivisa = totalSecundarioAux * tasaDia[documento.monedaSecundaria]
+        const diferenciaTotal = Number((Number(totalDivisa.toFixed(2)) - Number(totalPrincipalAux.toFixed(2))).toFixed(2))
+        console.log({ totalDivisa, totalPrincipalAux, diferenciaTotal, totalSecundarioAux, tasaVerify })
+        if (tasaVerify !== tasaDia[documento.monedaSecundaria]) {
+          const cuentaVariacion = await getItemSD({
+            nameCollection: 'planCuenta',
+            enviromentClienteId: clienteId,
+            filters: { _id: new ObjectId(ajusteCompra.cuentaVariacionCambiaria) }
+          })
+          if (diferenciaTotal > 0) {
+            console.log({ diferenciaTotal })
+            // Registrar la diferencia contable con la cuenta que se encuentra en ajustes por el debe y el por pagar en el haber
+            /* asientosVariacionCambiaria.push({
+              cuentaId: new ObjectId(cuentaVariacion._id),
+              cuentaCodigo: cuentaVariacion.codigo,
+              cuentaNombre: cuentaVariacion.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `AJUSTE VARIACIÓN CAMBIARIA${factura.tipoDocumento}-${factura.numeroFactura}`,
+              fecha: moment(fechaActual).toDate(),
+              debe: factura.iva,
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${factura.tipoDocumento}-${factura.numeroFactura}`,
+              documento: {
+                docReferencia: `${factura.tipoDocumento}-${factura.numeroFactura}`,
+                docFecha: moment(fechaActual).toDate()
+              },
+              fechaDolar: factura.monedaSecundaria !== factura.moneda ? factura.fechaTasa : null,
+              cantidad: factura.monedaSecundaria !== factura.moneda ? factura.ivaSecundaria : null,
+              monedasUsar: factura.monedaSecundaria !== factura.moneda ? factura.monedaSecundaria : null,
+              tasa: factura.monedaSecundaria !== factura.moneda ? factura.tasaDia : null,
+              monedaPrincipal: factura.moneda
+            }) */
+          }
+          if (diferenciaTotal < 0) {
+            // hacer lo contrario de arriba
+          }
+        }
+        /* await updateItemSD({
+          nameCollection: 'documentosFiscales',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(abono.compraId) },
+          update: {
+            $set: {
+              totalPrincipalAux: totalPrincipalAux - abono.abono,
+              totalSecundarioAux: totalSecundarioAux - abono.abonoSecundario,
+              tasaAux: tasaDia[documento.monedaSecundaria]
+            }
+          }
+        }) */
+        if (Number(abono.porPagar.toFixed(2)) === Number(abono.abono.toFixed(2))) {
           updateCompraPagada.push({
             updateOne: {
               filter: { _id: new ObjectId(abono.compraId) },
@@ -1356,16 +1456,16 @@ export const createPagoOrdenes = async (req, res) => {
         datosAbonos.push({
           documentoId: new ObjectId(abono.compraId),
           proveedorId: new ObjectId(proveedorId),
-          pago: Number(abono.abono),
+          pago: Number(abono.abono.toFixed(2)),
           fechaPago: moment(abono.fechaPago).toDate(),
           referencia: abono.referencia,
           banco: new ObjectId(abono.banco._id),
           porcentajeIgtf: Number(abono?.porcentajeIgtf || 0),
-          baseImponibleIgtf: Number(abono?.baseImponibleIgtf || 0),
-          pagoIgtf: Number(abono?.pagoIgtf.toFixed(2)),
-          pagoSecundario: Number(abono?.abonoSecundario.toFixed(2)),
-          baseImponibleIgtfSecundario: Number(abono?.baseImponibleIgtfSecundario.toFixed(2)),
-          pagoIgtfSecundario: Number(abono?.pagoIgtfSecundario.toFixed(2)),
+          igtfPorPagar: abono?.igtfPorPagar ? Number(abono?.igtfPorPagar.toFixed(2)) : null,
+          // pagoIgtf: Number(abono?.pagoIgtf.toFixed(2)),
+          pagoSecundario: abono?.abonoSecundario ? Number(abono?.abonoSecundario.toFixed(2)) : null,
+          igtfPorPagarSecundario: abono?.igtfPorPagarSecundario ? Number(abono?.igtfPorPagarSecundario.toFixed(2)) : null,
+          // pagoIgtfSecundario: Number(abono?.pagoIgtfSecundario.toFixed(2)),
           moneda: abono.moneda,
           monedaSecundaria: abono.monedaSecundaria,
           tasa: abono.tasa,
@@ -1382,7 +1482,7 @@ export const createPagoOrdenes = async (req, res) => {
         })
       }
     }
-    if (updateCompraPagada[0]) {
+    /* if (updateCompraPagada[0]) {
       await bulkWriteSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, pipeline: updateCompraPagada })
     }
     if (createHistorial[0]) {
@@ -1398,7 +1498,7 @@ export const createPagoOrdenes = async (req, res) => {
         enviromentClienteId: clienteId,
         items: datosAbonos
       })
-    }
+    } */
     return res.status(200).json({ status: 'Pago de ordenes de compra creados exitosamente' })
   } catch (e) {
     console.log(e)

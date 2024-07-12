@@ -54,7 +54,6 @@ export const getCategoriasForVentas = async (req, res) => {
         { $match: { tipo: 'servicios' } }
       ]
     })
-    console.log(categoriasProductos, categoriasServicios)
     return res.status(200).json({ categoriasProductos, categoriasServicios })
   } catch (e) {
     console.log(e)
@@ -63,7 +62,6 @@ export const getCategoriasForVentas = async (req, res) => {
 }
 export const getCategoriasForCompras = async (req, res) => {
   const { clienteId, tipo } = req.body
-  console.log(req.body)
   try {
     let matchConfig = { tipo: { $in: ['compras/proveedor', 'compras/servicio'] } }
     if (tipo === 'compras/proveedor') matchConfig = { tipo: 'compras/proveedor' }
@@ -103,7 +101,6 @@ export const getCategoriasForCompras = async (req, res) => {
         }
       ]
     })
-    console.log(categorias)
     return res.status(200).json({ categorias })
   } catch (e) {
     console.log(e)

@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { subDominioName } from '../../constants.js'
 
@@ -369,6 +369,25 @@ export const deleteCategorias = async (req, res) => {
     deleteManyItemsSD({ nameCollection: 'categoriaPorAlmacen', enviromentClienteId: clienteId, filters: { categoriaId: new ObjectId(_id) } })
     deleteManyItemsSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, filters: { categoriaId: new ObjectId(_id) } })
     return res.status(200).json({ status: 'categoría eliminada exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar la categoría' + e.message })
+  }
+}
+export const updatePrecioVentaProductos = async (req, res) => {
+  const { categoriaId, clienteId } = req.body
+  try {
+    await updateManyItemSD({
+      nameCollection: 'productos',
+      enviromentClienteId: clienteId,
+      filters: { categoria: new ObjectId(categoriaId) },
+      update: {
+        $set: {
+          precioVenta: 0
+        }
+      }
+    })
+    return res.status(200).json({ status: 'Precio actualizado existosamente' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la categoría' + e.message })

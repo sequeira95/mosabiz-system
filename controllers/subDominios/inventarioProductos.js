@@ -85,7 +85,19 @@ export const getProductos = async (req, res) => {
             salida: '$detalleCantidadProducto.salida',
             moneda: '$moneda',
             isExento: '$isExento',
-            precioVenta: '$precioVenta',
+            precioVenta: {
+              $cond: {
+                if: { $gt: ['$precioVenta', 0] },
+                then: '$precioVenta',
+                else: {
+                  $cond: {
+                    if: { $gt: ['$detalleCategoria.utilidad', 0] },
+                    then: { $multiply: ['$detalleCategoria.utilidad', '$costoPromedio', 0.01] },
+                    else: 0
+                  }
+                }
+              }
+            },
             iva: '$iva',
             costoPromedio: '$costoPromedio',
             isDataInicial: '$isDataInicial'

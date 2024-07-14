@@ -20,7 +20,7 @@ export const getSucursales = async (req, res) => {
             as: 'zonaData'
           }
         },
-        { $unwind: '$zonaData' },
+        { $unwind: { path: '$zonaData', preserveNullAndEmptyArrays: true } },
         { $addFields: { zona: '$zonaData.nombre' } }
       ]
     })

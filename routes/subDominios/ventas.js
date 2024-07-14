@@ -16,6 +16,10 @@ import {
   saveZonasToArray
 } from '../../controllers/subDominios/ventas/zonas.js'
 
+import {
+  getData
+} from '../../controllers/subDominios/ventas/facturacion.js'
+
 const router = express.Router()
 
 router.post('/sucursales/get', requireSubDominioToken, getSucursales)
@@ -29,5 +33,7 @@ router.post('/zonas/get', requireSubDominioToken, getZonas)
 router.post('/zonas/set', requireSubDominioToken, saveZonas)
 router.post('/zonas/save', requireSubDominioToken, saveZonasToArray)
 router.post('/zonas/delete', requireSubDominioToken, deleteZonas)
+
+router.post('/facturacion/data', requireSubDominioToken, getData)
 
 export default router

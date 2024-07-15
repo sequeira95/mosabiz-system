@@ -682,6 +682,7 @@ export const listCategoriaPorAlmacen = async (req, res) => {
               {
                 $project: {
                   cuentaId: '$detalleCuenta.cuentaId',
+                  cuentaCostoVentaId: '$cuentaCostoVentaId',
                   cuenta: '$detalleCuenta.codigo',
                   descripcion: '$detalleCuenta.descripcion'
                 }
@@ -696,6 +697,7 @@ export const listCategoriaPorAlmacen = async (req, res) => {
             categoriaId: '$_id',
             categoria: '$nombre',
             cuentaCodigo: '$detalleAlmacen.cuenta',
+            cuentaCostoVentaId: '$detalleAlmacen.cuentaCostoVentaId',
             cuentaId: '$detalleAlmacen.cuentaId'
           }
         }
@@ -708,7 +710,7 @@ export const listCategoriaPorAlmacen = async (req, res) => {
   }
 }
 export const saveCategoriaPorAlmacen = async (req, res) => {
-  const { clienteId, tipo, categoriasPorAlmacen, almacenId } = req.body
+  const { clienteId, tipo, categoriasPorAlmacen, almacenId, cuentaCostoVentaId } = req.body
   console.log(req.body)
   try {
     const bulkWrite = categoriasPorAlmacen.map(e => {
@@ -718,6 +720,7 @@ export const saveCategoriaPorAlmacen = async (req, res) => {
           update: {
             $set: {
               cuentaId: new ObjectId(e.cuentaId),
+              cuentaCostoVentaId: new ObjectId(e.cuentaCostoVentaId),
               tipo
             }
           },

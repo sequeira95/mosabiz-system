@@ -92,7 +92,7 @@ export const getProductos = async (req, res) => {
                 else: {
                   $cond: {
                     if: { $gt: ['$detalleCategoria.utilidad', 0] },
-                    then: { $multiply: ['$detalleCategoria.utilidad', '$costoPromedio', 0.01] },
+                    then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
                     else: 0
                   }
                 }

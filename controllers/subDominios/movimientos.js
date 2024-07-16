@@ -3,6 +3,7 @@ import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, f
 import { ObjectId } from 'mongodb'
 import { subDominioName, tipoMovimientosShort } from '../../constants.js'
 import { hasContabilidad, validMovimientoAuditoria, validMovimientoPenditeEnvio, validMovimientoPenditeRecepcion, validProductosRecepcionCompras } from '../../utils/hasContabilidad.js'
+import { deleteImg, uploadImg } from '../../utils/cloudImage.js'
 export const getDataMovimientos = async (req, res) => {
   const { clienteId, estado } = req.body
   try {
@@ -5362,5 +5363,81 @@ export const createDevolucionCompra = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de craar esta devolución ' + e.message })
+  }
+}
+export const deleteImgMovimiento = async (req, res) => {
+  const { clienteId, movimientoId, imgId } = req.body
+  try {
+    await updateItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(movimientoId) },
+      update: { $pull: { documentosAdjuntos: { fileId: imgId } } }
+    })
+    try {
+      await deleteImg(imgId)
+    } catch (e) {
+      console.log(e)
+    }
+    return res.status(200).json({ status: 'Imagen eliminada exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar la imagen del almacen ' + e.message })
+  }
+}
+
+export const addImagenMovimiento = async (req, res) => {
+  const { clienteId, movimientoId } = req.body
+  console.log({ body: req.body, file: req.files.documentos })
+  try {
+    const documentos = req.files?.documentos
+    const documentosAdjuntos = []
+    if (req.files && req.files.documentos) {
+      if (documentos && documentos[0]) {
+        for (const documento of documentos) {
+          const extension = documento.mimetype.split('/')[1]
+          const namePath = `${documento.name}`
+          const resDoc = await uploadImg(documento.data, namePath)
+          documentosAdjuntos.push(
+            {
+              path: resDoc.filePath,
+              name: resDoc.name,
+              url: resDoc.url,
+              type: extension,
+              fileId: resDoc.fileId
+            })
+        }
+      }
+      if (documentos && documentos.name) {
+        const extension = documentos.mimetype.split('/')[1]
+        const namePath = `${documentos.name}`
+        const resDoc = await uploadImg(documentos.data, namePath)
+        documentosAdjuntos.push(
+          {
+            path: resDoc.filePath,
+            name: resDoc.name,
+            url: resDoc.url,
+            type: extension,
+            fileId: resDoc.fileId
+          }
+        )
+      }
+    }
+    if (documentosAdjuntos[0]) {
+      const itemsAnterior = (await getItemSD({ nameCollection: 'movimientos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(movimientoId) } })).documentosAdjuntos
+      if (itemsAnterior) {
+        documentosAdjuntos.push(...itemsAnterior)
+      }
+      const movimiento = await updateItemSD({
+        nameCollection: 'movimientos',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(movimientoId) },
+        update: { $set: { documentosAdjuntos } }
+      })
+      return res.status(200).json({ status: 'Imagenes guardada exitosamente', movimiento })
+    }
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar las imagenes del almacen ' + e.message })
   }
 }

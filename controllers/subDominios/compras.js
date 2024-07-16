@@ -4,6 +4,7 @@ import moment from 'moment-timezone'
 import { ObjectId } from 'mongodb'
 import { hasInventario } from '../../utils/validModulos.js'
 import { hasContabilidad, validPagoFacturas } from '../../utils/hasContabilidad.js'
+import { deleteImg, uploadImg } from '../../utils/cloudImage.js'
 
 export const getListImpuestosIslr = async (req, res) => {
   const { pais } = req.body
@@ -1745,7 +1746,8 @@ export const getDetalleProveedor = async (req, res) => {
             facturaAsociada: 1,
             facturaDetalle: 1,
             ordenCompraDetalle: 1,
-            totalAbonoSecundario: '$detalleTransacciones.totalAbonoSecundario'
+            totalAbonoSecundario: '$detalleTransacciones.totalAbonoSecundario',
+            documentosAdjuntos: 1
           }
         }
       ]
@@ -2925,5 +2927,80 @@ export const getFacturas = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las facturas pendientes ' + e.message })
+  }
+}
+export const deleteImgCompras = async (req, res) => {
+  const { clienteId, documentoId, imgId } = req.body
+  try {
+    await updateItemSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(documentoId) },
+      update: { $pull: { documentosAdjuntos: { fileId: imgId } } }
+    })
+    try {
+      await deleteImg(imgId)
+    } catch (e) {
+      console.log(e)
+    }
+    return res.status(200).json({ status: 'Imagen eliminada exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar la imagen del almacen ' + e.message })
+  }
+}
+export const addImagenCompras = async (req, res) => {
+  const { clienteId, documentoId } = req.body
+  console.log({ body: req.body, file: req.files.documentos })
+  try {
+    const documentos = req.files?.documentos
+    const documentosAdjuntos = []
+    if (req.files && req.files.documentos) {
+      if (documentos && documentos[0]) {
+        for (const documento of documentos) {
+          const extension = documento.mimetype.split('/')[1]
+          const namePath = `${documento.name}`
+          const resDoc = await uploadImg(documento.data, namePath)
+          documentosAdjuntos.push(
+            {
+              path: resDoc.filePath,
+              name: resDoc.name,
+              url: resDoc.url,
+              type: extension,
+              fileId: resDoc.fileId
+            })
+        }
+      }
+      if (documentos && documentos.name) {
+        const extension = documentos.mimetype.split('/')[1]
+        const namePath = `${documentos.name}`
+        const resDoc = await uploadImg(documentos.data, namePath)
+        documentosAdjuntos.push(
+          {
+            path: resDoc.filePath,
+            name: resDoc.name,
+            url: resDoc.url,
+            type: extension,
+            fileId: resDoc.fileId
+          }
+        )
+      }
+    }
+    if (documentosAdjuntos[0]) {
+      const itemsAnterior = (await getItemSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, filters: { _id: new ObjectId(documentoId) } })).documentosAdjuntos
+      if (itemsAnterior) {
+        documentosAdjuntos.push(...itemsAnterior)
+      }
+      const documento = await updateItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(documentoId) },
+        update: { $set: { documentosAdjuntos } }
+      })
+      return res.status(200).json({ status: 'Imagenes guardada exitosamente', documento })
+    }
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar las imagenes del almacen ' + e.message })
   }
 }

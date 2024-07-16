@@ -1,10 +1,12 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
 import {
+  addImagenCompras,
   aprobarOrdenCompra,
   aprobarPagosOrdenCompra,
   cancelarCompra, createFacturas, createOrdenCompra,
   createPagoOrdenes,
+  deleteImgCompras,
   editOrden,
   getDataCompra,
   getDataOrdenesComprasPorPagar,
@@ -41,4 +43,6 @@ router.post('/get/solicitudesInventario', requireSubDominioToken, getSolicitudes
 router.post('/get/ordenesCompras', requireSubDominioToken, getOrdenesComprasForFacturas)
 router.post('/save/factura', requireSubDominioToken, createFacturas)
 router.post('/get/listadoFacturas', requireSubDominioToken, getFacturas)
+router.post('/delete/img', requireSubDominioToken, deleteImgCompras)
+router.post('/add/img', requireSubDominioToken, addImagenCompras)
 export default router

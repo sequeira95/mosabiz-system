@@ -1,5 +1,5 @@
 import express from 'express'
-import { deleteIslr, deleteIva, deleteRetIva, getIslr, getIva, getRetIva, saveIslr, saveIva, saveRetIva } from '../controllers/impuestos.js'
+import { deleteCiclo, deleteIslr, deleteIva, deleteRetIva, getCiclos, getIslr, getIva, getRetIva, saveCiclos, saveIslr, saveIva, saveRetIva } from '../controllers/impuestos.js'
 import { requireToken } from '../middlewares/requireToken.js'
 
 const router = express.Router()
@@ -13,4 +13,7 @@ router.post('/delete/islr', requireToken, deleteIslr)
 router.post('/get/retIva', requireToken, getRetIva)
 router.post('/save/retIva', requireToken, saveRetIva)
 router.post('/delete/retIva', requireToken, deleteRetIva)
+router.post('/save/cicloImpusto', requireToken, saveCiclos)
+router.post('/get/ciclosImpuestos', requireToken, getCiclos)
+router.post('/delete/ciclosImpuestos', requireToken, deleteCiclo)
 export default router

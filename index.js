@@ -43,6 +43,7 @@ import serviciosSDRouter from './routes/subDominios/servicios.js'
 import ivaSDRouter from './routes/subDominios/iva.js'
 import proveedoresSDRouter from './routes/subDominios/proveedores.js'
 import comprasSDRouter from './routes/subDominios/compras.js'
+import tributosSDRouter from './routes/subDominios/tributos.js'
 // import { getValoresBcv } from './utils/tareas.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
@@ -106,5 +107,6 @@ app.use('/v1/sub-dominio/servicios', serviciosSDRouter)
 app.use('/v1/sub-dominio/iva', ivaSDRouter)
 app.use('/v1/sub-dominio/proveedores', proveedoresSDRouter)
 app.use('/v1/sub-dominio/compras', comprasSDRouter)
+app.use('/v1/sub-dominio/tributos', tributosSDRouter)
 
 app.listen(PORT, () => console.log('0.0.0.0' + PORT))

@@ -168,6 +168,7 @@ export const deleteTasa = async (req, res) => {
 export const getTasaByDay = async (req, res) => {
   const { fechaDia } = req.body
   try {
+    // console.log(fechaDia)
     let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaDia } })
     if (!tasa) {
       const ultimaTasa = await agreggateCollections({

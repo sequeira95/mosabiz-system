@@ -44,6 +44,8 @@ export const upsertAjusteCliente = async (req, res) => {
   if (ajuste.cuentaRetIslrCompra && ajuste.cuentaRetIslrCompra._id) ajuste.cuentaRetIslrCompra = new ObjectId(ajuste.cuentaRetIslrCompra._id)
   if (ajuste.cuentaIgtf && ajuste.cuentaIgtf._id) ajuste.cuentaIgtf = new ObjectId(ajuste.cuentaIgtf._id)
   if (ajuste.cuentaVariacionCambiaria && ajuste.cuentaVariacionCambiaria._id) ajuste.cuentaVariacionCambiaria = new ObjectId(ajuste.cuentaVariacionCambiaria._id)
+  if (ajuste.cuentaVariacionCambiariaGastos && ajuste.cuentaVariacionCambiariaGastos._id) ajuste.cuentaVariacionCambiariaGastos = new ObjectId(ajuste.cuentaVariacionCambiariaGastos._id)
+  if (ajuste.cuentaDescuentosDevolucionesCompras && ajuste.cuentaDescuentosDevolucionesCompras._id) ajuste.cuentaDescuentosDevolucionesCompras = new ObjectId(ajuste.cuentaDescuentosDevolucionesCompras._id)
   if (ajuste._id) delete ajuste._id
   if (ajuste.puedeDesbloquearComprobantes) {
     ajuste.puedeDesbloquearComprobantes = ajuste.puedeDesbloquearComprobantes.map(userId => new ObjectId(userId))

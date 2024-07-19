@@ -702,3 +702,34 @@ export async function validPagoFacturas ({ clienteId, abonos }) {
     return e
   }
 }
+export async function validCreateFactura ({ clienteId, proveedorId }) {
+  const ajusteCompra = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'compras' } })
+  if (ajusteCompra && !ajusteCompra.codigoComprobanteCompras) throw new Error('No existe en ajustes el codigo del comprobante para crear el pago')
+  if (ajusteCompra && !ajusteCompra.cuentaVariacionCambiaria) throw new Error('No existe en ajustes la cuenta para la variacion cambiaría')
+  if (ajusteCompra && !ajusteCompra.cuentaVariacionCambiariaGastos) throw new Error('No existe en ajustes la cuenta para la variacion cambiaría')
+  if (ajusteCompra && !ajusteCompra.cuentaIva) throw new Error('No existe en ajustes la cuenta para el IVA')
+  if (ajusteCompra && !ajusteCompra.cuentaDescuentosDevolucionesCompras) throw new Error('No existe en ajustes la cuenta para los descuentos y devoluciones en compras')
+  const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+  const detalleProveedor = await agreggateCollectionsSD({
+    nameCollection: 'proveedores',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      { $match: { _id: new ObjectId(proveedorId) } },
+      {
+        $lookup: {
+          from: categoriasCollection,
+          localField: 'categoria',
+          foreignField: '_id',
+          as: 'detalleCategoria'
+        }
+      },
+      { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } }
+    ]
+  })
+  const cuentaProveedor = await getItemSD({
+    nameCollection: 'planCuenta',
+    enviromentClienteId: clienteId,
+    filters: { _id: new ObjectId(detalleProveedor[0]?.detalleCategoria?.cuentaId) }
+  })
+  if (!cuentaProveedor) throw new Error('El proveedor no posee asignada una cuenta contable en su categoria.')
+}

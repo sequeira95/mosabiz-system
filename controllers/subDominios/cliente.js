@@ -265,6 +265,10 @@ export const createCliente = async (req, res) => {
         {
           codigo: '2',
           nombre: 'Auditoria'
+        },
+        {
+          codigo: '',
+          nombre: 'Devoluciones'
         }
       ]
     })

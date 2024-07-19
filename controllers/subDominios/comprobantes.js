@@ -19,10 +19,12 @@ export const getListComprobantes = async (req, res) => {
         {
           $match: { periodoId: new ObjectId(periodoId), ...filterNombre }
         },
-        { $sort: {
-          mesPeriodo: 1,
-          codigo: 1
-        }}
+        {
+          $sort: {
+            mesPeriodo: 1,
+            codigo: 1
+          }
+        }
       ]
     })
     return res.status(200).json({ comprobantes })

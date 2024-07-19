@@ -6,28 +6,19 @@ import { hasContabilidad, validAjustesContablesForAjusteProducto, validUpdateCos
 // import { hasContabilidad } from '../../utils/hasContabilidad.js'
 
 export const getProductos = async (req, res) => {
-  const { clienteId, almacenOrigen } = req.body
-  console.log({ clienteId, almacenOrigen })
+  const { clienteId, almacenOrigen, itemsPorPagina, pagina } = req.body
   try {
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
-    const ivaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'iva' })
     const matchAlmacen = almacenOrigen ? { almacenId: new ObjectId(almacenOrigen) } : {}
-    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria'] } } })
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones'] } } })
     const productos = await agreggateCollectionsSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: { activo: { $ne: false } } },
-        {
-          $lookup: {
-            from: ivaCollection,
-            localField: 'iva',
-            foreignField: '_id',
-            as: 'detalleIva'
-          }
-        },
-        { $unwind: { path: '$detalleIva', preserveNullAndEmptyArrays: true } },
+        { $skip: ((pagina || 1) - 1) * (itemsPorPagina || 1000) },
+        { $limit: itemsPorPagina || 1000 },
         {
           $lookup: {
             from: categoriasCollection,
@@ -94,9 +85,20 @@ export const getProductos = async (req, res) => {
             salida: '$detalleCantidadProducto.salida',
             moneda: '$moneda',
             isExento: '$isExento',
-            precioVenta: '$precioVenta',
-            ivaId: '$iva',
-            iva: '$detalleIva.iva',
+            precioVenta: {
+              $cond: {
+                if: { $gt: ['$precioVenta', 0] },
+                then: '$precioVenta',
+                else: {
+                  $cond: {
+                    if: { $gt: ['$detalleCategoria.utilidad', 0] },
+                    then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                    else: 0
+                  }
+                }
+              }
+            },
+            iva: '$iva',
             costoPromedio: '$costoPromedio',
             isDataInicial: '$isDataInicial'
           }
@@ -104,8 +106,15 @@ export const getProductos = async (req, res) => {
         // { $match: { cantidad: { $gte: 0 } } }
       ]
     })
-    // console.log(productos)
-    return res.status(200).json({ productos })
+    const cantidad = await agreggateCollectionsSD({
+      nameCollection: 'productos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { activo: { $ne: false } } },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ productos, cantidad: cantidad[0]?.total || 0 })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtner datos de los productos' + e.message })
@@ -197,10 +206,47 @@ export const saveToArray = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de guardar los productos ' + e.message })
   }
 }
+export const saveToArrayVentas = async (req, res) => {
+  const { clienteId, productos } = req.body
+  try {
+    if (!productos[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de productos' })
+    const bulkWrite = []
+    for (const e of productos) {
+      const [existeProducto] = await agreggateCollectionsSD({
+        nameCollection: 'productos',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { codigo: e.codigo } }
+        ]
+      })
+      if (!existeProducto) throw new Error(`No existe el producto con codigo: ${e.codigo}`)
+      bulkWrite.push({
+        updateOne: {
+          filter: { codigo: e.codigo },
+          update: {
+            $set: {
+              descripcion: e.descripcion,
+              iva: e.iva,
+              precioVenta: e.precioVenta,
+              moneda: e.moneda,
+              isExcento: e.isExcento,
+              observacion: e.observacion
+            }
+          }
+        }
+      })
+    }
+    await bulkWriteSD({ nameCollection: 'productos', enviromentClienteId: clienteId, pipeline: bulkWrite })
+    return res.status(200).json({ status: 'Productos guardados exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar los productos ' + e.message })
+  }
+}
 export const getDetalleCantidad = async (req, res) => {
   const { clienteId, productoId } = req.body
   try {
-    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria'] } } })
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones'] } } })
     const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
     const cantidadPorALmacen = await agreggateCollectionsSD({
       nameCollection: 'productosPorAlmacen',
@@ -314,7 +360,6 @@ export const getListCostos = async (req, res) => {
         }
       ]
     })
-    console.log({ costosPorAlmacen })
     return res.status(200).json({ costosPorAlmacen })
   } catch (e) {
     console.log(e)
@@ -323,7 +368,6 @@ export const getListCostos = async (req, res) => {
 }
 export const saveAjusteAlmacen = async (req, res) => {
   const { clienteId, productoId, almacen, cantidad, costoPromedio, tipo, lote, fechaAjuste, fechaVencimiento, fechaIngreso } = req.body
-  console.log({ body: req.body })
   if (tipo === 'Ingreso') {
     const validProductoPorAlmacen = await getItemSD({
       nameCollection: 'productosPorAlmacen',
@@ -731,8 +775,7 @@ export const saveAjusteAlmacen = async (req, res) => {
   }
 }
 export const saveProductosVentas = async (req, res) => {
-  const { nombre, descripcion, unidad, categoriaVentas, observacion, clienteId, _id, moneda, isExento, precioVenta, iva } = req.body
-  console.log(req.body, 1)
+  const { descripcion, observacion, clienteId, _id, moneda, isExento, precioVenta, iva } = req.body
   try {
     const producto = await updateItemSD({
       nameCollection: 'productos',
@@ -740,14 +783,11 @@ export const saveProductosVentas = async (req, res) => {
       filters: { _id: new ObjectId(_id) },
       update: {
         $set: {
-          nombre,
           descripcion,
-          unidad,
-          categoria: new ObjectId(categoriaVentas),
-          moneda: new ObjectId(moneda),
+          moneda,
           isExento,
           precioVenta: Number(precioVenta),
-          iva: iva ? new ObjectId(iva) : null,
+          iva,
           observacion
         }
       }
@@ -839,7 +879,6 @@ export const saveDataInicial = async (req, res) => {
 }
 export const updateCostoPorLote = async (req, res) => {
   const { clienteId, productoId, nuevoCostoPromedio, lote, tipoAjuste, fechaActual } = req.body
-  console.log(req.body)
   const almacenAuditoria = await getItemSD({
     nameCollection: 'almacenes',
     enviromentClienteId: clienteId,

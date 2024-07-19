@@ -7,7 +7,7 @@ export const getClientesVentas = async (req, res) => {
   const { clienteId } = req.body
   try {
     const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
-    const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
+    const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventaszonas' })
     const clientes = await agreggateCollectionsSD({
       nameCollection: 'clientes',
       enviromentClienteId: clienteId,

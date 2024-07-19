@@ -2530,8 +2530,9 @@ export const createFacturas = async (req, res) => {
             enviromentClienteId: clienteId,
             filters: { _id: new ObjectId(factura.ordenCompraId) }
           })
-          diferencia = (Number(ordenCompra.total.toFixed(2)) - Number(factura.total.toFixed(2)) || 0)
-          console.log({ diferencia, oTotal: ordenCompra.total.toFixed(2), fTotal: factura.total.toFixed(2) })
+          const totalOrdenCompra = Number(ordenCompra.baseImponible.toFixed(2)) + Number(ordenCompra.totalExento.toFixed(2))
+          const totalFactura = Number(factura.baseImponible.toFixed(2)) + Number(factura.totalExento.toFixed(2))
+          diferencia = (totalOrdenCompra - totalFactura || 0)
         }
         console.log({ ordenCompra })
         if (factura.tipoDocumento !== 'Nota de crédito') {
@@ -2545,7 +2546,7 @@ export const createFacturas = async (req, res) => {
               periodoId: new ObjectId(periodo._id),
               descripcion: `${factura.tipoDocumento}-${factura.numeroFactura}`,
               fecha: moment(fechaActual).toDate(),
-              debe: Number(ordenCompra.total.toFixed(2)),
+              debe: Number(Number(ordenCompra.baseImponible.toFixed(2)) + Number(ordenCompra.totalExento.toFixed(2))),
               haber: 0,
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `${factura.tipoDocumento}-${factura.numeroFactura}`,

@@ -19,6 +19,7 @@ export const getZonas = async (req, res) => {
             from: activosFijosCollection,
             localField: '_id',
             foreignField: 'zona',
+            pipeline: [{ $limit: 1 }],
             as: 'detalleActivoFijo'
           }
         },
@@ -36,6 +37,18 @@ export const getZonas = async (req, res) => {
         { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
+            from: planCuentaCollection,
+            localField: 'cuentaIdNE',
+            foreignField: '_id',
+            pipeline: [
+              { $project: { descripcion: 1, codigo: 1 } }
+            ],
+            as: 'detalleCuentaIdNE'
+          }
+        },
+        { $unwind: { path: '$detalleCuentaIdNE', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
             from: categoriaZonaCollection,
             localField: '_id',
             foreignField: 'zonaId',
@@ -47,8 +60,10 @@ export const getZonas = async (req, res) => {
             nombre: 1,
             observacion: 1,
             cuentaId: 1,
+            cuentaIdNE: 1,
             detalleCuenta: 1,
             hasActivo: { $size: '$detalleActivoFijo' },
+            detalleCuentaIdNE: 1,
             detallesCategoriaPorZona: '$detallesCategoriaPorZona'
           }
         }
@@ -61,7 +76,7 @@ export const getZonas = async (req, res) => {
   }
 }
 export const saveZonas = async (req, res) => {
-  const { _id, clienteId, nombre, observacion, tipo, fechaCreacion, cuentaId } = req.body
+  const { _id, clienteId, cuentaIdNE, nombre, observacion, tipo, fechaCreacion, cuentaId } = req.body
   try {
     if (!_id) {
       const [verify] = await agreggateCollectionsSD({
@@ -108,6 +123,7 @@ export const saveZonas = async (req, res) => {
         $set: {
           nombre,
           observacion,
+          cuentaIdNE: cuentaIdNE ? new ObjectId(cuentaIdNE) : null,
           cuentaId: cuentaId ? new ObjectId(cuentaId) : null,
           fechaCreacion: fechaCreacion ? moment(fechaCreacion).toDate() : moment().toDate()
         }

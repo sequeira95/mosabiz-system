@@ -17,7 +17,10 @@ import {
 } from '../../controllers/subDominios/ventas/zonas.js'
 
 import {
-  getData
+  getData,
+  getPedidosVentas,
+  getProductos,
+  handleVenta
 } from '../../controllers/subDominios/ventas/facturacion.js'
 
 const router = express.Router()
@@ -35,5 +38,8 @@ router.post('/zonas/save', requireSubDominioToken, saveZonasToArray)
 router.post('/zonas/delete', requireSubDominioToken, deleteZonas)
 
 router.post('/facturacion/data', requireSubDominioToken, getData)
+router.post('/facturacion/pedidos-venta', requireSubDominioToken, getPedidosVentas)
+router.post('/facturacion/productos', requireSubDominioToken, getProductos)
+router.post('/facturacion/pago-venta', requireSubDominioToken, handleVenta)
 
 export default router

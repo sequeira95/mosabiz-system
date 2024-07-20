@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollections, deleteItem, updateItem, upsertItem } from '../utils/dataBaseConfing.js'
+import { agreggateCollections, deleteItem, getItem, updateItem, upsertItem } from '../utils/dataBaseConfing.js'
+import moment from 'moment-timezone'
 
 export const getIva = async (req, res) => {
   try {
@@ -86,7 +87,6 @@ export const deleteIva = async (req, res) => {
 export const getIslr = async (req, res) => {
   try {
     const { pais, itemsPorPagina, pagina } = req.body
-    console.log(req.body)
     const matchConfig = {}
     if (pais) {
       matchConfig.pais = { $eq: pais }
@@ -99,7 +99,6 @@ export const getIslr = async (req, res) => {
         { $limit: Number(itemsPorPagina) }
       ]
     })
-    console.log({ islr })
     const countIslr = await agreggateCollections({
       nameCollection: 'islr',
       pipeline: [
@@ -115,7 +114,6 @@ export const getIslr = async (req, res) => {
 }
 export const saveIslr = async (req, res) => {
   const { _id, nombre, valorRet, codigo, tipoCalculo, sustraendo, minimo, pais, tipoRetencion, valorBaseImponible } = req.body
-  console.log(req.body)
   try {
     if (!_id) {
       const islrSave = await upsertItem({
@@ -200,7 +198,6 @@ export const getRetIva = async (req, res) => {
 }
 export const saveRetIva = async (req, res) => {
   const { _id, descripcion, retIva, pais } = req.body
-  console.log(req.body)
   try {
     if (!_id) {
       const retIvaSave = await upsertItem({
@@ -241,5 +238,96 @@ export const deleteRetIva = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar esta retención de I.V.A ' + e.message })
+  }
+}
+export const getCiclos = async (req, res) => {
+  try {
+    const { pais, itemsPorPagina, pagina } = req.body
+    const matchConfig = {}
+    if (pais) {
+      matchConfig.pais = { $eq: pais }
+    }
+    const ciclos = await agreggateCollections({
+      nameCollection: 'ciclosImpuestos',
+      pipeline: [
+        { $match: matchConfig },
+        { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+        { $limit: Number(itemsPorPagina) }
+      ]
+    })
+    const count = await agreggateCollections({
+      nameCollection: 'ciclosImpuestos',
+      pipeline: [
+        { $match: matchConfig },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ ciclos, count: count.length ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la liste del I.V.A ' + e.message })
+  }
+}
+export const saveCiclos = async (req, res) => {
+  const { _id, descripcion, fechaInicio, fechaFin, isFechaActual, pais, tipoCiclo } = req.body
+  console.log({ ciclo: req.body })
+  try {
+    if (isFechaActual) {
+      const verifyCicloFechaActual = await getItem({
+        nameCollection: 'ciclosImpuestos',
+        filters: { pais, isFechaActual }
+      })
+      if (verifyCicloFechaActual) return res.status(400).json({ error: 'Ya existe un ciclo de impuestos hasta la fecha actual.' })
+    }
+    const verifyFechaIinit = await getItem({
+      nameCollection: 'ciclosImpuestos',
+      filters: { pais, fechaFin: { $gte: new Date(fechaInicio) } }
+    })
+    if (verifyFechaIinit) return res.status(400).json({ error: 'No puede crear un ciclo que la fecha de inicio sea menor o igual a la fecha final de otro ciclo.' })
+    if (!_id) {
+      const ciclo = await upsertItem({
+        nameCollection: 'ciclosImpuestos',
+        filters: { _id: new ObjectId(_id) },
+        update: {
+          $set: {
+            descripcion,
+            fechaInicio: moment(fechaInicio).toDate(),
+            fechaFin: fechaFin ? moment(fechaFin).toDate() : null,
+            isFechaActual,
+            pais,
+            tipoCiclo
+          }
+        }
+      })
+      return res.status(200).json({ status: 'Ciclo de impuesto guardado exitosamente', ciclo })
+    }
+    const ciclo = await updateItem({
+      nameCollection: 'ciclosImpuestos',
+      filters: { _id: new ObjectId(_id) },
+      update: {
+        $set: {
+          descripcion,
+          fechaInicio: moment(fechaInicio).toDate(),
+          fechaFin: fechaFin ? moment(fechaFin).toDate() : null,
+          isFechaActual,
+          pais,
+          tipoCiclo
+        }
+      }
+    })
+    return res.status(200).json({ status: 'Ciclo de impuesto guardado exitosamente', ciclo })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar este retención de I.V.A' + e.message })
+  }
+}
+export const deleteCiclo = async (req, res) => {
+  const { _id } = req.body
+  try {
+    await deleteItem({ nameCollection: 'ciclosImpuestos', filters: { _id: new ObjectId(_id) } })
+    return res.status(200).json({ status: 'Ciclo eliminado exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar este ciclo ' + e.message })
   }
 }

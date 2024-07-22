@@ -34,6 +34,46 @@ export const getUsersClientes = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de obtener usuarios del clientes' })
   }
 }
+export const getUsuariosYAlmacenesClientes = async (req, res) => {
+  try {
+    const usuarios = await agreggateCollectionsSD({
+      nameCollection: 'personas',
+      pipeline: [
+        { $match: { isCliente: true, clienteId: new ObjectId(req.body._id) } }
+      ]
+    })
+    const almacenes = await agreggateCollectionsSD({
+      nameCollection: 'almacenes',
+      enviromentClienteId: req.body._id,
+      pipeline: [
+        { $match: { nombre: { $nin: ['Transito', 'Auditoria'] } } },
+        {
+          $project: {
+            _id: 1,
+            nombre: { $concat: ['$codigo', ' - ', '$nombre'] }
+          }
+        }
+      ]
+    })
+    const zonas = await agreggateCollectionsSD({
+      nameCollection: 'zonas',
+      enviromentClienteId: req.body._id,
+      pipeline: [
+        { $match: { tipo: 'inventario' } },
+        {
+          $project: {
+            _id: 1,
+            nombre: 1
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ usuarios, almacenes, zonas })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtener usuarios del clientes' })
+  }
+}
 export const createUser = async (req, res) => {
   const { nombre, email, clientes, telefono, modulos } = req.body
   try {
@@ -235,10 +275,12 @@ export const changePassword = async (req, res) => {
   const { passwordActual, newPassword } = req.body
   const uid = req.uid
   try {
+    const decodePasswordActual = atob(passwordActual)
     const usuario = await getItemSD({ nameCollection: 'usuarios', filters: { _id: new ObjectId(uid) } })
-    const isValidPassword = await comparePassword(passwordActual, usuario.password)
+    const isValidPassword = await comparePassword(decodePasswordActual, usuario.password)
     if (!isValidPassword) return res.status(400).json({ error: 'Contraseña incorrecta' })
-    const password = await encryptPassword(newPassword)
+    const decodeNewPassword = atob(newPassword)
+    const password = await encryptPassword(decodeNewPassword)
     await updateItemSD({
       nameCollection: 'usuarios',
       filters: { _id: new ObjectId(uid) },

@@ -20,7 +20,7 @@ export async function getCollection ({ nameCollection, filters = {} }) {
 export async function getItem ({ nameCollection, filters = {} }) {
   const db = await accessToDataBase(dataBasePrincipal)
   const collection = await db.collection(nameCollection)
-  return await collection.findOne(filters).toArray()
+  return await collection.findOne(filters)
 }
 export async function updateItem ({ nameCollection, filters = {}, update = {} }) {
   const db = await accessToDataBase(dataBasePrincipal)
@@ -42,10 +42,20 @@ export async function createItem ({ nameCollection, item = {} }) {
   const collection = await db.collection(nameCollection)
   return await collection.insertOne(item)
 }
+export async function createItems ({ nameCollection, pipeline = [] }) {
+  const db = await accessToDataBase(dataBasePrincipal)
+  const collection = await db.collection(nameCollection)
+  return await collection.bulkWrite(pipeline)
+}
 export async function deleteItem ({ nameCollection, filters = {} }) {
   const db = await accessToDataBase(dataBasePrincipal)
   const collection = await db.collection(nameCollection)
   return await collection.deleteOne(filters)
+}
+export async function deleteItems ({ nameCollection, filters = {} }) {
+  const db = await accessToDataBase(dataBasePrincipal)
+  const collection = await db.collection(nameCollection)
+  return await collection.deleteMany(filters)
 }
 // funciones base de datos secundaria
 export async function getCollectionSD ({ enviromentClienteId, nameCollection, filters = {} }) {

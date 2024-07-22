@@ -25,6 +25,9 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
   if (search.haber) {
     configMatch.haber = { $gte: Number(search.haber) }
   }
+  if (search.terceros) {
+    configMatch.terceroNombre = { $regex: `${search.terceros}`, $options: 'si' }
+  }
   if (!comprobanteId) {
     const comprobanteColName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'comprobantes' })
     lookups.push({
@@ -52,14 +55,13 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: configMatch },
-        { $sort: { fechaCreacion: -1 } },
+        { $sort: { fechaCreacion: 1, debe: -1 } },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) },
-        { $sort: { fechaCreacion: 1 } },
         ...lookups
       ]
     })
-    // console.log({ detallesComprobantes })
+    // console.log({ pagina, itemsPorPagina })
     const datosExtras = await agreggateCollectionsSD(
       {
         nameCollection: 'detallesComprobantes',
@@ -84,8 +86,6 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
         ]
       })
     let detalleIndex = -1
-    console.log({ search })
-    let detalleall
     if (search.detalleId) {
       const detalle = await agreggateCollectionsSD(
         {
@@ -93,7 +93,6 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
           enviromentClienteId: clienteId,
           pipeline: [
             { $match: configMatch },
-            { $sort: { fechaCreacion: 1 } },
             {
               $group: {
                 _id: null,
@@ -107,19 +106,9 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
             }
           ]
         })
-      console.log({ detalle })
-      detalleall = await agreggateCollectionsSD(
-        {
-          nameCollection: 'detallesComprobantes',
-          enviromentClienteId: clienteId,
-          pipeline: [
-            { $match: configMatch }
-          ]
-        })
-      console.log({ detalleall })
       detalleIndex = detalle[0]?.index ?? -1
     }
-    return ({ detalleall, detallesComprobantes, cantidad: datosExtras[0]?.count, totalDebe: datosExtras[0]?.debe, totalHaber: datosExtras[0]?.haber, detalleIndex })
+    return ({ detallesComprobantes, cantidad: datosExtras[0]?.count, totalDebe: datosExtras[0]?.debe, totalHaber: datosExtras[0]?.haber, detalleIndex })
   } catch (e) {
     console.log(e)
     return e

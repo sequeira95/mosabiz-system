@@ -4,26 +4,69 @@ export const dataBaseSecundaria = process.env.DB_NAME
 export const subDominioName = process.env.ENVIROMENTID
 export const lengthCodigoByNiveles = {
   1: 1,
-  2: 3,
-  3: 5,
-  4: 8,
-  5: 11,
-  6: 14
+  2: 2,
+  3: 4,
+  4: 7,
+  5: 10,
+  6: 13
 }
 export const nivelesCodigoByLength = {
   1: 1,
-  3: 2,
-  5: 3,
-  8: 4,
-  11: 5,
-  14: 6
+  2: 2,
+  4: 3,
+  7: 4,
+  10: 5,
+  13: 6
 }
+export const ObjectNumbersMonths = {
+  ENERO: 1,
+  FEBRERO: 2,
+  MARZO: 3,
+  ABRIL: 4,
+  MAYO: 5,
+  JUNIO: 6,
+  JULIO: 7,
+  AGOSTO: 8,
+  SEPTIEMBRE: 9,
+  OCTUBRE: 10,
+  NOVIEMBRE: 11,
+  DICIEMBRE: 12
+
+}
+export const getParentCode = (code) => {
+  const nivel = nivelesCodigoByLength[String(code).length]
+  const length = lengthCodigoByNiveles[nivel - 1]
+  const parentCode = String(code).slice(0, length)
+  return parentCode
+}
+
 export const statusOptionsPeriodos = {
   activo: 'Activo',
   preCierre: 'Pre-cierre',
   cerrado: 'Cerrado'
 }
-export const collectionNameClient = ['ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios']
+export const keyActivosFijos = {
+  fechaAdquisicion: 'Fecha adquisición',
+  zona: 'Zona',
+  categoria: 'Categoría',
+  nombre: 'Nombre',
+  codigo: 'Código',
+  descripcion: 'Descripción',
+  tipo: 'Tipo',
+  unidad: 'Unidad',
+  cantidad: 'Cantidad',
+  vidaUtil: 'Vida útil',
+  comprobanteRegistroActivo: 'Comprobante de registro de activo'
+}
+export const collectionNameClient = [
+  'ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios', 'categorias',
+  'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos', 'contadores', 'movimientos', 'detalleMovimientos',
+  'productosPorAlmacen', 'retencionISLR', 'bancos', 'clientes', 'servicios', 'iva', 'proveedores', 'metodosPagos', 'compras', 'detalleCompra', 'transacciones',
+  'documentosFiscales', 'detalleDocumentosFiscales', 'ventassucursales', 'ventaszonas', 'zonasPorSucursales'
+]
+export const collectionNameAIbiz = [
+  'islr', 'iva', 'bancos', 'retIva'
+]
 export const ListIndexesClient = [
   {
     collection: 'ajustes',
@@ -55,3 +98,11 @@ export const ListIndexesClient = [
     ]
   }
 ]
+export const tipoMovimientosShort = {
+  solicitudInterna: 'SI',
+  solicitudCompra: 'SC',
+  transferencia: 'TR',
+  Ajuste: 'AJ',
+  devolucion: 'DEV',
+  recepcion: 'REC'
+}

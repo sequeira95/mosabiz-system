@@ -18,6 +18,12 @@ export const getListComprobantes = async (req, res) => {
       pipeline: [
         {
           $match: { periodoId: new ObjectId(periodoId), ...filterNombre }
+        },
+        {
+          $sort: {
+            mesPeriodo: 1,
+            codigo: 1
+          }
         }
       ]
     })
@@ -96,8 +102,8 @@ export const getDetallesComprobantes = async (req, res) => {
   const { clienteId, comprobanteId, itemsPorPagina, pagina, search } = req.body
   if (!(comprobanteId || clienteId)) return res.status(400).json({ error: 'Datos incompletos' })
   try {
-    const { detalleall, detallesComprobantes, cantidad, totalDebe, totalHaber, detalleIndex } = await agregateDetalleComprobante({ clienteId, comprobanteId, itemsPorPagina, pagina, search })
-    return res.status(200).json({ detalleall, detallesComprobantes, cantidad, totalDebe, totalHaber, detalleIndex })
+    const { detallesComprobantes, cantidad, totalDebe, totalHaber, detalleIndex } = await agregateDetalleComprobante({ clienteId, comprobanteId, itemsPorPagina, pagina, search })
+    return res.status(200).json({ detallesComprobantes, cantidad, totalDebe, totalHaber, detalleIndex })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar detalles del comprobante' + e.message })
@@ -120,8 +126,6 @@ export const saveDetalleComprobante = async (req, res) => {
     pagina,
     itemsPorPagina
   } = req.body
-  // console.log({ body: req.body, file: req.files })
-  // console.log({ fecha: moment(fecha, 'YYYY/MM/DD').isValid() })
   if (!clienteId) return res.status(400).json({ error: 'Debe seleccionar un cliente' })
   if (!comprobanteId) return res.status(400).json({ error: 'Debe seleccionar un comprobante' })
   if (!moment(fecha, 'YYYY/MM/DD').isValid()) return res.status(400).json({ error: 'Debe seleccionar una fecha valida' })
@@ -186,6 +190,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
     console.log(e)
   }
   try {
+    const fechaCreacion = moment()
     let addSeconds = 1
     const datosDetallesSinId = detalles.filter(i => !i._id).map(e => {
       addSeconds += 2
@@ -196,30 +201,37 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
         comprobanteId: new ObjectId(comprobanteId),
         periodoId: new ObjectId(periodoId),
         descripcion: e.descripcion,
-        fecha: moment(e.fecha, formatFecha).toDate(),
+        fecha: moment(e.fecha).toDate(),
         debe: e.debe ? parseFloat(e.debe) : 0,
         haber: e.haber ? parseFloat(e.haber) : 0,
         cCosto: e.cCosto,
         terceroId: e.terceroId ? new ObjectId(e.terceroId) : '',
         terceroNombre: e?.terceroNombre,
-        fechaCreacion: moment().add(addSeconds, 'milliseconds').toDate(),
+        fechaCreacion: moment(fechaCreacion).add(addSeconds, 'milliseconds').toDate(),
         docReferenciaAux: e.documento.docReferencia,
         documento: {
           docReferencia: e.documento.docReferencia,
-          docFecha: e.documento.docFecha ? moment(e.documento.docFecha, formatFecha).toDate() : null,
+          docFecha: e.documento.docFecha ? moment(e.documento.docFecha).toDate() : null,
           docTipo: e.documento.docTipo,
           docObservacion: e.documento.docObservacion,
           documento: e.documento.documento
         },
-        fechaDolar: e?.fechaDolar,
+        fechaDolar: e.fechaDolar ? moment(e.fechaDolar).toDate() : e.fechaDolar,
         cantidad: e?.cantidad,
         monedasUsar: e?.monedasUsar,
         tasa: e?.tasa,
-        monedaPrincipal: e?.monedaPrincipal
+        monedaPrincipal: e?.monedaPrincipal,
+        isPreCierre: e.isPreCierre ? e.isPreCierre : null
       }
     })
     if (datosDetallesSinId[0]) await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: datosDetallesSinId })
     const datosDetallesWithId = detalles.filter(i => i.cuentaId && i._id).map(e => {
+      const fechaDetalle = moment(e.fecha, formatFecha)
+      let fechaDocumento = e.documento?.docFecha
+      if (fechaDocumento) {
+        const fecha = moment(fechaDocumento, formatFecha)
+        fechaDocumento = fecha.isValid() ? fecha.toDate() : moment(fechaDocumento).toDate()
+      }
       return {
         updateOne: {
           filter: { _id: new ObjectId(e._id) },
@@ -232,7 +244,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
               comprobanteId: new ObjectId(comprobanteId),
               periodoId: new ObjectId(periodoId),
               descripcion: e.descripcion,
-              fecha: moment(e.fecha, formatFecha).toDate(),
+              fecha: fechaDetalle.isValid() ? fechaDetalle.toDate() : moment(e.fecha).toDate(),
               debe: e.debe ? parseFloat(e.debe) : 0,
               haber: e.haber ? parseFloat(e.haber) : 0,
               cCosto: e.cCosto,
@@ -242,16 +254,17 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
               docReferenciaAux: e.documento.docReferencia,
               documento: {
                 docReferencia: e.documento.docReferencia,
-                docFecha: e.documento.docFecha ? moment(e.documento.docFecha, formatFecha).toDate() : null,
+                docFecha: fechaDocumento, // e.documento.docFecha ? moment(e.documento.docFecha, formatFecha).toDate() : null,
                 docTipo: e.documento.docTipo,
                 docObservacion: e.documento.docObservacion,
                 documento: e.documento.documento
               },
-              fechaDolar: e?.fechaDolar,
+              fechaDolar: e.fechaDolar ? moment(e.fechaDolar).toDate() : e.fechaDolar,
               cantidad: e?.cantidad,
               monedasUsar: e?.monedasUsar,
               tasa: e?.tasa,
-              monedaPrincipal: e?.monedaPrincipal
+              monedaPrincipal: e?.monedaPrincipal,
+              isPreCierre: e.isPreCierre ? e.isPreCierre : null
             }
           }
         }

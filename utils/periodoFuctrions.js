@@ -1,7 +1,6 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, getItemSD, updateItemSD } from './dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, getItemSD } from './dataBaseConfing.js'
 import moment from 'moment'
-import { statusOptionsPeriodos } from '../constants.js'
 
 export async function preCierrePeriodo ({ clienteId, periodo }) {
   // verificamos si existe ya comprobante de pre cierre
@@ -24,8 +23,8 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
         item: {
           periodoId: new ObjectId(periodo._id),
           mesPeriodo: moment(periodo.fechaInicio).format('YYYY/MM'),
-          codigo: '99998',
-          nombre: 'Pre-cierre',
+          codigo: '00000',
+          nombre: 'Saldos iniciales',
           isBloqueado: true,
           isPreCierre: true,
           fechaCreacion: moment().toDate()
@@ -36,13 +35,15 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
   // actualizamos el detalle en caso de que ya exista detalle y si no lo creamos, verificaremos por codigo de cuenta dado a que tiene que ser una fila por codigo
   // buscamos en el periodo anterior todos los movimientos para sacar el total si el saldo queda positivo el valor se coloca en el haber
   // si el saldo queda negativo el valor se coloca en el debe
+  console.log(periodo.periodoAnterior)
   const detallePeriodoAnterior = await agreggateCollectionsSD({
     nameCollection: 'detallesComprobantes',
     enviromentClienteId: clienteId,
     pipeline: [
       {
         $match: {
-          periodoId: new ObjectId(periodo.periodoAnterior)
+          periodoId: new ObjectId(periodo.periodoAnterior),
+          isCierre: { $ne: true }
         }
       },
       {
@@ -69,12 +70,17 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
           saldo: { $subtract: ['$debe', '$haber'] },
           terceroNombre: '$terceroNombre'
         }
-      }
+      },
+      { $sort: { cuentaCodigo: 1 } }
     ]
   })
   let saldosAcumulados = 0
+  // console.log(detallePeriodoAnterior.filter(e => e.cuentaCodigo[0] === '3'))
+  const ajustesContables = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
   const detalleSaldosIniciales = detallePeriodoAnterior.map(e => {
-    saldosAcumulados += Number(e.cuentaCodigo[0]) >= 4 ? e.saldo : 0
+    saldosAcumulados += Number(e.cuentaCodigo[0]) >= 4
+      ? e.saldo
+      : e.cuentaId.toString() === ajustesContables.cuentaSuperAvitAcum.toString() || e.cuentaId.toString() === ajustesContables.cuentaPerdidaAcum.toString() ? e.saldo : 0
     return {
       updateOne: {
         filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobanteId), terceroId: e.terceroId ? new ObjectId(e.terceroId) : '' },
@@ -87,10 +93,11 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
             //  comprobanteId: new ObjectId(comprobanteId),
             // periodoId: new ObjectId(periodo._id),
             descripcion: `Saldo inicial ${e.cuentaNombre}`,
-            fecha: moment().toDate(),
-            debe: e.saldo < 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
-            haber: e.saldo > 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
+            fecha: moment(periodo.fechaInicio).toDate(),
+            debe: e.saldo > 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
+            haber: e.saldo < 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
             terceroNombre: Number(e.cuentaCodigo[0]) < 4 ? e.terceroNombre : null,
+            // terceroId: Number(e.cuentaCodigo[0]) < 4 ? e.terceroId : null,
             isPreCierre: true,
             fechaCreacion: moment().toDate()
           }
@@ -100,8 +107,8 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
     }
   })
   // console.log({ detallePeriodoAnterior })
-  const ajustesContables = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
-  if (saldosAcumulados > 0) {
+  console.log({ saldosAcumulados })
+  if (saldosAcumulados < 0) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaSuperAvitAcum) } })
     if (cuenta && cuenta._id) {
       detalleSaldosIniciales.push({
@@ -116,7 +123,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
               //  comprobanteId: new ObjectId(comprobanteId),
               // periodoId: new ObjectId(periodo._id),
               descripcion: `Saldo inicial ${cuenta.descripcion}`,
-              fecha: moment().toDate(),
+              fecha: moment(periodo.fechaInicio).toDate(),
               debe: 0,
               haber: Math.abs(parseFloat(saldosAcumulados)),
               isPreCierre: true,
@@ -128,7 +135,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
       })
     }
   }
-  if (saldosAcumulados < 0) {
+  if (saldosAcumulados > 0) {
     const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaPerdidaAcum) } })
     // console.log({ cuenta })
     if (cuenta && cuenta._id) {
@@ -144,7 +151,7 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
               //  comprobanteId: new ObjectId(comprobanteId),
               // periodoId: new ObjectId(periodo._id),
               descripcion: `Saldo inicial ${cuenta.descripcion}`,
-              fecha: moment().toDate(),
+              fecha: moment(periodo.fechaInicio).toDate(),
               debe: Math.abs(parseFloat(saldosAcumulados)),
               haber: 0,
               isPreCierre: true,
@@ -156,10 +163,14 @@ export async function preCierrePeriodo ({ clienteId, periodo }) {
       })
     }
   }
-  if (detalleSaldosIniciales[0]) await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosIniciales })
+  const detalleSaldosInicialesFilter = detalleSaldosIniciales.filter(e => e.updateOne.update.$set.debe || e.updateOne.update.$set.haber)
+  // console.log({ 2: detalleSaldosInicialesFilter.length })
+  // console.log(detalleSaldosInicialesFilter)
+  if (detalleSaldosInicialesFilter[0]) await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosInicialesFilter })
   // console.log({ detalleSaldosIniciales })
 }
 export async function cerrarPeriodo ({ clienteId, periodo }) {
+  console.log('entramos a cierre')
   // creamos el comprobante de cierre
   const comprobante = (await createItemSD(
     {
@@ -176,8 +187,8 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
       }
     })).insertedId
   // actualizamos el detalle en caso de que ya exista detalle y si no lo creamos, verificaremos por codigo de cuenta dado a que tiene que ser una fila por codigo
-  // buscamos en el periodo anterior todos los movimientos para sacar el total si el saldo queda positivo el valor se coloca en el haber
-  // si el saldo queda negativo el valor se coloca en el debe
+  // buscamos en el periodo anterior todos los movimientos para sacar el total si el saldo queda negativo el valor se coloca en el haber
+  // si el saldo queda positivo el valor se coloca en el debe
   const detallePeriodo = await agreggateCollectionsSD({
     nameCollection: 'detallesComprobantes',
     enviromentClienteId: clienteId,
@@ -214,12 +225,16 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
       }
     ]
   })
+  console.log({ detallePeriodo })
   let saldosAcumulados = 0
+  const ajustesContables = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
   const detalleSaldosCierre = detallePeriodo.map(e => {
-    saldosAcumulados += Number(e.cuentaCodigo[0]) >= 4 ? e.saldo : 0
+    saldosAcumulados += Number(e.cuentaCodigo[0]) >= 4
+      ? e.saldo
+      /* : e.cuentaId.toString() === ajustesContables.cuentaSuperAvitAcum.toString() || e.cuentaId.toString() === ajustesContables.cuentaPerdidaAcum.toString() ? e.saldo */ : 0
     return {
       updateOne: {
-        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobante), terceroId: e.terceroId ? new ObjectId(e.terceroId) : '' },
+        filter: { cuentaId: new ObjectId(e.cuentaId), periodoId: new ObjectId(periodo._id), comprobanteId: new ObjectId(comprobante), terceroId: e.terceroId ? new ObjectId(e.terceroId) : null },
         update: {
           $set:
           {
@@ -229,10 +244,11 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
             //  comprobanteId: new ObjectId(comprobanteId),
             // periodoId: new ObjectId(periodo._id),
             descripcion: `Saldo de cierre ${e.cuentaNombre}`,
-            fecha: moment().toDate(),
-            debe: e.saldo < 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
-            haber: e.saldo > 0 && Number(e.cuentaCodigo[0]) < 4 ? Math.abs(parseFloat(e.saldo)) : 0,
-            terceroNombre: Number(e.cuentaCodigo[0]) < 4 ? e.terceroNombre : null,
+            fecha: moment(periodo.fechaInicio).toDate(),
+            debe: e.saldo < 0 && Number(e.cuentaCodigo[0]) >= 4 ? Math.abs(parseFloat(e.saldo)) : 0,
+            haber: e.saldo > 0 && Number(e.cuentaCodigo[0]) >= 4 ? Math.abs(parseFloat(e.saldo)) : 0,
+            terceroNombre: e.terceroNombre ? e.terceroNombre : null,
+            // terceroId: Number(e.cuentaCodigo[0]) < 4 ? e.terceroId : null,
             isCierre: true,
             fechaCreacion: moment().toDate()
           }
@@ -241,9 +257,10 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
       }
     }
   })
-  const ajustesContables = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
-  if (saldosAcumulados > 0) {
-    const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaSuperAvitAcum) } })
+  console.log({ saldoCierre: saldosAcumulados })
+  // const ajustesContables = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'contable' } })
+  if (saldosAcumulados < 0) {
+    const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaSuperAvitOperdidaActual) } })
     if (cuenta && cuenta._id) {
       detalleSaldosCierre.push({
         updateOne: {
@@ -257,7 +274,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
               //  comprobanteId: new ObjectId(comprobanteId),
               // periodoId: new ObjectId(periodo._id),
               descripcion: `Saldo de cierre ${cuenta.descripcion}`,
-              fecha: moment().toDate(),
+              fecha: moment(periodo.fechaInicio).toDate(),
               debe: 0,
               haber: Math.abs(parseFloat(saldosAcumulados)),
               isCierre: true,
@@ -269,8 +286,8 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
       })
     }
   }
-  if (saldosAcumulados < 0) {
-    const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaPerdidaAcum) } })
+  if (saldosAcumulados > 0) {
+    const cuenta = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ajustesContables.cuentaSuperAvitOperdidaActual) } })
     if (cuenta && cuenta._id) {
       detalleSaldosCierre.push({
         updateOne: {
@@ -284,7 +301,7 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
               //  comprobanteId: new ObjectId(comprobanteId),
               // periodoId: new ObjectId(periodo._id),
               descripcion: `Saldo de cierre ${cuenta.descripcion}`,
-              fecha: moment().toDate(),
+              fecha: moment(periodo.fechaInicio).toDate(),
               debe: Math.abs(parseFloat(saldosAcumulados)),
               haber: 0,
               isCierre: true,
@@ -296,9 +313,10 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
       })
     }
   }
-  if (detalleSaldosCierre[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosCierre })
+  const detalleSaldosCierreFilter = detalleSaldosCierre.filter(e => e.updateOne.update.$set.debe || e.updateOne.update.$set.haber)
+  if (detalleSaldosCierreFilter[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosCierreFilter })
   // actualizamos el periodo siguiente, le cambiamos el status por activo y actualizamos los saldos iniciales a los saldos de cierre
-  const periodoPosterior = await updateItemSD({
+  /* const periodoPosterior = await updateItemSD({
     nameCollection: 'periodos',
     enviromentClienteId: clienteId,
     filters: { periodoAnterior: new ObjectId(periodo._id) },
@@ -395,5 +413,6 @@ export async function cerrarPeriodo ({ clienteId, periodo }) {
       })
     }
   }
-  if (detalleSaldosIniciales[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosIniciales })
+  const detalleSaldosInicialesFilter = detalleSaldosIniciales.filter(e => e.updateOne.update.$set.debe || e.updateOne.update.$set.haber)
+  if (detalleSaldosInicialesFilter[0]) await await bulkWriteSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, pipeline: detalleSaldosInicialesFilter }) */
 }

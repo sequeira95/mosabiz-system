@@ -2,29 +2,31 @@ import moment from 'moment-timezone'
 import { agreggateCollections } from '../../../utils/dataBaseConfing.js'
 
 export const getCiclos = async (req, res) => {
-  const { fecha } = req.body
-  console.log(fecha)
+  const { fecha, tipoImpuesto } = req.body
+  console.log(fecha, tipoImpuesto)
   try {
     const ciclos = await agreggateCollections({
       nameCollection: 'ciclosImpuestos',
       pipeline: [
-        /* {
+        {
           $match:
           {
-            $or: [
+            tipoImpuesto,
+            /* $or: [
               {
-                $and: 
-              }
-            fechaFind: { $lte: moment(fecha).toDate() },
+                $and: [
+                  { fechaFind: { $gte: moment(fecha).toDate()0, $lte: moment(fecha).toDate() } }
+                ]
+              },
               {
                 $and: [
                   { isFechaActual: true },
                   { fechaInicio: { $lte: moment(fecha).toDate() } }
                 ]
               }
-            ]
+            ] */
           }
-        } */
+        }
       ]
     })
     return res.status(200).json({ ciclos })

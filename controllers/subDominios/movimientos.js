@@ -3393,7 +3393,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 periodoId: new ObjectId(periodo._id),
                 descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} RECEPCIPON DE ${inventarioAnterior[0].producto}`,
                 fecha: moment(fechaActual).toDate(),
-                debe: Number(detalle.costoUnitario) * Number(detalle.cantidad),
+                debe: Number(detalle.costoUnitario) * Number(detalle.recibe),
                 haber: 0,
                 fechaCreacion: moment().toDate(),
                 docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,

@@ -114,5 +114,11 @@ export const documentosVentas = [
   { text: 'Nota de débito', value: 'Nota de débito', isFiscal: true },
   { text: 'Pedido de venta', value: 'Pedido de venta', isFiscal: false },
   { text: 'Nota de entrega', value: 'Nota de entrega', isFiscal: false },
-  { text: 'Presupuesto', value: 'Presupuesto', isFiscal: false },
+  { text: 'Presupuesto', value: 'Presupuesto', isFiscal: false }
 ]
+export const tiposDocumentosFiscales = {
+  notaDebito: 'Nota de débito',
+  notaCredito: 'Nota de crédito',
+  factura: 'Factura',
+  retIslr: 'Retención ISLR'
+}

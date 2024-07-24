@@ -1684,7 +1684,7 @@ export const getDetalleProveedor = async (req, res) => {
         {
           $project: {
             // costoTotal: { $add: ['$valor', { $ifNull: ['$detalleNotaDebito.totalNotaDebito', 0] }] },
-            costoTotal: { $subtract: [{ $add: ['$valor', { $ifNull: ['$creditoDebito.totalNotaDebito', 0] }] }, { $ifNull: ['$creditoDebito.totalNotaCredito', 0] }] },
+            costoTotal: { $round: [{ $subtract: [{ $add: ['$valor', { $ifNull: ['$creditoDebito.totalNotaDebito', 0] }] }, { $ifNull: ['$creditoDebito.totalNotaCredito', 0] }] }, 2] },
             totalNotaDebito: '$creditoDebito.totalNotaDebito',
             totalNotaDebitoPrincipal: '$creditoDebito.totalNotaDebitoPrincipal',
             totalNotaDebitoSecundario: '$creditoDebito.totalNotaDebitoSecundario',
@@ -1701,18 +1701,20 @@ export const getDetalleProveedor = async (req, res) => {
             totalAbono: '$detalleTransacciones.totalAbono',
             // porPagar: { $subtract: [{ $add: ['$valor', { $ifNull: ['$detalleNotaDebito.totalNotaDebito', 0] }] }, '$detalleTransacciones.totalAbono'] },
             porPagar: {
-              $subtract: [
-                {
-                  $add:
-                  [
-                    '$valor',
-                    { $ifNull: ['$creditoDebito.totalNotaDebito', 0] }
-                  ]
-                },
-                {
-                  $add: ['$detalleTransacciones.totalAbono', { $ifNull: ['$creditoDebito.totalNotaCredito', 0] }]
-                }
-              ]
+              $round: [{
+                $subtract: [
+                  {
+                    $add:
+                    [
+                      '$valor',
+                      { $ifNull: ['$creditoDebito.totalNotaDebito', 0] }
+                    ]
+                  },
+                  {
+                    $add: ['$detalleTransacciones.totalAbono', { $ifNull: ['$creditoDebito.totalNotaCredito', 0] }]
+                  }
+                ]
+              }, 2]
             },
             fechaVencimiento: 1,
             // detalleTransacciones: '$detalleTransacciones',
@@ -2521,17 +2523,53 @@ export const createFacturas = async (req, res) => {
     if (tieneContabilidad) {
       console.log({ factura })
       if (factura.tipoDocumento !== 'Nota de entrega') {
+        const isServicio = factura.productosServicios.some(e => e.tipo === 'servicio')
         const asientosContables = []
         let diferencia = 0
         let ordenCompra
         if (factura.ordenCompraId) {
-          ordenCompra = await getItemSD({
+          const detalleCompraCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleCompra' })
+          ordenCompra = (await agreggateCollectionsSD({
             nameCollection: 'compras',
             enviromentClienteId: clienteId,
-            filters: { _id: new ObjectId(factura.ordenCompraId) }
+            pipeline: [
+              { $match: { _id: new ObjectId(factura.ordenCompraId) } },
+              {
+                $lookup: {
+                  from: detalleCompraCollection,
+                  localField: '_id',
+                  foreignField: 'compraId',
+                  pipeline: [
+                    { $match: { tipo: 'producto' } },
+                    {
+                      $group: {
+                        _id: 0,
+                        baseImponible: { $sum: '$baseImponible' },
+                        totalExento: { $sum: '$totalExento' }
+                      }
+                    }
+                  ],
+                  as: 'detalleCompra'
+                }
+              },
+              { $unwind: { path: '$detalleCompra', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  baseImponible: '$detalleCompra.baseImponible',
+                  totalExento: '$detalleCompra.totalExento',
+                  total: { $add: ['$detalleCompra.baseImponible', '$detalleCompra.totalExento'] }
+                }
+              }
+            ]
+          }))[0]
+          let totalServicios = 0
+          factura.productosServicios.forEach(e => {
+            if (e.tipo === 'servicio') {
+              totalServicios += e.baseImponible
+            }
           })
-          const totalOrdenCompra = Number(ordenCompra.baseImponible.toFixed(2)) + Number(ordenCompra.totalExento.toFixed(2))
-          const totalFactura = Number(factura.baseImponible.toFixed(2)) + Number(factura.totalExento.toFixed(2))
+          const totalOrdenCompra = Number(ordenCompra.total.toFixed(2)) // + Number(ordenCompra.totalExento.toFixed(2))
+          const totalFactura = Number(factura.baseImponible.toFixed(2)) + Number(factura.totalExento.toFixed(2)) - totalServicios
           diferencia = (totalOrdenCompra - totalFactura || 0)
         }
         console.log({ ordenCompra })
@@ -2619,7 +2657,6 @@ export const createFacturas = async (req, res) => {
             console.log(1)
             console.log({ asientosContables })
           }
-          const isServicio = factura.productosServicios.some(e => e.tipo === 'servicio')
           let totalServicio = 0
           if (isServicio) {
             console.log('servicios')

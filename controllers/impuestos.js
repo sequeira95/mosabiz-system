@@ -269,7 +269,7 @@ export const getCiclos = async (req, res) => {
   }
 }
 export const saveCiclos = async (req, res) => {
-  const { _id, descripcion, fechaInicio, fechaFin, isFechaActual, pais, tipoCiclo } = req.body
+  const { _id, descripcion, fechaInicio, fechaFin, isFechaActual, pais, tipoCiclo, tipoImpuesto } = req.body
   console.log({ ciclo: req.body })
   try {
     if (isFechaActual) {
@@ -277,13 +277,13 @@ export const saveCiclos = async (req, res) => {
         nameCollection: 'ciclosImpuestos',
         filters: { pais, isFechaActual }
       })
-      if (verifyCicloFechaActual) return res.status(400).json({ error: 'Ya existe un ciclo de impuestos hasta la fecha actual.' })
+      if (verifyCicloFechaActual && verifyCicloFechaActual._id.toString() !== _id.toString()) return res.status(400).json({ error: 'Ya existe un ciclo de impuestos hasta la fecha actual.' })
     }
     const verifyFechaIinit = await getItem({
       nameCollection: 'ciclosImpuestos',
       filters: { pais, fechaFin: { $gte: new Date(fechaInicio) } }
     })
-    if (verifyFechaIinit) return res.status(400).json({ error: 'No puede crear un ciclo que la fecha de inicio sea menor o igual a la fecha final de otro ciclo.' })
+    if (verifyFechaIinit && verifyFechaIinit._id.toString() !== _id.toString()) return res.status(400).json({ error: 'No puede crear un ciclo que la fecha de inicio sea menor o igual a la fecha final de otro ciclo.' })
     if (!_id) {
       const ciclo = await upsertItem({
         nameCollection: 'ciclosImpuestos',
@@ -295,7 +295,8 @@ export const saveCiclos = async (req, res) => {
             fechaFin: fechaFin ? moment(fechaFin).toDate() : null,
             isFechaActual,
             pais,
-            tipoCiclo
+            tipoCiclo,
+            tipoImpuesto
           }
         }
       })
@@ -311,7 +312,8 @@ export const saveCiclos = async (req, res) => {
           fechaFin: fechaFin ? moment(fechaFin).toDate() : null,
           isFechaActual,
           pais,
-          tipoCiclo
+          tipoCiclo,
+          tipoImpuesto
         }
       }
     })

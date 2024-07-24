@@ -74,7 +74,7 @@ export const getFacturasPorDeclarar = async (req, res) => {
             tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaDebito] },
             proveedorId: new ObjectId(proveedor._id),
             ...regex,
-            fecha: { $lte: moment(periodoSelect.fechaFin).toDate() }
+            fecha: { $lte: moment(periodoSelect.fechaFin).toDate() },
           }
         },
         /* {

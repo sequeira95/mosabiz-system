@@ -258,8 +258,12 @@ export const handleVenta = async (req, res) => {
   }
 }
 const handleVentaFiscal = async ({ clienteId, ventaInfo, req }) => {
+  const vendedor = await getItemSD({ nameCollection: 'personas', filters: { usuarioId: new ObjectId(req.uid) } })
+  if (!vendedor) throw new Error('Vendedor no existe en la base de datos')
+  const clienteOwn = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(clienteId) } })
+  if (!clienteOwn) throw new Error('Propietario no existe en la base de datos')
+
   let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: `venta-${ventaInfo.documento}` } }))?.contador
-  console.log(contador)
   if (contador) ++contador
   if (!contador) contador = 1
   // crea doc fiscal
@@ -267,13 +271,19 @@ const handleVentaFiscal = async ({ clienteId, ventaInfo, req }) => {
     nameCollection: 'documentosFiscales',
     enviromentClienteId: clienteId,
     item: {
+      // datos del documento
       tipoMovimiento: 'venta',
       fecha: moment(ventaInfo.fecha).toDate(),
       numeroFactura: String(contador),
       tipoDocumento: ventaInfo.documento,
       // numeroControl: ventaInfo.numeroControl,
+      sucursalId: new ObjectId(ventaInfo.sucursalId),
+      almacenId: new ObjectId(ventaInfo.almacenId),
+      // datos de monedas
+      tasaDia: Number(ventaInfo.tasa) || 0,
       moneda: ventaInfo.moneda,
       monedaSecundaria: ventaInfo.monedaSecundaria,
+      // datos de montos e impuestos
       hasIgtf: ventaInfo.totalPagado.igtf > 0,
       baseImponible: Number(Number(ventaInfo.totalMonedaPrincial.baseImponible).toFixed(2)),
       iva: Number(Number(ventaInfo.totalMonedaPrincial.iva).toFixed(2)),
@@ -281,15 +291,24 @@ const handleVentaFiscal = async ({ clienteId, ventaInfo, req }) => {
       baseImponibleSecundaria: Number(Number(ventaInfo.totalMonedaSecundaria.baseImponible).toFixed(2)),
       ivaSecundaria: Number(Number(ventaInfo.totalMonedaSecundaria.iva).toFixed(2)),
       totalSecundaria: Number(Number(ventaInfo.totalMonedaSecundaria.total).toFixed(2)),
-
       totalIgtf: Number(Number(ventaInfo.totalPagado.igtf).toFixed(2)),
       totalPagado: Number(Number(ventaInfo.totalPagado.total).toFixed(2)),
+      // datos del vendedor
       creadoPor: new ObjectId(req.uid),
+      creadoPorNombre: vendedor.nombre,
+      // datos del cliente de la venta
       clienteId: new ObjectId(ventaInfo.clienteId),
+      clienteNombre: ventaInfo.clienteNombre,
+      clienteDocumentoIdentidad: ventaInfo.clienteDocumentoIdentidad,
+      direccion: ventaInfo.direccion,
+      direccionEnvio: ventaInfo.direccionEnvio,
       zonaId: new ObjectId(ventaInfo.zonaId),
-      tasaDia: Number(ventaInfo.tasa) || 0,
-      sucursalId: new ObjectId(ventaInfo.sucursalId),
-      almacenId: new ObjectId(ventaInfo.almacenId),
+      zonaNombre: ventaInfo.zonaNombre,
+      // datos del cliente del producto
+      ownLogo: clienteOwn.logo,
+      ownRazonSocial: clienteOwn.razonSocial,
+      ownDireccion: clienteOwn.direccion,
+      ownDocumentoIdentidad: `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
     }
   })
   // actualiza el contador

@@ -1,16 +1,14 @@
 import { ObjectId } from 'mongodb'
 import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollection, getCollectionSD, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
-import { subDominioName } from '../../../constants.js'
+import { subDominioName, documentosVentas } from '../../../constants.js'
 import moment from 'moment-timezone'
 
 export const getDocumentosByTipo = async (req, res) => {
-  const { clienteId, isFiscal, itemsPorPagina, pagina } = req.body
+  const { clienteId, itemsPorPagina, pagina } = req.body
   const { tipo } = req.params
+  const isFiscal = documentosVentas.find(e => e.value === tipo)?.isFiscal
   try {
-    // const personasNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
-    const personasNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
-    const clientesNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'clientes' })
     const nameCollection = isFiscal ? 'documentosFiscales' : 'documentosVentas'
     const documentos = await agreggateCollectionsSD({
       enviromentClienteId: clienteId,
@@ -24,31 +22,7 @@ export const getDocumentosByTipo = async (req, res) => {
         },
         { $sort: { numeroFactura: -1 } },
         { $skip: ((pagina || 1) - 1) * (itemsPorPagina || 10) },
-        { $limit: itemsPorPagina || 10 },
-        {
-          $lookup: {
-            from: `${personasNameCol}`,
-            localField: 'creadoPor',
-            foreignField: 'usuarioId',
-            pipeline: [
-              { $project: { nombre: '$nombre' } }
-            ],
-            as: 'vendedorData'
-          }
-        },
-        { $unwind: { path: '$vendedorData', preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: `${clientesNameCol}`,
-            localField: 'clienteId',
-            foreignField: '_id',
-            pipeline: [
-              { $project: { razonSocial: '$razonSocial' } }
-            ],
-            as: 'clienteData'
-          }
-        },
-        { $unwind: { path: '$clienteData', preserveNullAndEmptyArrays: true } }
+        { $limit: itemsPorPagina || 10 }
       ]
     })
     const cantidad = await agreggateCollectionsSD({

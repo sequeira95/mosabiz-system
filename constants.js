@@ -106,3 +106,13 @@ export const tipoMovimientosShort = {
   devolucion: 'DEV',
   recepcion: 'REC'
 }
+
+// ventas
+export const documentosVentas = [
+  { text: 'Facturas', value: 'Factura', isFiscal: true },
+  { text: 'Nota de crédito', value: 'Nota de crédito', isFiscal: true },
+  { text: 'Nota de débito', value: 'Nota de débito', isFiscal: true },
+  { text: 'Pedido de venta', value: 'Pedido de venta', isFiscal: false },
+  { text: 'Nota de entrega', value: 'Nota de entrega', isFiscal: false },
+  { text: 'Presupuesto', value: 'Presupuesto', isFiscal: false },
+]

@@ -3199,6 +3199,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 costoPromedio: detalle.costoUnitario,
                 creadoPor: new ObjectId(req.uid)
               } */)
+              console.log(1)
             } else if (diferencia > 0 && diferencia < Number(lote.cantidad)) {
               const diferenciaLote = Number(lote.cantidad) - diferencia
               console.log({ diferenciaLote })
@@ -3238,6 +3239,7 @@ export const recepcionInventarioCompra = async (req, res) => {
                 creadoPor: new ObjectId(req.uid)
               } */)
               if (diferenciaLote > 0) {
+                console.log(4)
                 totalDevolucionesProducto += (diferenciaLote * detalle.costoUnitario)
                 productoPorAlmacen.push({
                   productoId: new ObjectId(detalle.productoId),
@@ -3316,85 +3318,104 @@ export const recepcionInventarioCompra = async (req, res) => {
                 creadoPor: new ObjectId(req.uid)
               })
             }
-            if (tieneContabilidad) {
-              const infoProducto = await agreggateCollectionsSD({
-                nameCollection: 'productos',
-                enviromentClienteId: clienteId,
-                pipeline: [
+          }
+          if (tieneContabilidad) {
+            const infoProducto = await agreggateCollectionsSD({
+              nameCollection: 'productos',
+              enviromentClienteId: clienteId,
+              pipeline: [
+                {
+                  $match:
                   {
-                    $match:
-                    {
-                      _id: new ObjectId(detalle.productoId)
-                    }
-                  },
-                  {
-                    $lookup: {
-                      from: categoriaPorAlmacenCollection,
-                      localField: 'categoria',
-                      foreignField: 'categoriaId',
-                      pipeline: [
-                        { $match: { almacenId: new ObjectId(almacenDestino._id) } }
-                      ],
-                      as: 'categoriaAlmacen'
-                    }
-                  },
-                  { $unwind: { path: '$categoriaAlmacen', preserveNullAndEmptyArrays: true } },
-                  {
-                    $lookup: {
-                      from: planCuentaCollection,
-                      localField: 'categoriaAlmacen.cuentaId',
-                      foreignField: '_id',
-                      as: 'cuantaDestino'
-                    }
-                  },
-                  { $unwind: { path: '$cuantaDestino', preserveNullAndEmptyArrays: true } },
-                  {
-                    $lookup: {
-                      from: categoriaPorAlmacenCollection,
-                      localField: 'categoria',
-                      foreignField: 'categoriaId',
-                      pipeline: [
-                        { $match: { almacenId: new ObjectId(almacenDevoluciones._id) } }
-                      ],
-                      as: 'categoriaAlmacenDevoluciones'
-                    }
-                  },
-                  { $unwind: { path: '$categoriaAlmacenDevoluciones', preserveNullAndEmptyArrays: true } },
-                  {
-                    $lookup: {
-                      from: planCuentaCollection,
-                      localField: 'categoriaAlmacenDevoluciones.cuentaId',
-                      foreignField: '_id',
-                      as: 'cuentaDevoluciones'
-                    }
-                  },
-                  { $unwind: { path: '$cuentaDevoluciones', preserveNullAndEmptyArrays: true } },
-                  {
-                    $project: {
-                      _id: 0,
-                      producto: '$nombre',
-                      productoId: '$_id',
-                      // almacenId: '$_id.almacenId',
-                      cuentaId: '$cuantaDestino._id',
-                      cuentaCodigo: '$cuantaDestino.codigo',
-                      cuntaNombre: '$cuantaDestino.descripcion',
-                      cuentaDevolucionesId: '$cuentaDevoluciones._id',
-                      cuentaDevolucionesCodigo: '$cuentaDevoluciones.codigo',
-                      cuntaDevolucionesNombre: '$cuentaDevoluciones.descripcion'
-                    }
+                    _id: new ObjectId(detalle.productoId)
                   }
-                ]
-              })
+                },
+                {
+                  $lookup: {
+                    from: categoriaPorAlmacenCollection,
+                    localField: 'categoria',
+                    foreignField: 'categoriaId',
+                    pipeline: [
+                      { $match: { almacenId: new ObjectId(almacenDestino._id) } }
+                    ],
+                    as: 'categoriaAlmacen'
+                  }
+                },
+                { $unwind: { path: '$categoriaAlmacen', preserveNullAndEmptyArrays: true } },
+                {
+                  $lookup: {
+                    from: planCuentaCollection,
+                    localField: 'categoriaAlmacen.cuentaId',
+                    foreignField: '_id',
+                    as: 'cuantaDestino'
+                  }
+                },
+                { $unwind: { path: '$cuantaDestino', preserveNullAndEmptyArrays: true } },
+                {
+                  $lookup: {
+                    from: categoriaPorAlmacenCollection,
+                    localField: 'categoria',
+                    foreignField: 'categoriaId',
+                    pipeline: [
+                      { $match: { almacenId: new ObjectId(almacenDevoluciones._id) } }
+                    ],
+                    as: 'categoriaAlmacenDevoluciones'
+                  }
+                },
+                { $unwind: { path: '$categoriaAlmacenDevoluciones', preserveNullAndEmptyArrays: true } },
+                {
+                  $lookup: {
+                    from: planCuentaCollection,
+                    localField: 'categoriaAlmacenDevoluciones.cuentaId',
+                    foreignField: '_id',
+                    as: 'cuentaDevoluciones'
+                  }
+                },
+                { $unwind: { path: '$cuentaDevoluciones', preserveNullAndEmptyArrays: true } },
+                {
+                  $project: {
+                    _id: 0,
+                    producto: '$nombre',
+                    productoId: '$_id',
+                    // almacenId: '$_id.almacenId',
+                    cuentaId: '$cuantaDestino._id',
+                    cuentaCodigo: '$cuantaDestino.codigo',
+                    cuntaNombre: '$cuantaDestino.descripcion',
+                    cuentaDevolucionesId: '$cuentaDevoluciones._id',
+                    cuentaDevolucionesCodigo: '$cuentaDevoluciones.codigo',
+                    cuntaDevolucionesNombre: '$cuentaDevoluciones.descripcion'
+                  }
+                }
+              ]
+            })
+            asientosContable.push({
+              cuentaId: new ObjectId(infoProducto[0].cuentaId),
+              cuentaCodigo: infoProducto[0].cuentaCodigo,
+              cuentaNombre: infoProducto[0].cuntaNombre,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} RECEPCIPON DE ${infoProducto[0].producto}`,
+              fecha: moment(fechaActual).toDate(),
+              debe: Number(detalle.costoUnitario) * Number(detalle.recibe),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+              documento: {
+                docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
+                docFecha: moment(fechaActual).toDate()
+              }
+            })
+            if (totalDevolucionesProducto) {
               asientosContable.push({
-                cuentaId: new ObjectId(infoProducto[0].cuentaId),
-                cuentaCodigo: infoProducto[0].cuentaCodigo,
-                cuentaNombre: infoProducto[0].cuntaNombre,
+                cuentaId: new ObjectId(infoProducto[0].cuentaDevolucionesId),
+                cuentaCodigo: infoProducto[0].cuentaDevolucionesCodigo,
+                cuentaNombre: infoProducto[0].cuntaDevolucionesNombre,
                 comprobanteId: new ObjectId(comprobante._id),
                 periodoId: new ObjectId(periodo._id),
-                descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} RECEPCIPON DE ${inventarioAnterior[0].producto}`,
+                descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} RECEPCIPON DE ${infoProducto[0].producto}`,
                 fecha: moment(fechaActual).toDate(),
-                debe: Number(detalle.costoUnitario) * Number(detalle.recibe),
-                haber: 0,
+                debe: 0,
+                haber: totalDevolucionesProducto,
                 fechaCreacion: moment().toDate(),
                 docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
                 documento: {
@@ -3402,26 +3423,8 @@ export const recepcionInventarioCompra = async (req, res) => {
                   docFecha: moment(fechaActual).toDate()
                 }
               })
-              if (totalDevolucionesProducto) {
-                asientosContable.push({
-                  cuentaId: new ObjectId(infoProducto[0].cuentaDevolucionesId),
-                  cuentaCodigo: infoProducto[0].cuentaDevolucionesCodigo,
-                  cuentaNombre: infoProducto[0].cuntaDevolucionesNombre,
-                  comprobanteId: new ObjectId(comprobante._id),
-                  periodoId: new ObjectId(periodo._id),
-                  descripcion: `MOV ${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento} RECEPCIPON DE ${inventarioAnterior[0].producto}`,
-                  fecha: moment(fechaActual).toDate(),
-                  debe: 0,
-                  haber: totalDevolucionesProducto,
-                  fechaCreacion: moment().toDate(),
-                  docReferenciaAux: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
-                  documento: {
-                    docReferencia: `MOV-${tipoMovimientosShort[movimiento.tipo]}-${movimiento.numeroMovimiento}`,
-                    docFecha: moment(fechaActual).toDate()
-                  }
-                })
-              }
             }
+            console.log({ asientosContable })
           }
           detalleUpdate.push({
             updateOne: {

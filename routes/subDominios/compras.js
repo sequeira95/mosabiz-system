@@ -12,6 +12,7 @@ import {
   getDataOrdenesComprasPorPagar,
   getDetalleProveedor,
   getFacturas,
+  getFacturasPagadas,
   getListImpuestosIslr,
   getListImpuestosIva,
   getListProductosForCompra,
@@ -47,4 +48,5 @@ router.post('/get/listadoFacturas', requireSubDominioToken, getFacturas)
 router.post('/delete/img', requireSubDominioToken, deleteImgCompras)
 router.post('/add/img', requireSubDominioToken, addImagenCompras)
 router.post('/getDataReportePorPagar', requireSubDominioToken, dataReportePorPagar)
+router.post('/get/listadoFacturasPagadas', requireSubDominioToken, getFacturasPagadas)
 export default router

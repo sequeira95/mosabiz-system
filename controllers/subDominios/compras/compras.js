@@ -1,5 +1,5 @@
 import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
-import { subDominioName, tipoMovimientosShort } from '../../../constants.js'
+import { subDominioName, tipoMovimientosShort, tiposDocumentosFiscales } from '../../../constants.js'
 import moment from 'moment-timezone'
 import { ObjectId } from 'mongodb'
 import { hasInventario } from '../../../utils/validModulos.js'
@@ -2187,14 +2187,14 @@ export const createPagoOrdenes = async (req, res) => {
   }
 }
 export const getListadoPagos = async (req, res) => {
-  const { clienteId, compraId } = req.body
+  const { clienteId, documentoId } = req.body
   try {
     const bancosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'bancos' })
     const pagosList = await agreggateCollectionsSD({
       nameCollection: 'transacciones',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { compraId: new ObjectId(compraId) } },
+        { $match: { documentoId: new ObjectId(documentoId) } },
         { $sort: { fechaPago: 1 } },
         {
           $lookup: {
@@ -3094,6 +3094,7 @@ export const getFacturas = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
+        { $match: { tipoMovimiento: 'compra' } },
         { $skip: (pagina - 1) * itemsPorPagina },
         { $limit: itemsPorPagina },
         {
@@ -3229,5 +3230,92 @@ export const addImagenCompras = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar las imagenes del almacen ' + e.message })
+  }
+}
+export const getFacturasPagadas = async (req, res) => {
+  const { clienteId, itemsPorPagina, pagina } = req.body
+  try {
+    console.log(clienteId)
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const detalleFacturaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
+    const comprasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'compras' })
+    const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
+    const subDominioPersonasCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+    const facturas = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { estado: 'pagada', tipoDocumento: tiposDocumentosFiscales.factura, tipoMovimiento: 'compra' } },
+        { $skip: (pagina - 1) * itemsPorPagina },
+        { $limit: itemsPorPagina },
+        {
+          $lookup: {
+            from: comprasCollection,
+            localField: 'ordenCompraId',
+            foreignField: '_id',
+            as: 'ordenCompraDetalle'
+          }
+        },
+        { $unwind: { path: '$ordenCompraDetalle', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: 'facturaAsociada',
+            foreignField: '_id',
+            as: 'facturaDetalle'
+          }
+        },
+        { $unwind: { path: '$facturaDetalle', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: 'proveedorId',
+            foreignField: '_id',
+            as: 'proveedor'
+          }
+        },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: detalleFacturaCollection,
+            localField: '_id',
+            foreignField: 'facturaId',
+            as: 'productosServicios'
+          }
+        },
+        {
+          $lookup:
+            {
+              from: subDominioPersonasCollectionsName,
+              localField: 'creadoPor',
+              foreignField: 'usuarioId',
+              as: 'personas'
+            }
+        },
+        { $unwind: { path: '$personas', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup:
+            {
+              from: subDominioPersonasCollectionsName,
+              localField: 'pagadoPor',
+              foreignField: 'usuarioId',
+              as: 'pagadoPorDetalle'
+            }
+        },
+        { $unwind: { path: '$pagadoPorDetalle', preserveNullAndEmptyArrays: true } }
+      ]
+    })
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'facturas',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { estado: 'pagada', tipoDocumento: tiposDocumentosFiscales.factura, tipoMovimiento: 'compra' } },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ facturas, count: count.length ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las facturas pendientes ' + e.message })
   }
 }

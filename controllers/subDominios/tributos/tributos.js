@@ -1,5 +1,5 @@
 import moment from 'moment-timezone'
-import { agreggateCollections, agreggateCollectionsSD, createManyItemsSD, formatCollectionName, getItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, createManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { subDominioName, tiposDocumentosFiscales } from '../../../constants.js'
 import { ObjectId } from 'mongodb'
 
@@ -216,7 +216,8 @@ export const getListProveedores = async (req, res) => {
 export const getComprobantesRetencionIslr = async (req, res) => {
   const { clienteId, periodoSelect } = req.body
   try {
-    const proveedoresFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const comprobantes = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
@@ -231,13 +232,22 @@ export const getComprobantesRetencionIslr = async (req, res) => {
         },
         {
           $lookup: {
-            from: proveedoresFiscalesCollection,
+            from: proveedoresCollection,
             localField: 'proveedorId',
             foreignField: '_id',
             as: 'proveedor'
           }
         },
-        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: false } }
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: false } },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: 'facturaAsociada',
+            foreignField: '_id',
+            as: 'factura'
+          }
+        },
+        { $unwind: { path: '$factura', preserveNullAndEmptyArrays: false } }
       ]
     })
     const count = await agreggateCollectionsSD({
@@ -305,5 +315,20 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar los comprobantes ' + e.message })
+  }
+}
+export const anularComprobante = async (req, res) => {
+  const { clienteId, comprobanteId } = req.body
+  try {
+    await updateItemSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(comprobanteId) },
+      update: { $set: { estado: 'anulado' } }
+    })
+    return res.status(200).json({ status: 'Comprobante anulado exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de anular el comprobante ' + e.message })
   }
 }

@@ -44,3 +44,43 @@ export const getDocumentosByTipo = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de facturacion: ' + e.message })
   }
 }
+
+export const getDocumentoByTipo = async (req, res) => {
+  const { clienteId, documentoId } = req.body
+  const { tipo } = req.params
+  const isFiscal = documentosVentas.find(e => e.value === tipo)?.isFiscal
+  try {
+    const nameCollection = isFiscal ? 'documentosFiscales' : 'documentosVentas'
+    const nameDetalleCollection = isFiscal ? 'detalleDocumentosFiscales' : 'detalleDocumentosVentas'
+    const detalleDocCol = formatCollectionName({
+      enviromentEmpresa: subDominioName,
+      enviromentClienteId: clienteId,
+      nameCollection: nameDetalleCollection
+    })
+    const [documento] = await agreggateCollectionsSD({
+      enviromentClienteId: clienteId,
+      nameCollection,
+      pipeline: [
+        {
+          $match: {
+            _id: new ObjectId(documentoId),
+            tipoMovimiento: 'venta',
+            tipoDocumento: tipo
+          }
+        },
+        {
+          $lookup: {
+            from: detalleDocCol,
+            localField: '_id',
+            foreignField: 'facturaId',
+            as: 'detalleProductos'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ documento, detalleDocCol })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la data del documento: ' + e.message })
+  }
+}

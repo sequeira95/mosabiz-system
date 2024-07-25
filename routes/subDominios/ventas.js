@@ -24,7 +24,8 @@ import {
 } from '../../controllers/subDominios/ventas/facturacion.js'
 
 import {
-  getDocumentosByTipo
+  getDocumentosByTipo,
+  getDocumentoByTipo
 } from '../../controllers/subDominios/ventas/documentos.js'
 
 const router = express.Router()
@@ -47,7 +48,6 @@ router.post('/facturacion/productos', requireSubDominioToken, getProductos)
 router.post('/facturacion/pago-venta', requireSubDominioToken, handleVenta)
 
 router.post('/documentos/:tipo', requireSubDominioToken, getDocumentosByTipo)
-
-
+router.post('/documentos/:tipo/detalle', requireSubDominioToken, getDocumentoByTipo)
 
 export default router

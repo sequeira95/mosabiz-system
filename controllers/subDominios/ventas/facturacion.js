@@ -262,6 +262,8 @@ const handleVentaFiscal = async ({ clienteId, ventaInfo, req }) => {
   if (!vendedor) throw new Error('Vendedor no existe en la base de datos')
   const clienteOwn = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(clienteId) } })
   if (!clienteOwn) throw new Error('Propietario no existe en la base de datos')
+  const sucursal = await getItemSD({ nameCollection: 'clientes', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ventaInfo.sucursalId) } })
+  if (!sucursal) throw new Error('La sucursal no existe en la base de datos')
 
   let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: `venta-${ventaInfo.documento}` } }))?.contador
   if (contador) ++contador
@@ -305,10 +307,10 @@ const handleVentaFiscal = async ({ clienteId, ventaInfo, req }) => {
       zonaId: new ObjectId(ventaInfo.zonaId),
       zonaNombre: ventaInfo.zonaNombre,
       // datos del cliente del producto
-      ownLogo: clienteOwn.logo,
-      ownRazonSocial: clienteOwn.razonSocial,
-      ownDireccion: clienteOwn.direccion,
-      ownDocumentoIdentidad: `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
+      ownLogo: sucursal.logo || clienteOwn.logo,
+      ownRazonSocial: sucursal.nombre || clienteOwn.razonSocial,
+      ownDireccion: sucursal.direccion || clienteOwn.direccion,
+      ownDocumentoIdentidad: sucursal.rif || `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
     }
   })
   // actualiza el contador

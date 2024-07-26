@@ -1,5 +1,6 @@
 import 'dotenv/config'
 // import cron from 'node-cron'
+// Cambio hecho por Marco Gomez, para probar Visual Studio Code
 import database from './database/connectdb.js'
 import express from 'express'
 import cookieParser from 'cookie-parser'

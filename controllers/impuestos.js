@@ -269,7 +269,7 @@ export const getCiclos = async (req, res) => {
   }
 }
 export const saveCiclos = async (req, res) => {
-  const { _id, descripcion, fechaInicio, fechaFin, isFechaActual, pais, tipoCiclo, tipoImpuesto } = req.body
+  const { _id, descripcion, fechaInicio, fechaFin, isFechaActual, pais, tipoCiclo, tipoImpuesto, isSujetoPasivoEspecial } = req.body
   console.log({ ciclo: req.body })
   try {
     if (isFechaActual) {
@@ -296,7 +296,8 @@ export const saveCiclos = async (req, res) => {
             isFechaActual,
             pais,
             tipoCiclo,
-            tipoImpuesto
+            tipoImpuesto,
+            isSujetoPasivoEspecial
           }
         }
       })
@@ -313,7 +314,8 @@ export const saveCiclos = async (req, res) => {
           isFechaActual,
           pais,
           tipoCiclo,
-          tipoImpuesto
+          tipoImpuesto,
+          isSujetoPasivoEspecial
         }
       }
     })

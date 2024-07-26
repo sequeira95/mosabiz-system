@@ -62,7 +62,7 @@ export const collectionNameClient = [
   'ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios', 'categorias',
   'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos', 'contadores', 'movimientos', 'detalleMovimientos',
   'productosPorAlmacen', 'retencionISLR', 'bancos', 'clientes', 'servicios', 'iva', 'proveedores', 'metodosPagos', 'compras', 'detalleCompra', 'transacciones',
-  'documentosFiscales', 'detalleDocumentosFiscales', 'ventassucursales', 'ventaszonas', 'zonasPorSucursales'
+  'documentosFiscales', 'detalleDocumentosFiscales', 'ventassucursales', 'ventaszonas', 'zonasPorSucursales', 'declaraciones'
 ]
 export const collectionNameAIbiz = [
   'islr', 'iva', 'bancos', 'retIva'
@@ -121,4 +121,17 @@ export const tiposDocumentosFiscales = {
   notaCredito: 'Nota de crédito',
   factura: 'Factura',
   retIslr: 'Retención ISLR'
+}
+export const tiposDeclaracion = {
+  islr: 'retIslr'
+}
+
+export const formatearNumeroRetencionIslr = (numero) => {
+  // Convertir el número a cadena y rellenar con ceros a la izquierda
+  const cadenaConCeros = numero.toString().padStart(6, '0')
+
+  // Cortar la cadena al tamaño máximo deseado
+  const cadenaFormateada = cadenaConCeros.slice(0, 6)
+
+  return cadenaFormateada
 }

@@ -2805,64 +2805,62 @@ export const createFacturas = async (req, res) => {
               monedaPrincipal: factura.moneda
             })
           }
-          if (factura?.iva || isServicio || factura.retIva || factura.retIslr) {
-            console.log({ cuentaProveedor, ajusteCompra })
-            console.log({ terceroProveedor })
+          console.log({ cuentaProveedor, ajusteCompra })
+          console.log({ terceroProveedor })
+          asientosContables.push({
+            cuentaId: new ObjectId(cuentaProveedor._id),
+            cuentaCodigo: cuentaProveedor.codigo,
+            cuentaNombre: cuentaProveedor.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `${factura.tipoDocumento}-${factura.numeroFactura}`,
+            fecha: moment(fechaActual).toDate(),
+            debe: 0,
+            haber: factura.total,
+            fechaCreacion: moment().toDate(),
+            terceroId: new ObjectId(terceroProveedor._id),
+            terceroNombre: terceroProveedor.nombre,
+            docReferenciaAux: `${factura.tipoDocumento}-${factura.numeroFactura}`,
+            documento: {
+              docReferencia: `${factura.tipoDocumento}-${factura.numeroFactura}`,
+              docFecha: moment(fechaActual).toDate()
+            },
+            fechaDolar: factura.monedaSecundaria !== factura.moneda ? factura.fechaTasa : null,
+            cantidad: factura.monedaSecundaria !== factura.moneda ? factura.totalSecundaria : null,
+            monedasUsar: factura.monedaSecundaria !== factura.moneda ? factura.monedaSecundaria : null,
+            tasa: factura.monedaSecundaria !== factura.moneda ? factura.tasaDia : null,
+            monedaPrincipal: factura.moneda
+          })
+          console.log(2)
+          if (diferencia < 0) {
+            console.log({ ajusteCompra })
+            const cuentaVariacion = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(ajusteCompra.cuentaVariacionCambiaria) }
+            })
+            console.log({ cuentaVariacion })
+            // hacer lo contrario de arriba
             asientosContables.push({
-              cuentaId: new ObjectId(cuentaProveedor._id),
-              cuentaCodigo: cuentaProveedor.codigo,
-              cuentaNombre: cuentaProveedor.descripcion,
+              cuentaId: new ObjectId(cuentaVariacion._id),
+              cuentaCodigo: cuentaVariacion.codigo,
+              cuentaNombre: cuentaVariacion.descripcion,
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
-              descripcion: `${factura.tipoDocumento}-${factura.numeroFactura}`,
+              descripcion: `AJUSTE VARIACIÓN CAMBIARIA${factura.tipoDocumento}-${factura.numeroFactura}`,
               fecha: moment(fechaActual).toDate(),
               debe: 0,
-              haber: factura.total,
+              haber: Number(diferencia.toFixed(2)),
               fechaCreacion: moment().toDate(),
-              terceroId: new ObjectId(terceroProveedor._id),
-              terceroNombre: terceroProveedor.nombre,
               docReferenciaAux: `${factura.tipoDocumento}-${factura.numeroFactura}`,
               documento: {
                 docReferencia: `${factura.tipoDocumento}-${factura.numeroFactura}`,
                 docFecha: moment(fechaActual).toDate()
-              },
-              fechaDolar: factura.monedaSecundaria !== factura.moneda ? factura.fechaTasa : null,
-              cantidad: factura.monedaSecundaria !== factura.moneda ? factura.totalSecundaria : null,
-              monedasUsar: factura.monedaSecundaria !== factura.moneda ? factura.monedaSecundaria : null,
-              tasa: factura.monedaSecundaria !== factura.moneda ? factura.tasaDia : null,
-              monedaPrincipal: factura.moneda
+              }
             })
-            console.log(2)
-            if (diferencia < 0) {
-              console.log({ ajusteCompra })
-              const cuentaVariacion = await getItemSD({
-                nameCollection: 'planCuenta',
-                enviromentClienteId: clienteId,
-                filters: { _id: new ObjectId(ajusteCompra.cuentaVariacionCambiaria) }
-              })
-              console.log({ cuentaVariacion })
-              // hacer lo contrario de arriba
-              asientosContables.push({
-                cuentaId: new ObjectId(cuentaVariacion._id),
-                cuentaCodigo: cuentaVariacion.codigo,
-                cuentaNombre: cuentaVariacion.descripcion,
-                comprobanteId: new ObjectId(comprobante._id),
-                periodoId: new ObjectId(periodo._id),
-                descripcion: `AJUSTE VARIACIÓN CAMBIARIA${factura.tipoDocumento}-${factura.numeroFactura}`,
-                fecha: moment(fechaActual).toDate(),
-                debe: 0,
-                haber: Number(diferencia.toFixed(2)),
-                fechaCreacion: moment().toDate(),
-                docReferenciaAux: `${factura.tipoDocumento}-${factura.numeroFactura}`,
-                documento: {
-                  docReferencia: `${factura.tipoDocumento}-${factura.numeroFactura}`,
-                  docFecha: moment(fechaActual).toDate()
-                }
-              })
-            }
-            console.log(2)
-            console.log({ asientosContables })
           }
+          console.log(2)
+          console.log({ asientosContables })
           // console.log({ asientosContables })
         } else {
           // let totalPagarProveedor = 0

@@ -1,7 +1,9 @@
 import moment from 'moment-timezone'
 import { agreggateCollections, agreggateCollectionsSD, createManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
-import { subDominioName, tiposDocumentosFiscales } from '../../../constants.js'
+import { formatearNumeroRetencionIslr, subDominioName, tiposDeclaracion, tiposDocumentosFiscales } from '../../../constants.js'
 import { ObjectId } from 'mongodb'
+import { uploadImg } from '../../../utils/cloudImage.js'
+import { hasContabilidad } from '../../../utils/hasContabilidad.js'
 
 export const getCiclos = async (req, res) => {
   const { fecha, tipoImpuesto } = req.body
@@ -226,8 +228,8 @@ export const getComprobantesRetencionIslr = async (req, res) => {
           $match: {
             tipoMovimiento: 'compra',
             tipoDocumento: tiposDocumentosFiscales.retIslr,
-            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() },
-            estado: { $ne: 'anulado' }
+            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
+            // estado: { $ne: 'anulado' }
           }
         },
         {
@@ -238,7 +240,7 @@ export const getComprobantesRetencionIslr = async (req, res) => {
             as: 'proveedor'
           }
         },
-        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: false } },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
             from: documentosFiscalesCollection,
@@ -247,7 +249,7 @@ export const getComprobantesRetencionIslr = async (req, res) => {
             as: 'factura'
           }
         },
-        { $unwind: { path: '$factura', preserveNullAndEmptyArrays: false } }
+        { $unwind: { path: '$factura', preserveNullAndEmptyArrays: true } }
       ]
     })
     const count = await agreggateCollectionsSD({
@@ -258,14 +260,27 @@ export const getComprobantesRetencionIslr = async (req, res) => {
           $match: {
             tipoMovimiento: 'compra',
             tipoDocumento: tiposDocumentosFiscales.retIslr,
-            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() },
-            estado: { $ne: 'anulado' }
+            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
+            // estado: { $ne: 'anulado' }
           }
         },
         { $count: 'total' }
       ]
     })
-    return res.status(200).json({ comprobantes, count: count.length ? count[0].total : 0 })
+    const declaracion = (await agreggateCollectionsSD({
+      nameCollection: 'declaraciones',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoDeclaracion: tiposDeclaracion.islr,
+            periodoInit: { $gte: moment(periodoSelect.fechaInicio).toDate() },
+            priodoFin: { $lte: moment(periodoSelect.fechaFin).toDate() }
+          }
+        }
+      ]
+    }))[0]
+    return res.status(200).json({ comprobantes, count: count.length ? count[0].total : 0, declaracion })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de bucar los comprobantes de retencion ISLR ' + e.message })
@@ -274,8 +289,39 @@ export const getComprobantesRetencionIslr = async (req, res) => {
 export const saveComprobanteRetIslrCompras = async (req, res) => {
   console.log(req.body)
   try {
-    const { clienteId, comprobantes } = req.body
+    const { clienteId, comprobantes, fecha } = req.body
     const comprobantesCrear = []
+    const asientosContables = []
+    const tieneContabilidad = await hasContabilidad({ clienteId })
+    const ajusteCompra = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'compras' } })
+    let periodo = null
+    let comprobanteContable = null
+    const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    if (tieneContabilidad) {
+      periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fecha).toDate() }, fechaFin: { $gte: moment(fecha).toDate() } } })
+      // console.log({ periodo })
+      if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
+      const mesPeriodo = moment(fecha).format('YYYY/MM')
+      comprobanteContable = await getItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
+      })
+      if (!comprobanteContable) {
+        comprobanteContable = await upsertItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
+          update: {
+            $set: {
+              nombre: 'Movimientos de compras',
+              isBloqueado: false,
+              fechaCreacion: moment().toDate()
+            }
+          }
+        })
+      }
+    }
     for (const comprobante of comprobantes) {
       const verifyComprobante = await getItemSD({
         nameCollection: 'documentosFiscales',
@@ -300,8 +346,96 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
         totalRetenido: Number(comprobante.totalRetenido.toFixed(2)),
         tipoRetencion: comprobante.tipoRetencion,
         proveedorId: new ObjectId(comprobante.proveedorId),
-        creadoPor: new ObjectId(req.uid)
+        creadoPor: new ObjectId(req.uid),
+        tipoRetencionAux: comprobante.tipoRetencionAux
       })
+      if (tieneContabilidad) {
+        console.log('entrando')
+        const cuentaRetIslr = await getItemSD({
+          nameCollection: 'planCuenta',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(ajusteCompra.cuentaRetIslrCompra) }
+        })
+        const factura = await getItemSD({
+          nameCollection: 'documentosFiscales',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(comprobante.facturaAsociada) }
+        })
+        const detalleProveedor = await agreggateCollectionsSD({
+          nameCollection: 'proveedores',
+          enviromentClienteId: clienteId,
+          pipeline: [
+            { $match: { _id: new ObjectId(comprobante.proveedorId) } },
+            {
+              $lookup: {
+                from: categoriasCollection,
+                localField: 'categoria',
+                foreignField: '_id',
+                as: 'detalleCategoria'
+              }
+            },
+            { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } }
+          ]
+        })
+        const cuentaProveedor = await getItemSD({
+          nameCollection: 'planCuenta',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(detalleProveedor[0]?.detalleCategoria?.cuentaId) }
+        })
+        let terceroProveedor = await getItemSD({
+          nameCollection: 'terceros',
+          enviromentClienteId: clienteId,
+          filters: { cuentaId: new ObjectId(cuentaProveedor._id), nombre: detalleProveedor[0]?.razonSocial.toUpperCase() }
+        })
+        if (!terceroProveedor) {
+          terceroProveedor = await upsertItemSD({
+            nameCollection: 'terceros',
+            enviromentClienteId: clienteId,
+            filters: { cuentaId: new ObjectId(cuentaProveedor._id), nombre: detalleProveedor[0]?.razonSocial.toUpperCase() },
+            update: {
+              $set: {
+                nombre: detalleProveedor[0]?.razonSocial.toUpperCase(),
+                cuentaId: new ObjectId(cuentaProveedor._id)
+              }
+            }
+          })
+        }
+        asientosContables.push({
+          cuentaId: new ObjectId(cuentaProveedor._id),
+          cuentaCodigo: cuentaProveedor.codigo,
+          cuentaNombre: cuentaProveedor.descripcion,
+          comprobanteId: new ObjectId(comprobanteContable._id),
+          periodoId: new ObjectId(periodo._id),
+          descripcion: `COMPROBANTE RET ISLT N°${formatearNumeroRetencionIslr(contador)} DE ${factura.tipoDocumento}-${factura.numeroFactura}`,
+          fecha: moment(comprobante.fecha).toDate(),
+          debe: Number(comprobante.totalRetenido.toFixed(2)),
+          haber: 0,
+          fechaCreacion: moment().toDate(),
+          terceroId: new ObjectId(terceroProveedor._id),
+          terceroNombre: terceroProveedor.nombre,
+          docReferencia: `RET ISLT N°${formatearNumeroRetencionIslr(contador)}`,
+          documento: {
+            docReferencia: `RET ISLT N°${formatearNumeroRetencionIslr(contador)}`,
+            docFecha: moment(comprobante.fecha).toDate()
+          }
+        }, {
+          cuentaId: new ObjectId(cuentaRetIslr._id),
+          cuentaCodigo: cuentaRetIslr.codigo,
+          cuentaNombre: cuentaRetIslr.descripcion,
+          comprobanteId: new ObjectId(comprobanteContable._id),
+          periodoId: new ObjectId(periodo._id),
+          descripcion: `COMPROBANTE RET ISLT N°${formatearNumeroRetencionIslr(contador)} DE ${factura.tipoDocumento}-${factura.numeroFactura}`,
+          fecha: moment(comprobante.fecha).toDate(),
+          debe: 0,
+          haber: Number(comprobante.totalRetenido.toFixed(2)),
+          fechaCreacion: moment().toDate(),
+          docReferencia: `RET ISLT N°${formatearNumeroRetencionIslr(contador)}`,
+          documento: {
+            docReferencia: `RET ISLT N°${formatearNumeroRetencionIslr(contador)}`,
+            docFecha: moment(comprobante.fecha).toDate()
+          }
+        })
+      }
       upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIslr' }, update: { $set: { contador } } })
     }
     await createManyItemsSD({
@@ -311,6 +445,8 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
         ...comprobantesCrear
       ]
     })
+    console.log({ asientosContables })
+    if (asientosContables[0]) await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: [...asientosContables] })
     return res.status(200).json({ status: 'Comprobantes creados exitosamente' })
   } catch (e) {
     console.log(e)
@@ -318,17 +454,209 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
   }
 }
 export const anularComprobante = async (req, res) => {
-  const { clienteId, comprobanteId } = req.body
+  const { clienteId, comprobanteId, fechaAnulado } = req.body
   try {
-    await updateItemSD({
+    const asientosContables = []
+    const tieneContabilidad = await hasContabilidad({ clienteId })
+    const ajusteCompra = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'compras' } })
+    let periodo = null
+    let comprobanteContable = null
+    const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    if (tieneContabilidad) {
+      periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaAnulado).toDate() }, fechaFin: { $gte: moment(fechaAnulado).toDate() } } })
+      // console.log({ periodo })
+      if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
+      const mesPeriodo = moment(fechaAnulado).format('YYYY/MM')
+      comprobanteContable = await getItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
+      })
+      if (!comprobanteContable) {
+        comprobanteContable = await upsertItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
+          update: {
+            $set: {
+              nombre: 'Movimientos de compras',
+              isBloqueado: false,
+              fechaCreacion: moment().toDate()
+            }
+          }
+        })
+      }
+      const comprobanteAnetrior = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(comprobanteId) }
+      })
+      const detalleProveedor = await agreggateCollectionsSD({
+        nameCollection: 'proveedores',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { _id: new ObjectId(comprobanteAnetrior.proveedorId) } },
+          {
+            $lookup: {
+              from: categoriasCollection,
+              localField: 'categoria',
+              foreignField: '_id',
+              as: 'detalleCategoria'
+            }
+          },
+          { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } }
+        ]
+      })
+      const cuentaProveedor = await getItemSD({
+        nameCollection: 'planCuenta',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(detalleProveedor[0]?.detalleCategoria?.cuentaId) }
+      })
+      let terceroProveedor = await getItemSD({
+        nameCollection: 'terceros',
+        enviromentClienteId: clienteId,
+        filters: { cuentaId: new ObjectId(cuentaProveedor._id), nombre: detalleProveedor[0]?.razonSocial.toUpperCase() }
+      })
+      if (!terceroProveedor) {
+        terceroProveedor = await upsertItemSD({
+          nameCollection: 'terceros',
+          enviromentClienteId: clienteId,
+          filters: { cuentaId: new ObjectId(cuentaProveedor._id), nombre: detalleProveedor[0]?.razonSocial.toUpperCase() },
+          update: {
+            $set: {
+              nombre: detalleProveedor[0]?.razonSocial.toUpperCase(),
+              cuentaId: new ObjectId(cuentaProveedor._id)
+            }
+          }
+        })
+      }
+      const cuentaRetIslr = await getItemSD({
+        nameCollection: 'planCuenta',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(ajusteCompra.cuentaRetIslrCompra) }
+      })
+      asientosContables.push({
+        cuentaId: new ObjectId(cuentaRetIslr._id),
+        cuentaCodigo: cuentaRetIslr.codigo,
+        cuentaNombre: cuentaRetIslr.descripcion,
+        comprobanteId: new ObjectId(comprobanteContable._id),
+        periodoId: new ObjectId(periodo._id),
+        descripcion: `COMPROBANTE RET ISLT N°${formatearNumeroRetencionIslr(comprobanteAnetrior.numeroFactura)} ANULADO`,
+        fecha: moment(fechaAnulado).toDate(),
+        debe: Number(comprobanteAnetrior.totalRetenido.toFixed(2)),
+        haber: 0,
+        fechaCreacion: moment().toDate(),
+        docReferencia: `RET ISLT N°${formatearNumeroRetencionIslr(comprobanteAnetrior.numeroFactura)}`,
+        documento: {
+          docReferencia: `RET ISLT N°${formatearNumeroRetencionIslr(comprobanteAnetrior.numeroFactura)}`,
+          docFecha: moment(fechaAnulado).toDate()
+        }
+      }, {
+        cuentaId: new ObjectId(cuentaProveedor._id),
+        cuentaCodigo: cuentaProveedor.codigo,
+        cuentaNombre: cuentaProveedor.descripcion,
+        comprobanteId: new ObjectId(comprobanteContable._id),
+        periodoId: new ObjectId(periodo._id),
+        descripcion: `COMPROBANTE RET ISLT N°${formatearNumeroRetencionIslr(comprobanteAnetrior.numeroFactura)} ANULADO`,
+        fecha: moment(fechaAnulado).toDate(),
+        debe: 0,
+        haber: Number(comprobanteAnetrior.totalRetenido.toFixed(2)),
+        fechaCreacion: moment().toDate(),
+        terceroId: new ObjectId(terceroProveedor._id),
+        terceroNombre: terceroProveedor.nombre,
+        docReferencia: `RET ISLT N°${formatearNumeroRetencionIslr(comprobanteAnetrior.numeroFactura)}`,
+        documento: {
+          docReferencia: `RET ISLT N°${formatearNumeroRetencionIslr(comprobanteAnetrior.numeroFactura)}`,
+          docFecha: moment(fechaAnulado).toDate()
+        }
+      })
+      if (asientosContables[0]) await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: [...asientosContables] })
+    }
+    const comprobante = await updateItemSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(comprobanteId) },
-      update: { $set: { estado: 'anulado' } }
+      update: {
+        $set: {
+          estado: 'anulado',
+          baseImponibleExento: 0,
+          porcentajeRetenido: 0,
+          baseRetencion: 0,
+          sustraendo: 0,
+          totalRetenido: 0,
+          proveedorId: null
+        }
+      }
     })
-    return res.status(200).json({ status: 'Comprobante anulado exitosamente' })
+    return res.status(200).json({ status: 'Comprobante anulado exitosamente', comprobante })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de anular el comprobante ' + e.message })
+  }
+}
+export const saveDeclaracionIslr = async (req, res) => {
+  const { clienteId, _id, retenido, observacion, estado, periodoInit, priodoFin, periodo } = req.body
+  try {
+    console.log(req.body, req.files)
+    const documentos = req.files?.documentos
+    const documentosAdjuntos = []
+    const declaracionCrear = {
+      observacion,
+      tipoDeclaracion: tiposDeclaracion.islr,
+      estado,
+      periodoInit: moment(periodoInit).toDate(),
+      priodoFin: moment(priodoFin).toDate(),
+      periodo,
+      retenido: Number(Number(retenido).toFixed(2)),
+      creadoPor: new ObjectId(req.uid)
+    }
+    if (req.files && req.files.documentos) {
+      if (documentos && documentos[0]) {
+        for (const documento of documentos) {
+          const extension = documento.mimetype.split('/')[1]
+          const namePath = `${documento.name}`
+          const resDoc = await uploadImg(documento.data, namePath)
+          documentosAdjuntos.push(
+            {
+              path: resDoc.filePath,
+              name: resDoc.name,
+              url: resDoc.url,
+              type: extension,
+              fileId: resDoc.fileId
+            })
+        }
+      }
+      if (documentos && documentos.name) {
+        const extension = documentos.mimetype.split('/')[1]
+        const namePath = `${documentos.name}`
+        const resDoc = await uploadImg(documentos.data, namePath)
+        documentosAdjuntos.push(
+          {
+            path: resDoc.filePath,
+            name: resDoc.name,
+            url: resDoc.url,
+            type: extension,
+            fileId: resDoc.fileId
+          }
+        )
+      }
+    }
+    if (documentosAdjuntos[0]) {
+      const itemsAnterior = (await getItemSD({ nameCollection: 'declaraciones', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })).documentosAdjuntos
+      if (itemsAnterior) {
+        documentosAdjuntos.push(...itemsAnterior)
+      }
+      declaracionCrear.documentosAdjuntos = documentosAdjuntos
+    }
+    const declaracionGuardada = await upsertItemSD({
+      nameCollection: 'declaraciones',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: { $set: declaracionCrear }
+    })
+    return res.status(200).json({ status: 'Declaracion creada exitosamente', declaracion: declaracionGuardada })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar la declaracion ' + e.message })
   }
 }

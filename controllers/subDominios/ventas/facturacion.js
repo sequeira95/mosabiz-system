@@ -100,19 +100,24 @@ export const getData = async (req, res) => {
 export const getPedidosVentas = async (req, res) => {
   const { clienteId, search } = req.body
   try {
-    const query = { tipo: 'pedidos', numero: { $gte: 0 }, activo: true }
+    const query = {
+      tipoMovimiento: 'venta',
+      tipoDocumento: 'Pedido de venta',
+      // numero: { $gte: 0 },
+      activo: true
+    }
     if (search) {
-      query.numeroString = { $regex: `^${search}` }
+      query.numeroFactura = { $regex: `^${search}` }
     }
     const pedidosVentas = await agreggateCollectionsSD({
-      nameCollection: 'documentosVentas',
       enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
       pipeline: [
         { $match: query },
         {
           $project: {
             _id: 1,
-            numero: 1
+            numeroFactura: 1
           }
         }
       ]
@@ -240,34 +245,104 @@ export const getProductos = async (req, res) => {
 }
 export const handleVenta = async (req, res) => {
   const { clienteId, ventaInfo } = req.body
-  const TipoDocumentosFiscales = [
-    'Factura', 'Nota de crédito', 'Nota de débito'
-  ]
+  let facturaId
   try {
-    if (TipoDocumentosFiscales.includes(ventaInfo.documento)) {
-      console.log('fiscal')
-      await handleVentaFiscal({ clienteId, ventaInfo, req })
-    } else {
-      console.log('ordinaria')
-      await handleVentaFiscal({ clienteId, ventaInfo, req })
+    switch (ventaInfo.documento) {
+      case 'Factura': {
+        const data = await handleVentasFactuas({ clienteId, ventaInfo, req, creadoPor: req.uid })
+        facturaId = data.facturaId
+        break
+      }
+      case 'Nota de crédito': {
+        const data = await handleVentasFactuas({ clienteId, ventaInfo, req, creadoPor: req.uid })
+        facturaId = data.facturaId
+        break
+      }
+      case 'Nota de débito': {
+        const data = await handleVentasFactuas({ clienteId, ventaInfo, req, creadoPor: req.uid })
+        facturaId = data.facturaId
+        break
+      }
+      case 'Pedido de venta': {
+        const data = await handleVentasPedidos({ clienteId, ventaInfo, req, creadoPor: req.uid })
+        facturaId = data.facturaId
+        break
+      }
+      case 'Nota de entrega': {
+        const data = await handleVentasFactuas({ clienteId, ventaInfo, req, creadoPor: req.uid })
+        facturaId = data.facturaId
+        break
+      }
+      case 'Presupuesto': {
+        const data = await handleVentasFactuas({ clienteId, ventaInfo, req, creadoPor: req.uid })
+        facturaId = data.facturaId
+        break
+      }
+      default: {
+        throw new Error('El tipo de documento no se reconoce')
+      }
     }
-    return res.status(200).json({ message: 'Venta finalizada con exito' })
+    return res.status(200).json({ facturaId, message: 'Venta finalizada con exito' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de generar la venta ' + e.message })
   }
 }
-const handleVentaFiscal = async ({ clienteId, ventaInfo, req }) => {
-  const vendedor = await getItemSD({ nameCollection: 'personas', filters: { usuarioId: new ObjectId(req.uid) } })
+
+const handleVentasFactuas = async ({ clienteId, ventaInfo, creadoPor }) => {
+  let pedidoVenta
+  if (ventaInfo.pedidoVentaId) {
+    pedidoVenta = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      filters: {
+        _id: new ObjectId(ventaInfo.pedidoVentaId),
+        tipoMovimiento: 'venta',
+        tipoDocumento: 'Pedido de venta'
+      }
+    })
+    if (!pedidoVenta.activo) throw new Error('El pedido de venta ya fue facturado, necesita realizar un nuevo pedido')
+  }
+  const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
+  await createDetalleDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
+  await createPagosDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId, creadoPor })
+  if (ventaInfo.pedidoVentaId && pedidoVenta) {
+    updateItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      filters: {
+        _id: pedidoVenta._id,
+        tipoMovimiento: 'venta',
+        tipoDocumento: 'Pedido de venta'
+      },
+      update: {
+        $set: {
+          activo: false
+        }
+      }
+    })
+  }
+  return { facturaId: newFactura.insertedId }
+}
+
+const handleVentasPedidos = async ({ clienteId, ventaInfo, creadoPor }) => {
+  const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor, activo: true })
+  await createDetalleDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
+  return { facturaId: newFactura.insertedId }
+}
+
+const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false }) => {
+  const vendedor = await getItemSD({ nameCollection: 'personas', filters: { usuarioId: new ObjectId(creadoPor) } })
   if (!vendedor) throw new Error('Vendedor no existe en la base de datos')
   const clienteOwn = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(clienteId) } })
   if (!clienteOwn) throw new Error('Propietario no existe en la base de datos')
-  const sucursal = await getItemSD({ nameCollection: 'clientes', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ventaInfo.sucursalId) } })
+  const sucursal = await getItemSD({ nameCollection: 'ventassucursales', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ventaInfo.sucursalId) } })
   if (!sucursal) throw new Error('La sucursal no existe en la base de datos')
 
   let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: `venta-${ventaInfo.documento}` } }))?.contador
   if (contador) ++contador
   if (!contador) contador = 1
+  console.log('pedido fac')
   // crea doc fiscal
   const newFactura = await createItemSD({
     nameCollection: 'documentosFiscales',
@@ -276,8 +351,11 @@ const handleVentaFiscal = async ({ clienteId, ventaInfo, req }) => {
       // datos del documento
       tipoMovimiento: 'venta',
       fecha: moment(ventaInfo.fecha).toDate(),
+      fechaCreacion: moment().toDate(),
       numeroFactura: String(contador),
+      numero: contador,
       tipoDocumento: ventaInfo.documento,
+      activo,
       // numeroControl: ventaInfo.numeroControl,
       sucursalId: new ObjectId(ventaInfo.sucursalId),
       almacenId: new ObjectId(ventaInfo.almacenId),
@@ -289,14 +367,16 @@ const handleVentaFiscal = async ({ clienteId, ventaInfo, req }) => {
       hasIgtf: ventaInfo.totalPagado.igtf > 0,
       baseImponible: Number(Number(ventaInfo.totalMonedaPrincial.baseImponible).toFixed(2)),
       iva: Number(Number(ventaInfo.totalMonedaPrincial.iva).toFixed(2)),
+      totalDescuento: Number(Number(ventaInfo.totalMonedaPrincial.montoDescuento).toFixed(2)),
       total: Number(Number(ventaInfo.totalMonedaPrincial.total).toFixed(2)),
       baseImponibleSecundaria: Number(Number(ventaInfo.totalMonedaSecundaria.baseImponible).toFixed(2)),
       ivaSecundaria: Number(Number(ventaInfo.totalMonedaSecundaria.iva).toFixed(2)),
+      totalDescuentoSecundaria: Number(Number(ventaInfo.totalMonedaSecundaria.montoDescuento).toFixed(2)),
       totalSecundaria: Number(Number(ventaInfo.totalMonedaSecundaria.total).toFixed(2)),
       totalIgtf: Number(Number(ventaInfo.totalPagado.igtf).toFixed(2)),
       totalPagado: Number(Number(ventaInfo.totalPagado.total).toFixed(2)),
       // datos del vendedor
-      creadoPor: new ObjectId(req.uid),
+      creadoPor: new ObjectId(creadoPor),
       creadoPorNombre: vendedor.nombre,
       // datos del cliente de la venta
       clienteId: new ObjectId(ventaInfo.clienteId),
@@ -315,12 +395,15 @@ const handleVentaFiscal = async ({ clienteId, ventaInfo, req }) => {
   })
   // actualiza el contador
   upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: `venta-${ventaInfo.documento}` }, update: { $set: { contador } } })
-  // crea detalle de los productos
+  return newFactura
+}
+
+const createDetalleDocumento = async ({ clienteId, ventaInfo, facturaId }) => {
   const detalle = ventaInfo.productos.map(e => {
     const baseImponible = Number(e.precioVenta) * Number(e.cantidad)
     const montoIva = e.iva ? baseImponible * e.iva / 100 : 0
     return {
-      facturaId: newFactura.insertedId,
+      facturaId,
       productoId: new ObjectId(e._id),
       codigo: e.codigo,
       descripcion: e.descripcion,
@@ -330,10 +413,13 @@ const handleVentaFiscal = async ({ clienteId, ventaInfo, req }) => {
       cantidad: e.cantidad,
       tipo: e.tipo ? e.tipo : 'producto',
       precioVenta: Number(e.precioVenta),
+      descuento: Number(e.descuento) / 100,
+      descuentoTotal: Number(e.precioVenta) * Number(e.descuento) / 100,
       baseImponible,
       montoIva,
       iva: e.iva ? e.iva : 0,
-      precioTotal: baseImponible + montoIva
+      precioTotal: baseImponible + montoIva,
+      fechaCreacion: moment().toDate()
     }
   })
   await createManyItemsSD({
@@ -341,29 +427,29 @@ const handleVentaFiscal = async ({ clienteId, ventaInfo, req }) => {
     enviromentClienteId: clienteId,
     items: detalle
   })
-  // crea el pago de las ventas
+}
+
+const createPagosDocumento = async ({ clienteId, ventaInfo, facturaId, creadoPor }) => {
   const pagos = ventaInfo.pagos.map(e => ({
-    documentoId: newFactura.insertedId,
+    documentoId: facturaId,
     clienteId: new ObjectId(ventaInfo.clienteId),
     pago: Number((e.monto || 0).toFixed(2)),
     fechaPago: moment(ventaInfo.fecha).toDate(),
     referencia: e.referencia,
-    banco: new ObjectId(e.banco),
+    banco: (e.banco && new ObjectId(e.banco)) || '',
     porcentajeIgtf: Number(e.porcentajeIgtf || 0),
     pagoIgtf: e?.igtfPorPagar ? Number((e.monto || 0).toFixed(2)) * Number((e.monto || 0).toFixed(2)) / 100 : 0,
     moneda: ventaInfo.moneda,
     monedaSecundaria: e.moneda,
     tasa: e.tasa,
     tipo: `venta-${ventaInfo.documento}`,
-    creadoPor: new ObjectId(req.uid),
-    credito: e.credito
+    creadoPor: new ObjectId(creadoPor),
+    credito: e.credito,
+    fechaCreacion: moment().toDate()
   }))
   createManyItemsSD({
     nameCollection: 'transacciones',
     enviromentClienteId: clienteId,
     items: pagos
   })
-}
-const handleVentaOrdinaria = async ({ clienteId, ventaInfo, req }) => {
-  
 }

@@ -113,7 +113,7 @@ export const getIslr = async (req, res) => {
   }
 }
 export const saveIslr = async (req, res) => {
-  const { _id, nombre, valorRet, codigo, tipoCalculo, sustraendo, minimo, pais, tipoRetencion, valorBaseImponible } = req.body
+  const { _id, nombre, valorRet, codigo, tipoCalculo, sustraendo, minimo, pais, tipoRetencion, valorBaseImponible, valorUT } = req.body
   try {
     if (!_id) {
       const islrSave = await upsertItem({
@@ -129,7 +129,8 @@ export const saveIslr = async (req, res) => {
             sustraendo: sustraendo ? Number(sustraendo) : 0,
             minimo: minimo ? Number(minimo) : 0,
             tipoRetencion,
-            valorBaseImponible: Number(valorBaseImponible)
+            valorBaseImponible: Number(valorBaseImponible),
+            valorUT: Number(valorUT)
           }
         }
       })
@@ -148,7 +149,8 @@ export const saveIslr = async (req, res) => {
           sustraendo: sustraendo ? Number(sustraendo) : 0,
           minimo: minimo ? Number(minimo) : 0,
           tipoRetencion,
-          valorBaseImponible: Number(valorBaseImponible)
+          valorBaseImponible: Number(valorBaseImponible),
+          valorUT: valorUT ? Number(valorUT) : 0
         }
       }
     })

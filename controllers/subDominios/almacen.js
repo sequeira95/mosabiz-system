@@ -6,7 +6,7 @@ export const getAlmacenes = async (req, res) => {
   const { clienteId, tipo } = req.body
   try {
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
-    const matchTipo = !tipo ? { nombre: { $nin: ['Transito', 'Auditoria'] } } : {}
+    const matchTipo = !tipo ? { nombre: { $nin: ['Transito', 'Auditoria', 'Devoluciones'] } } : {}
     const almacenes = await agreggateCollectionsSD({
       nameCollection: 'almacenes',
       enviromentClienteId: clienteId,

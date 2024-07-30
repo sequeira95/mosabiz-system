@@ -277,14 +277,16 @@ export const saveCiclos = async (req, res) => {
     if (isFechaActual) {
       const verifyCicloFechaActual = await getItem({
         nameCollection: 'ciclosImpuestos',
-        filters: { pais, isFechaActual }
+        filters: { pais, isFechaActual, tipoImpuesto, isSujetoPasivoEspecial }
       })
+      console.log({ verifyCicloFechaActual })
       if (verifyCicloFechaActual && verifyCicloFechaActual._id.toString() !== _id.toString()) return res.status(400).json({ error: 'Ya existe un ciclo de impuestos hasta la fecha actual.' })
     }
     const verifyFechaIinit = await getItem({
       nameCollection: 'ciclosImpuestos',
-      filters: { pais, fechaFin: { $gte: new Date(fechaInicio) } }
+      filters: { pais, fechaFin: { $gte: new Date(fechaInicio) }, tipoImpuesto, isSujetoPasivoEspecial }
     })
+    console.log({ verifyFechaIinit })
     if (verifyFechaIinit && verifyFechaIinit._id.toString() !== _id.toString()) return res.status(400).json({ error: 'No puede crear un ciclo que la fecha de inicio sea menor o igual a la fecha final de otro ciclo.' })
     if (!_id) {
       const ciclo = await upsertItem({

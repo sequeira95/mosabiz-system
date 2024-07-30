@@ -145,10 +145,14 @@ export const tiposDocumentosFiscales = {
   notaDebito: 'Nota de débito',
   notaCredito: 'Nota de crédito',
   factura: 'Factura',
-  retIslr: 'Retención ISLR'
+  retIslr: 'Retención ISLR',
+  retIva: 'Retención IVA',
+  'RET ISLR': 'Retención ISLR',
+  'RET IVA': 'Retención IVA'
 }
 export const tiposDeclaracion = {
-  islr: 'retIslr'
+  islr: 'retIslr',
+  iva: 'retIva'
 }
 
 export const formatearNumeroRetencionIslr = (numero) => {
@@ -157,6 +161,16 @@ export const formatearNumeroRetencionIslr = (numero) => {
 
   // Cortar la cadena al tamaño máximo deseado
   const cadenaFormateada = cadenaConCeros.slice(0, 6)
+
+  return cadenaFormateada
+}
+
+export const formatearNumeroRetencionIva = (numero, fecha) => {
+  // Convertir el número a cadena y rellenar con ceros a la izquierda
+  const cadenaConCeros = numero.toString().padStart(8, '')
+
+  // Cortar la cadena al tamaño máximo deseado
+  const cadenaFormateada = `${fecha}${cadenaConCeros.slice(0, 8)}`
 
   return cadenaFormateada
 }

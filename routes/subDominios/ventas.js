@@ -19,6 +19,7 @@ import {
 import {
   getData,
   getPedidosVentas,
+  getDetallePedidoVenta,
   getProductos,
   handleVenta
 } from '../../controllers/subDominios/ventas/facturacion.js'
@@ -44,6 +45,7 @@ router.post('/zonas/delete', requireSubDominioToken, deleteZonas)
 
 router.post('/facturacion/data', requireSubDominioToken, getData)
 router.post('/facturacion/pedidos-venta', requireSubDominioToken, getPedidosVentas)
+router.post('/facturacion/pedidos-venta/detalle', requireSubDominioToken, getDetallePedidoVenta)
 router.post('/facturacion/productos', requireSubDominioToken, getProductos)
 router.post('/facturacion/pago-venta', requireSubDominioToken, handleVenta)
 

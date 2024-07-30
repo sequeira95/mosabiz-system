@@ -128,6 +128,150 @@ export const getPedidosVentas = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de los pedidos de venta: ' + e.message })
   }
 }
+export const getDetallePedidoVenta = async (req, res) => {
+  const { clienteId, pedidoId, almacenId } = req.body
+  try {
+    const [pedidoVenta] = await agreggateCollectionsSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      pipeline: [
+        { $match: { _id: new ObjectId(pedidoId) } },
+        {
+          $project: {
+            _id: 1,
+            activo: 1
+          }
+        }
+      ]
+    })
+    console.log({pedidoVenta})
+    if (!pedidoVenta?.activo) throw new Error('El pedido de venta ya no esta activo')
+    const prodtuctosNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+    const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones'] } } })
+    const matchAlmacen = almacenId ? { almacenId: new ObjectId(almacenId) } : { almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } }
+
+    const detalles = await agreggateCollectionsSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'detalleDocumentosFiscales',
+      pipeline: [
+        { $match: { facturaId: new ObjectId(pedidoId) } },
+        {
+          $lookup: {
+            from: prodtuctosNameCol,
+            localField: 'productoId',
+            foreignField: '_id',
+            pipeline: [
+              { $match: { activo: { $ne: false } } },
+              {
+                $lookup: {
+                  from: categoriasCollection,
+                  localField: 'categoria',
+                  foreignField: '_id',
+                  as: 'detalleCategoria'
+                }
+              },
+              { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: productorPorAlamcenCollection,
+                  localField: '_id',
+                  foreignField: 'productoId',
+                  pipeline: [
+                    { $match: { ...matchAlmacen, lote: { $ne: null } } },
+                    {
+                      $group: {
+                        _id: '$productoId',
+                        entrada: {
+                          $sum: {
+                            $cond: {
+                              if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                            }
+                          }
+                        },
+                        salida: {
+                          $sum: {
+                            $cond: {
+                              if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      $project: {
+                        cantidad: { $subtract: ['$entrada', '$salida'] },
+                        entrada: '$entrada',
+                        salida: '$salida'
+                      }
+                    }
+                  ],
+                  as: 'detalleCantidadProducto'
+                }
+              },
+              { $unwind: { path: '$detalleCantidadProducto', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  codigo: '$codigo',
+                  nombre: '$nombre',
+                  descripcion: '$descripcion',
+                  unidad: '$unidad',
+                  categoriaId: '$categoria',
+                  categoria: '$detalleCategoria.nombre',
+                  descuento: '$detalleCategoria.descuento',
+                  hasDescuento: '$detalleCategoria.hasDescuento',
+                  utilidad: '$detalleCategoria.utilidad',
+                  tipoDescuento: '$detalleCategoria.tipoDescuento',
+                  observacion: '$observacion',
+                  // detalleCantidadProducto: '$detalleCantidadProducto',
+                  stock: '$detalleCantidadProducto.cantidad',
+                  entrada: '$detalleCantidadProducto.entrada',
+                  salida: '$detalleCantidadProducto.salida',
+                  moneda: '$moneda',
+                  isExento: '$isExento',
+                  precioVenta: {
+                    $cond: {
+                      if: { $gt: ['$precioVenta', 0] },
+                      then: '$precioVenta',
+                      else: {
+                        $cond: {
+                          if: { $gt: ['$detalleCategoria.utilidad', 0] },
+                          then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                          else: 0
+                        }
+                      }
+                    }
+                  },
+                  iva: '$iva',
+                  costoPromedio: '$costoPromedio',
+                  isDataInicial: '$isDataInicial'
+                }
+              }
+            ],
+            as: 'producto'
+          }
+        },
+        { $unwind: '$producto' },
+        { $project: { producto: 1, cantidad: 1, descuento: 1 } }
+      ]
+    })
+    const productos = detalles.map(({ producto, cantidad, descuento }) => {
+      const descuentoTotal = descuento ? (producto.precioVenta * cantidad) * ((descuento * 100) / 100) : 0
+      return {
+        ...producto,
+        descuentoTotal,
+        cantidad,
+        descuento: descuento * 100,
+        precioTotal: (producto.precioVenta * cantidad) - descuentoTotal
+      }
+    })
+    return res.status(200).json({ productos })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de los pedidos de venta: ' + e.message })
+  }
+}
 export const getProductos = async (req, res) => {
   const { clienteId, almacenId, itemsPorPagina, pagina } = req.body
   try {
@@ -269,12 +413,12 @@ export const handleVenta = async (req, res) => {
         break
       }
       case 'Nota de entrega': {
-        const data = await handleVentasFactuas({ clienteId, ventaInfo, req, creadoPor: req.uid })
+        const data = await handleVentasNotasEntrega({ clienteId, ventaInfo, req, creadoPor: req.uid })
         facturaId = data.facturaId
         break
       }
       case 'Presupuesto': {
-        const data = await handleVentasFactuas({ clienteId, ventaInfo, req, creadoPor: req.uid })
+        const data = await handleVentasPresupuestos({ clienteId, ventaInfo, req, creadoPor: req.uid })
         facturaId = data.facturaId
         break
       }
@@ -327,6 +471,19 @@ const handleVentasFactuas = async ({ clienteId, ventaInfo, creadoPor }) => {
 
 const handleVentasPedidos = async ({ clienteId, ventaInfo, creadoPor }) => {
   const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor, activo: true })
+  await createDetalleDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
+  return { facturaId: newFactura.insertedId }
+}
+
+const handleVentasNotasEntrega = async ({ clienteId, ventaInfo, creadoPor }) => {
+  const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
+  await createDetalleDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
+  await createPagosDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId, creadoPor })
+  return { facturaId: newFactura.insertedId }
+}
+
+const handleVentasPresupuestos = async ({ clienteId, ventaInfo, creadoPor }) => {
+  const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
   await createDetalleDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
   return { facturaId: newFactura.insertedId }
 }

@@ -1,6 +1,6 @@
 import moment from 'moment-timezone'
-import { agreggateCollections, agreggateCollectionsSD, createManyItemsSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
-import { formatearNumeroRetencionIslr, formatearNumeroRetencionIva, subDominioName, tiposDeclaracion, tiposDocumentosFiscales } from '../../../constants.js'
+import { agreggateCollections, agreggateCollectionsSD, createManyItemsSD, formatCollectionName, getCollection, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
+import { formatearNumeroRetencionIslr, formatearNumeroRetencionIva, subDominioName, tiposDeclaracion, tiposDocumentosFiscales, tiposIVa } from '../../../constants.js'
 import { ObjectId } from 'mongodb'
 import { uploadImg } from '../../../utils/cloudImage.js'
 import { hasContabilidad } from '../../../utils/hasContabilidad.js'
@@ -1004,5 +1004,441 @@ export const saveDeclaracionIva = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar la declaracion ' + e.message })
+  }
+}
+export const getDataIva = async (req, res) => {
+  const { clienteId, periodoSelect } = req.body
+  try {
+    const ivaList = await getCollection({ nameCollection: 'iva' })
+    console.log({ ivaList })
+    const alicuotaGeneral = ivaList.find(e => e.tipo === tiposIVa.general).iva
+    const alicuotaReducida = ivaList.find(e => e.tipo === tiposIVa.reducida).iva
+    const alicuotaAdicional = ivaList.find(e => e.tipo === tiposIVa.adicional).iva
+    console.log({ alicuotaGeneral, alicuotaReducida, alicuotaAdicional })
+    const dataIva = (await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
+          }
+        },
+        {
+          $group: {
+            _id: 0,
+            item40: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      { $and: [{ $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }] }
+                    ]
+                  },
+                  then: '$totalExento',
+                  else: 0
+                }
+              }
+            },
+            item41: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $eq: ['$isImportacion', true] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$total',
+                  else: 0
+                }
+              }
+            },
+            item42: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item43: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item442: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item452: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item443: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item453: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item30: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      { $and: [{ $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }] }
+                    ]
+                  },
+                  then: '$totalExento',
+                  else: 0
+                }
+              }
+            },
+            item31: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item32: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item312: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item322: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item313: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item323: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item33: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item34: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item332: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item342: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item333: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item343: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            }
+          }
+        }
+      ]
+    }))[0]
+    return res.status(200).json({ dataIva })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar datos para el IVA ' + e.message })
   }
 }

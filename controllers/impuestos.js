@@ -31,7 +31,7 @@ export const getIva = async (req, res) => {
   }
 }
 export const saveIva = async (req, res) => {
-  const { _id, iva, descripcion, pais, isExento, isExonerado, isNoSujeto, SinDeretoCredito, nombreCorto } = req.body
+  const { _id, iva, descripcion, pais, isExento, isExonerado, isNoSujeto, SinDeretoCredito, nombreCorto, tipo } = req.body
   try {
     if (!_id) {
       const ivaSave = await upsertItem({
@@ -46,7 +46,8 @@ export const saveIva = async (req, res) => {
             isExonerado,
             isNoSujeto,
             SinDeretoCredito,
-            nombreCorto
+            nombreCorto,
+            tipo
           }
         }
       })
@@ -64,7 +65,8 @@ export const saveIva = async (req, res) => {
           isExonerado,
           isNoSujeto,
           SinDeretoCredito,
-          nombreCorto
+          nombreCorto,
+          tipo
         }
       }
     })

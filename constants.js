@@ -154,6 +154,11 @@ export const tiposDeclaracion = {
   islr: 'retIslr',
   iva: 'retIva'
 }
+export const tiposIVa = {
+  general: 'General',
+  reducida: 'Reducida',
+  adicional: 'General+Adicional'
+}
 
 export const formatearNumeroRetencionIslr = (numero) => {
   // Convertir el número a cadena y rellenar con ceros a la izquierda

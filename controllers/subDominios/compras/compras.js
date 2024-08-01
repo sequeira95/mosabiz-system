@@ -980,6 +980,15 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
                       }
                     }
                   }
+                  /* totalRetencionIslr: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIslr] },
+                        then: '$valor',
+                        else: 0
+                      }
+                    }
+                  } */
                 }
               }
             ],

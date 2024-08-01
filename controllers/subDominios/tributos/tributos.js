@@ -1089,7 +1089,7 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
                         ]
                       }
                     ]

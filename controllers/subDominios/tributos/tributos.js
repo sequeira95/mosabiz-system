@@ -7,7 +7,7 @@ import { hasContabilidad } from '../../../utils/hasContabilidad.js'
 
 export const getCiclos = async (req, res) => {
   const { fecha, tipoImpuesto, isSujetoPasivoEspecial } = req.body
-  console.log(fecha, tipoImpuesto)
+  console.log(fecha, tipoImpuesto, isSujetoPasivoEspecial)
   const matchConfig = {}
   if (isSujetoPasivoEspecial) {
     matchConfig.isSujetoPasivoEspecial = { $eq: isSujetoPasivoEspecial }
@@ -20,7 +20,8 @@ export const getCiclos = async (req, res) => {
           $match:
           {
             tipoImpuesto,
-            ...matchConfig
+            isSujetoPasivoEspecial
+            // ...matchConfig
             /* $or: [
               {
                 $and: [
@@ -38,6 +39,7 @@ export const getCiclos = async (req, res) => {
         }
       ]
     })
+    console.log({ ciclos })
     return res.status(200).json({ ciclos })
   } catch (e) {
     console.log(e)

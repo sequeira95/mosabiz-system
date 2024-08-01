@@ -2478,7 +2478,9 @@ export const createFacturas = async (req, res) => {
         noSujetoSecundaria: factura.noSujetoSecundaria ? Number(Number(factura.noSujetoSecundaria).toFixed(2)) : null,
         exoneradoSecundaria: factura.exoneradoSecundaria ? Number(Number(factura.exoneradoSecundaria).toFixed(2)) : null,
         exentoSecundaria: factura.exentoSecundaria ? Number(Number(factura.exentoSecundaria).toFixed(2)) : null,
-        totalExentoSecundaria: factura.totalExentoSecundaria ? Number(Number(factura.totalExentoSecundaria).toFixed(2)) : null
+        totalExentoSecundaria: factura.totalExentoSecundaria ? Number(Number(factura.totalExentoSecundaria).toFixed(2)) : null,
+        aplicaProrrateo: factura.aplicaProrrateo || false,
+        isImportacion: factura.isImportacion || false
       }
     })
     createItemSD({

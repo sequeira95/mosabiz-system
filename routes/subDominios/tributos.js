@@ -1,6 +1,6 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { anularComprobante, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIVA, getFacturasPorDeclarar, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, saveComprobanteRetIslrCompras, saveComprobanteRetIvaCompras, saveDeclaracionIslr, saveDeclaracionIva, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
+import { anularComprobante, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIVA, getDataIva, getFacturasPorDeclarar, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, saveComprobanteRetIslrCompras, saveComprobanteRetIvaCompras, saveDeclaracionIslr, saveDeclaracionIva, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
 
 const router = express.Router()
 
@@ -17,4 +17,5 @@ router.post('/save/declaracionISLR', requireSubDominioToken, saveDeclaracionIslr
 router.post('/save/retIvaCompras', requireSubDominioToken, saveComprobanteRetIvaCompras)
 router.post('/get/retIvaCompra', requireSubDominioToken, getComprobantesRetencionIVA)
 router.post('/save/declaracionIva', requireSubDominioToken, saveDeclaracionIva)
+router.post('/get/dataIva', requireSubDominioToken, getDataIva)
 export default router

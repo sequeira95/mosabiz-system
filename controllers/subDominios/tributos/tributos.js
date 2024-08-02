@@ -373,7 +373,9 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
         tipoRetencion: comprobante.tipoRetencion,
         proveedorId: new ObjectId(comprobante.proveedorId),
         creadoPor: new ObjectId(req.uid),
-        tipoRetencionAux: comprobante.tipoRetencionAux
+        tipoRetencionAux: comprobante.tipoRetencionAux,
+        tasaDia: Number(comprobante.tasaDia),
+        totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2))
       })
       if (tieneContabilidad) {
         console.log('entrando')
@@ -751,7 +753,9 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
         totalRetenido: Number(comprobante.totalRetenido.toFixed(2)),
         tipoRetencion: comprobante.tipoRetencion,
         proveedorId: new ObjectId(comprobante.proveedorId),
-        creadoPor: new ObjectId(req.uid)
+        creadoPor: new ObjectId(req.uid),
+        tasaDia: Number(comprobante.tasaDia),
+        totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2))
       })
       if (tieneContabilidad) {
         console.log('entrando')
@@ -1032,7 +1036,35 @@ export const getDataIva = async (req, res) => {
                 $cond: {
                   if: {
                     $or: [
-                      { $and: [{ $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }] }
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$isImportacion', true] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$totalExento',
+                  else: 0
+                }
+              }
+            },
+            item40resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoMovimiento', 'venta'] },
+                      { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                      { $ne: ['$isImportacion', true] }
                     ]
                   },
                   then: '$totalExento',
@@ -1051,7 +1083,29 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $eq: ['$isImportacion', true] }
                         ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $eq: ['$isImportacion', true] }
+                        ]
                       }
+                    ]
+                  },
+                  then: '$total',
+                  else: 0
+                }
+              }
+            },
+            item41resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoMovimiento', 'venta'] },
+                      { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                      { $eq: ['$isImportacion', true] }
                     ]
                   },
                   then: '$total',
@@ -1069,9 +1123,33 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
                         ]
                       }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item42resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                      { $ne: ['$isImportacion', true] },
+                      { $gt: ['$iva', 0] },
+                      { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
                     ]
                   },
                   then: '$baseImponible',
@@ -1091,7 +1169,31 @@ export const getDataIva = async (req, res) => {
                           { $gt: ['$iva', 0] },
                           { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
                         ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
+                        ]
                       }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item43resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                      { $ne: ['$isImportacion', true] },
+                      { $gt: ['$iva', 0] },
+                      { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
                     ]
                   },
                   then: '$iva',
@@ -1109,9 +1211,33 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
                         ]
                       }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item442resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                      { $ne: ['$isImportacion', true] },
+                      { $gt: ['$iva', 0] },
+                      { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
                     ]
                   },
                   then: '$baseImponible',
@@ -1129,9 +1255,33 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
                         ]
                       }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item452resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                      { $ne: ['$isImportacion', true] },
+                      { $gt: ['$iva', 0] },
+                      { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
                     ]
                   },
                   then: '$iva',
@@ -1149,9 +1299,33 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
                         ]
                       }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item443resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                      { $ne: ['$isImportacion', true] },
+                      { $gt: ['$iva', 0] },
+                      { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
                     ]
                   },
                   then: '$baseImponible',
@@ -1169,7 +1343,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item453resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
                         ]
                       }
                     ]
@@ -1184,7 +1386,21 @@ export const getDataIva = async (req, res) => {
                 $cond: {
                   if: {
                     $or: [
-                      { $and: [{ $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }] }
+                      { $and: [{ $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }] },
+                      { $and: [{ $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] }] }
+                    ]
+                  },
+                  then: '$totalExento',
+                  else: 0
+                }
+              }
+            },
+            item30resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      { $and: [{ $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] }] }
                     ]
                   },
                   then: '$totalExento',
@@ -1202,7 +1418,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $eq: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item31resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
                         ]
                       }
                     ]
@@ -1222,7 +1466,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $eq: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item32resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
                         ]
                       }
                     ]
@@ -1242,7 +1514,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $eq: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item312resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
                         ]
                       }
                     ]
@@ -1262,7 +1562,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $eq: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item322resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
                         ]
                       }
                     ]
@@ -1282,7 +1610,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $eq: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item313resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
                         ]
                       }
                     ]
@@ -1302,7 +1658,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $eq: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item323resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $eq: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
                         ]
                       }
                     ]
@@ -1322,7 +1706,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item33resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
                         ]
                       }
                     ]
@@ -1342,7 +1754,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaGeneral] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item34resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaGeneral] }
                         ]
                       }
                     ]
@@ -1362,7 +1802,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item332resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
                         ]
                       }
                     ]
@@ -1382,7 +1850,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaAdicional] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item342resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaAdicional] }
                         ]
                       }
                     ]
@@ -1402,7 +1898,35 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                }
+              }
+            },
+            item333resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
                         ]
                       }
                     ]
@@ -1422,7 +1946,15 @@ export const getDataIva = async (req, res) => {
                           { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
                           { $ne: ['$isImportacion', true] },
                           { $gt: ['$iva', 0] },
-                          { $eq: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, alicuotaReducida] }
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
                         ]
                       }
                     ]
@@ -1431,7 +1963,183 @@ export const getDataIva = async (req, res) => {
                   else: 0
                 }
               }
+            },
+            item343resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $ne: ['$isImportacion', true] },
+                          { $gt: ['$iva', 0] },
+                          { $eq: [{ $round: [{ $multiply: [{ $divide: ['$iva', '$baseImponible'] }, 100] }, 0] }, alicuotaReducida] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            itemsProrrata: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $eq: ['$aplicaProrrateo', true] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $eq: ['$aplicaProrrateo', true] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            itemsProrrataResta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $eq: ['$aplicaProrrateo', true] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            itemsNoProrrata: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] },
+                          { $ne: ['$aplicaProrrateo', true] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                          { $ne: ['$aplicaProrrateo', true] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            itemsNoProrrataResta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'compra'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                          { $ne: ['$aplicaProrrateo', true] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                }
+              }
+            },
+            item66: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIva] },
+                          { $ne: ['$tipoDocumentoAfectado', tiposDocumentosFiscales.notaCredito] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$totalRetenido',
+                  else: 0
+                }
+              }
+            },
+            item66resta: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipoMovimiento', 'venta'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIva] },
+                          { $eq: ['$tipoDocumentoAfectado', tiposDocumentosFiscales.notaCredito] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$totalRetenido',
+                  else: 0
+                }
+              }
             }
+          }
+        },
+        {
+          $project: {
+            item40: { $subtract: ['$item40', '$item40resta'] },
+            item41: { $subtract: ['$item41', '$item41resta'] },
+            item42: { $subtract: ['$item42', '$item42resta'] },
+            item43: { $subtract: ['$item43', '$item43resta'] },
+            item442: { $subtract: ['$item442', '$item442resta'] },
+            item452: { $subtract: ['$item452', '$item452resta'] },
+            item443: { $subtract: ['$item443', '$item443resta'] },
+            item453: { $subtract: ['$item453', '$item453resta'] },
+            item30: { $subtract: ['$item30', '$item30resta'] },
+            item31: { $subtract: ['$item31', '$item31resta'] },
+            item32: { $subtract: ['$item32', '$item32resta'] },
+            item312: { $subtract: ['$item312', '$item312resta'] },
+            item322: { $subtract: ['$item322', '$item322resta'] },
+            item313: { $subtract: ['$item313', '$item313resta'] },
+            item323: { $subtract: ['$item323', '$item323resta'] },
+            item33: { $subtract: ['$item33', '$item33resta'] },
+            item34: { $subtract: ['$item34', '$item34resta'] },
+            item332: { $subtract: ['$item332', '$item332resta'] },
+            item342: { $subtract: ['$item342', '$item342resta'] },
+            item333: { $subtract: ['$item333', '$item333resta'] },
+            item343: { $subtract: ['$item343', '$item343resta'] },
+            itemsProrrata: { $subtract: ['$itemsProrrata', '$itemsProrrataResta'] },
+            itemsNoProrrata: { $subtract: ['$itemsNoProrrata', '$itemsNoProrrataResta'] },
+            item66: { $subtract: ['$item66', '$item66resta'] }
           }
         }
       ]

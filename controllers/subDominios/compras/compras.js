@@ -859,7 +859,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, fecha: { $lte: moment(fechaActual).endOf('day').toDate() } } },
+        { $match: { tipoMovimiento: 'compra', estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, fecha: { $lte: moment(fechaActual).endOf('day').toDate() } } },
         {
           $addFields: {
             tasa: { $objectToArray: tasa }
@@ -910,7 +910,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              // { $match: { tipoDocumento: 'Nota de débito' } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaDebito, tiposDocumentosFiscales.notaCredito] } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -980,15 +980,6 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
                       }
                     }
                   }
-                  /* totalRetencionIslr: {
-                    $sum: {
-                      $cond: {
-                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIslr] },
-                        then: '$valor',
-                        else: 0
-                      }
-                    }
-                  } */
                 }
               }
             ],
@@ -996,6 +987,53 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
           }
         },
         { $unwind: { path: '$creditoDebito', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: '_id',
+            foreignField: 'facturaAsociada',
+            pipeline: [
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.retIslr, tiposDocumentosFiscales.retIva] } } },
+              {
+                $addFields: {
+                  tasa: { $objectToArray: tasa }
+                }
+              },
+              { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+              { $match: { $expr: { $eq: ['$tasa.k', 'USD'] } } },
+              {
+                $addFields: {
+                  valor: { $multiply: ['$tasa.v', '$totalRetenidoSecundario'] }
+                }
+              },
+              {
+                $group: {
+                  _id: 0,
+                  totalRetIslr: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIslr] },
+                        then: '$valor',
+                        else: 0
+                      }
+                    }
+                  }, // { $sum: '$valor' },
+                  totalRetIva: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIva] },
+                        then: '$valor',
+                        else: 0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            as: 'totalRetenciones'
+          }
+        },
+        { $unwind: { path: '$totalRetenciones', preserveNullAndEmptyArrays: true } },
         {
           $project: {
             tasa: '$tasa',
@@ -1023,7 +1061,14 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             totalTransaccion: {
               $subtract: [
                 { $add: ['$valor', { $ifNull: ['$creditoDebito.totalNotaDebito', 0] }] },
-                { $add: [{ $ifNull: ['$detalleTransacciones.totalAbono', 0] }, { $ifNull: ['$creditoDebito.totalNotaCredito', 0] }] }
+                {
+                  $add: [
+                    { $ifNull: ['$detalleTransacciones.totalAbono', 0] },
+                    { $ifNull: ['$creditoDebito.totalNotaCredito', 0] },
+                    { $ifNull: ['$totalRetenciones.totalRetIslr', 0] },
+                    { $ifNull: ['$totalRetenciones.totalRetIva', 0] }
+                  ]
+                }
               ]
             }
             // totalPorPagar: { $subtract: ['$total', '$detalleTransacciones.totalAbono'] }
@@ -1256,7 +1301,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              // { $match: { tipoDocumento: 'Nota de débito' } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -1333,39 +1378,53 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
           }
         },
         { $unwind: { path: '$creditoDebito', preserveNullAndEmptyArrays: true } },
-        /* { $unwind: { path: '$detalleNotasDebito', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
             from: documentosFiscalesCollection,
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              { $match: { fecha: { $lte: moment(fechaActual).endOf('day').toDate() }, tipoDocumento: 'Nota de crédito' } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.retIslr, tiposDocumentosFiscales.retIva] } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
                 }
               },
               { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
-              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+              { $match: { $expr: { $eq: ['$tasa.k', 'USD'] } } },
               {
                 $addFields: {
-                  valor: { $multiply: ['$tasa.v', '$totalSecundaria'] }
+                  valor: { $multiply: ['$tasa.v', '$totalRetenidoSecundario'] }
                 }
               },
               {
                 $group: {
-                  _id: '$facturaAsociada',
-                  totalNotaCredito: { $sum: '$valor' },
-                  totalNotaCreditoPrincipal: { $sum: '$total' },
-                  totalNotaCreditoSecundario: { $sum: '$totalSecundaria' }
+                  _id: 0,
+                  totalRetIslr: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIslr] },
+                        then: '$valor',
+                        else: 0
+                      }
+                    }
+                  }, // { $sum: '$valor' },
+                  totalRetIva: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIva] },
+                        then: '$valor',
+                        else: 0
+                      }
+                    }
+                  }
                 }
               }
             ],
-            as: 'detalleNotaCredito'
+            as: 'totalRetenciones'
           }
         },
-        { $unwind: { path: '$detalleNotaCredito', preserveNullAndEmptyArrays: true } }, */
+        { $unwind: { path: '$totalRetenciones', preserveNullAndEmptyArrays: true } },
         {
           $addFields: {
             tasa: { $objectToArray: tasa }
@@ -1393,7 +1452,9 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             totalNotaDebitoSecundario: { $sum: '$creditoDebito.totalNotaDebitoSecundario' },
             totalNotaCredito: { $sum: '$creditoDebito.totalNotaCredito' },
             totalNotaCreditoPrincipal: { $sum: '$creditoDebito.totalNotaCreditoPrincipal' },
-            totalNotaCreditoSecundario: { $sum: '$creditoDebito.totalNotaCreditoSecundario' }
+            totalNotaCreditoSecundario: { $sum: '$creditoDebito.totalNotaCreditoSecundario' },
+            totalRetIslr: { $sum: '$totalRetenciones.totalRetIslr' },
+            totalRetIva: { $sum: '$totalRetenciones.totalRetIva' }
           }
         },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
@@ -1415,7 +1476,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             costoTotal2: '$costoTotal',
             totalAbono: '$totalAbono',
             // porPagar: { $subtract: ['$costoTotal', '$totalAbono'] },
-            porPagar: { $subtract: [{ $add: ['$costoTotal', { $ifNull: ['$totalNotaDebito', 0] }] }, { $add: ['$totalAbono', '$totalNotaCredito'] }] },
+            porPagar: { $subtract: [{ $add: ['$costoTotal', { $ifNull: ['$totalNotaDebito', 0] }] }, { $add: ['$totalAbono', '$totalNotaCredito', '$totalRetIslr', '$totalRetIva'] }] },
             totalAbonoPrincipal: 'totalAbonoPrincipal',
             totalAbonoSecundario: 'totalAbonoSecundario',
             fechaVencimiento: '$fechaVencimiento',
@@ -1423,7 +1484,12 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             totalSecundaria: '$totalSecundaria',
             totalPrincipal: '$totalPrincipal',
             // costoTotal: { $subtract: [{ $add: ['$costoTotal', { $ifNull: ['$totalNotaDebito', 0] }] }, '$totalNotaCredito'] },
-            costoTotal: { $subtract: [{ $add: ['$costoTotal', { $ifNull: ['$totalNotaDebito', 0] }] }, '$totalNotaCredito'] },
+            costoTotal: {
+              $subtract: [
+                { $add: ['$costoTotal', { $ifNull: ['$totalNotaDebito', 0] }] },
+                { $add: ['$totalNotaCredito', '$totalRetIslr', '$totalRetIva'] }
+              ]
+            },
             diffFechaVencimiento:
             {
               $dateDiff: { startDate: moment(fechaActual).toDate(), endDate: '$fechaVencimiento', unit: 'day', timezone: timeZone }
@@ -1546,7 +1612,7 @@ export const getDetalleProveedor = async (req, res) => {
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              // { $match: { tipoDocumento: 'Nota de débito' } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -1623,38 +1689,53 @@ export const getDetalleProveedor = async (req, res) => {
           }
         },
         { $unwind: { path: '$creditoDebito', preserveNullAndEmptyArrays: true } },
-        /* {
+        {
           $lookup: {
             from: documentosFiscalesCollection,
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              { $match: { tipoDocumento: 'Nota de crédito' } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.retIslr, tiposDocumentosFiscales.retIva] } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
                 }
               },
               { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
-              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+              { $match: { $expr: { $eq: ['$tasa.k', 'USD'] } } },
               {
                 $addFields: {
-                  valor: { $multiply: ['$tasa.v', '$totalSecundaria'] }
+                  valor: { $multiply: ['$tasa.v', '$totalRetenidoSecundario'] }
                 }
               },
               {
                 $group: {
-                  _id: '$facturaAsociada',
-                  totalNotaCredito: { $sum: '$valor' },
-                  totalNotaCreditoPrincipal: { $sum: '$total' },
-                  totalNotaCreditoSecundario: { $sum: '$totalSecundaria' }
+                  _id: 0,
+                  totalRetIslr: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIslr] },
+                        then: '$valor',
+                        else: 0
+                      }
+                    }
+                  }, // { $sum: '$valor' },
+                  totalRetIva: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIva] },
+                        then: '$valor',
+                        else: 0
+                      }
+                    }
+                  }
                 }
               }
             ],
-            as: 'detalleNotaCredito'
+            as: 'totalRetenciones'
           }
         },
-        { $unwind: { path: '$detalleNotaCredito', preserveNullAndEmptyArrays: true } }, */
+        { $unwind: { path: '$totalRetenciones', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
             from: comprasCollection,
@@ -1693,7 +1774,18 @@ export const getDetalleProveedor = async (req, res) => {
         {
           $project: {
             // costoTotal: { $add: ['$valor', { $ifNull: ['$detalleNotaDebito.totalNotaDebito', 0] }] },
-            costoTotal: { $round: [{ $subtract: [{ $add: ['$valor', { $ifNull: ['$creditoDebito.totalNotaDebito', 0] }] }, { $ifNull: ['$creditoDebito.totalNotaCredito', 0] }] }, 2] },
+            costoTotal: {
+              $round: [
+                {
+                  $subtract: [
+                    { $add: ['$valor', { $ifNull: ['$creditoDebito.totalNotaDebito', 0] }] },
+                    {
+                      $add: ['$detalleTransacciones.totalAbono', { $ifNull: ['$creditoDebito.totalNotaCredito', 0] },
+                        { $ifNull: ['$totalRetenciones.totalRetIva', 0] }, { $ifNull: ['$totalRetenciones.totalRetIslr', 0] }]
+                    }
+                  ]
+                }, 2]
+            },
             totalNotaDebito: '$creditoDebito.totalNotaDebito',
             totalNotaDebitoPrincipal: '$creditoDebito.totalNotaDebitoPrincipal',
             totalNotaDebitoSecundario: '$creditoDebito.totalNotaDebitoSecundario',

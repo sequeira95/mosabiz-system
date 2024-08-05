@@ -13,8 +13,8 @@ export const getIva = async (req, res) => {
       nameCollection: 'iva',
       pipeline: [
         { $match: matchConfig },
-        { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
-        { $limit: Number(itemsPorPagina) }
+        { $skip: (Number(pagina || 1) - 1) * Number(itemsPorPagina || 1000) },
+        { $limit: Number(itemsPorPagina || 1000) }
       ]
     })
     const countIva = await agreggateCollections({

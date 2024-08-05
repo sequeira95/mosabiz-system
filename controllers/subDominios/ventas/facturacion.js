@@ -2,8 +2,9 @@ import { ObjectId } from 'mongodb'
 import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollection, getCollectionSD, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
 import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
-import { subDominioName } from '../../../constants.js'
+import { subDominioName, documentosVentas } from '../../../constants.js'
 import moment from 'moment-timezone'
+import { getOrCreateComprobante } from '../../../utils/contabilidad.js'
 
 export const getData = async (req, res) => {
   const { clienteId, fechaDia, userId } = req.body
@@ -144,7 +145,6 @@ export const getDetallePedidoVenta = async (req, res) => {
         }
       ]
     })
-    console.log({pedidoVenta})
     if (!pedidoVenta?.activo) throw new Error('El pedido de venta ya no esta activo')
     const prodtuctosNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
@@ -366,6 +366,7 @@ export const getProductos = async (req, res) => {
               }
             },
             iva: '$iva',
+            ivaId: '$ivaId',
             costoPromedio: '$costoPromedio',
             isDataInicial: '$isDataInicial'
           }
@@ -513,6 +514,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       numero: contador,
       tipoDocumento: ventaInfo.documento,
       activo,
+      isExportacion: ventaInfo.isExportacion,
       // numeroControl: ventaInfo.numeroControl,
       sucursalId: new ObjectId(ventaInfo.sucursalId),
       almacenId: new ObjectId(ventaInfo.almacenId),
@@ -523,6 +525,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       // datos de montos e impuestos
       hasIgtf: ventaInfo.totalPagado.igtf > 0,
       baseImponible: Number(Number(ventaInfo.totalMonedaPrincial.baseImponible).toFixed(2)),
+      exentoSinDescuento: Number(Number(ventaInfo.totalMonedaPrincial.exonerado).toFixed(2)),
       iva: Number(Number(ventaInfo.totalMonedaPrincial.iva).toFixed(2)),
       totalDescuento: Number(Number(ventaInfo.totalMonedaPrincial.montoDescuento).toFixed(2)),
       total: Number(Number(ventaInfo.totalMonedaPrincial.total).toFixed(2)),
@@ -531,7 +534,29 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       totalDescuentoSecundaria: Number(Number(ventaInfo.totalMonedaSecundaria.montoDescuento).toFixed(2)),
       totalSecundaria: Number(Number(ventaInfo.totalMonedaSecundaria.total).toFixed(2)),
       totalIgtf: Number(Number(ventaInfo.totalPagado.igtf).toFixed(2)),
+      // total pagado
       totalPagado: Number(Number(ventaInfo.totalPagado.total).toFixed(2)),
+      // total establecido a credito
+      totalCredito: Number(Number(ventaInfo.totalPagado.totalCredito || 0).toFixed(2)),
+      // cuando se realicen pagos al credito se abonara a este total
+      totalAbonado: 0,
+      // estado como primero filtro antes de buscar las que estan pagadas
+      estado: Number(ventaInfo.totalPagado.totalCredito || 0) === 0 ? 'pagada' : 'pendiente',
+      // este es un arreglo que tiene el texto del total de los IVA por porcentaje
+      ivasTotales: ventaInfo.ivasTotales,
+      ...ventaInfo.ivas,
+      /* ivas:
+        totalExento
+        exento
+        exonerado
+        noSujeto,
+        sinDerechoCredito
+        sinDerechoCreditoSecundaria
+        noSujetoSecundaria
+        exoneradoSecundaria
+        exentoSecundaria
+        totalExentoSecundaria
+      */
       // datos del vendedor
       creadoPor: new ObjectId(creadoPor),
       creadoPorNombre: vendedor.nombre,
@@ -558,7 +583,8 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
 const createDetalleDocumento = async ({ clienteId, ventaInfo, facturaId }) => {
   const detalle = ventaInfo.productos.map(e => {
     const baseImponible = Number(e.precioVenta) * Number(e.cantidad)
-    const montoIva = e.iva ? baseImponible * e.iva / 100 : 0
+    const baseImponibleConDescuento = Number(e.precioTotal)
+    const montoIva = e.iva ? baseImponibleConDescuento * e.iva / 100 : 0
     return {
       facturaId,
       productoId: new ObjectId(e._id),
@@ -570,12 +596,14 @@ const createDetalleDocumento = async ({ clienteId, ventaInfo, facturaId }) => {
       cantidad: e.cantidad,
       tipo: e.tipo ? e.tipo : 'producto',
       precioVenta: Number(e.precioVenta),
+      precioSinDescuento: Number(e.precioSinDescuento),
       descuento: Number(e.descuento) / 100,
-      descuentoTotal: Number(e.precioVenta) * Number(e.descuento) / 100,
+      descuentoTotal: Number(e.descuentoTotal),
+      precioConDescuento: Number(e.precioTotal),
       baseImponible,
       montoIva,
       iva: e.iva ? e.iva : 0,
-      precioTotal: baseImponible + montoIva,
+      precioTotal: baseImponibleConDescuento + montoIva,
       fechaCreacion: moment().toDate()
     }
   })
@@ -587,13 +615,15 @@ const createDetalleDocumento = async ({ clienteId, ventaInfo, facturaId }) => {
 }
 
 const createPagosDocumento = async ({ clienteId, ventaInfo, facturaId, creadoPor }) => {
-  const pagos = ventaInfo.pagos.map(e => ({
+  const pagos = ventaInfo.pagos.filter(e => e.metodo !== 'credito').map(e => ({
     documentoId: facturaId,
     clienteId: new ObjectId(ventaInfo.clienteId),
+    metodo: e.metodo, // caja, banco
     pago: Number((e.monto || 0).toFixed(2)),
     fechaPago: moment(ventaInfo.fecha).toDate(),
     referencia: e.referencia,
     banco: (e.banco && new ObjectId(e.banco)) || '',
+    caja: (ventaInfo.cajaId && new ObjectId(ventaInfo.cajaId)) || '',
     porcentajeIgtf: Number(e.porcentajeIgtf || 0),
     pagoIgtf: e?.igtfPorPagar ? Number((e.monto || 0).toFixed(2)) * Number((e.monto || 0).toFixed(2)) / 100 : 0,
     moneda: ventaInfo.moneda,
@@ -609,4 +639,134 @@ const createPagosDocumento = async ({ clienteId, ventaInfo, facturaId, creadoPor
     enviromentClienteId: clienteId,
     items: pagos
   })
+}
+const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId, creadoPor }) => {
+  const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
+  const ajustesVentas = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'ventas' } })
+  const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+
+  if (!ajustesVentas) return
+  if (!ajustesVentas.codigoComprobanteFacturacion) return
+  const documento = await getItemSD({enviromentClienteId: clienteId, nameCollection: 'documentosFiscales', filters: { _id: facturaId }})
+  if (!documento) return
+
+  const infoDoc = documentosVentas.find(e => e.value === documento.tipoDocumento)
+  if (!infoDoc) return
+
+  let comprobante
+  const mesPeriodo = momentDate(ajustesSistema.timeZone, ventaInfo.fecha).format('YYYY/MM')
+  try {
+    comprobante = await getOrCreateComprobante(clienteId,
+      {
+        mesPeriodo,
+        codigo: ajustesVentas.codigoComprobanteFacturacion
+      }, {
+        nombre: 'Ventas'
+      },
+      true
+    )
+  } catch (e) {
+    console.log(e)
+  }
+  if (!comprobante) return
+  const movimientos = await Promise.all(ventaInfo.pagos.map(async (e) => {
+    const movimiento = {
+      descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
+      comprobanteId: comprobante._id,
+      periodoId: comprobante.periodoId,
+      fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
+      fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
+      docReferenciaAux: e.referencia || e.credito ? 'CREDITO' : `${infoDoc.sigla} ${documento.numeroFactura}`,
+      documento: {
+        docReferencia: e.referencia || `${infoDoc.sigla} ${documento.numeroFactura}`
+      }
+    }
+    const datosDebe = {
+      cuentaId: '',
+      cuentaCodigo: '',
+      cuentaNombre: '',
+      debe: 0,
+      haber: 0
+    }
+    const datosHaber = {
+      cuentaId: '',
+      cuentaCodigo: '',
+      cuentaNombre: '',
+      debe: 0,
+      haber: 0
+    }
+    if (e.banco) {
+      const [banco] = await agreggateCollectionsSD({
+        nameCollection: 'bancos',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { _id: new ObjectId(e.banco) } },
+          {
+            $lookup: {
+              from: planCuentaCollection,
+              localField: 'cuentaId',
+              foreignField: '_id',
+              as: 'detalleCuenta'
+            }
+          },
+          { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              nombre: '$nombre',
+              descripcion: '$descripcion',
+              tipo: '$tipo',
+              cuentaId: '$cuentaId',
+              cuentaCodigo: '$detalleCuenta.codigo',
+              cuentaNombre: '$detalleCuenta.descripcion'
+            }
+          }
+        ]
+      })
+      if (!banco) throw new Error('no hay cuenta')
+      datosDebe.cuentaId = banco.cuentaId
+      datosDebe.cuentaCodigo = banco.cuentaCodigo
+      datosDebe.cuentaNombre = banco.cuentaNombre
+      datosDebe.debe = Number((e.monto || 0).toFixed(2))
+    }
+    return movimiento
+  }))
+  /*
+  const cuentasIds = Object.values(result._id)
+  const cuentas = await getCollectionSD({
+    enviromentClienteId: clienteId,
+    nameCollection: 'planCuenta',
+    filters: { _id: { $in: cuentasIds } }
+  })
+  const cuentaAcumulado = cuentas.find(e => e._id.toString() === result._id.acumulado.toString())
+  const cuentaGastos = cuentas.find(e => e._id.toString() === result._id.gastos.toString())
+  if (!cuentaGastos) throw new Error(`La categoria ${result.categoria} no tiene una cuenta de gastos asignada`)
+  if (!cuentaAcumulado) throw new Error(`La categoria ${result.categoria} no tiene una cuenta de acumulado asignada`)
+  const MovimientoGastos = {
+    ...movimiento,
+    cuentaId: cuentaGastos._id,
+    cuentaCodigo: cuentaGastos.codigo,
+    cuentaNombre: cuentaGastos.descripcion,
+    debe: 0,
+    haber: 0
+  }
+  const MovimientoAcumulado = {
+    ...movimiento,
+    cuentaId: cuentaAcumulado._id,
+    cuentaCodigo: cuentaAcumulado.codigo,
+    cuentaNombre: cuentaAcumulado.descripcion,
+    debe: 0,
+    haber: 0
+  }
+  if (valorMovimiento > 0) {
+    MovimientoGastos.debe = Math.abs(Number(valorMovimiento.toFixed(2)))
+    MovimientoAcumulado.haber = Math.abs(Number(valorMovimiento.toFixed(2)))
+  } else if (valorMovimiento < 0) {
+    MovimientoGastos.haber = Math.abs(Number(valorMovimiento.toFixed(2)))
+    MovimientoAcumulado.debe = Math.abs(Number(valorMovimiento.toFixed(2)))
+  } else {
+  }
+  await createMovimientos({
+    clienteId,
+    movimientos: [MovimientoGastos, MovimientoAcumulado]
+  })*/
 }

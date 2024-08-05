@@ -112,31 +112,37 @@ export const documentosVentas = [
   {
     text: 'Facturas',
     value: 'Factura',
+    sigla: 'FC',
     isFiscal: true
   },
   {
     text: 'Nota de crédito',
     value: 'Nota de crédito',
+    sigla: 'NC',
     isFiscal: true
   },
   {
     text: 'Nota de débito',
     value: 'Nota de débito',
+    sigla: 'ND',
     isFiscal: true
   },
   {
     text: 'Pedido de venta',
     value: 'Pedido de venta',
+    sigla: 'PV',
     isFiscal: false
   },
   {
     text: 'Nota de entrega',
     value: 'Nota de entrega',
+    sigla: 'NE',
     isFiscal: false
   },
   {
     text: 'Presupuesto',
     value: 'Presupuesto',
+    sigla: 'PT',
     isFiscal: false
   }
 ]

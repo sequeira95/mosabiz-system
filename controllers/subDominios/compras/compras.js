@@ -1858,7 +1858,7 @@ export const getDetalleProveedor = async (req, res) => {
             facturaDetalle: 1,
             ordenCompraDetalle: 1,
             totalAbonoSecundario: '$detalleTransacciones.totalAbonoSecundario',
-            documentosAdjuntos: 1
+            documentosAdjuntos: 1,
           }
         }
       ]

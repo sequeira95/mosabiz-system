@@ -1557,7 +1557,7 @@ export const getDetalleProveedor = async (req, res) => {
             estado: { $ne: 'pagada' },
             tipoDocumento: { $in: ['Factura', 'Nota de entrega'] },
             proveedorId: new ObjectId(proveedorId),
-            fecha: { $lte: moment(fechaActual).toDate() }
+            fecha: { $lte: moment(fechaActual).endOf('day').toDate() }
           }
         },
         { $sort: { fechaVencimiento: 1 } },
@@ -1773,6 +1773,10 @@ export const getDetalleProveedor = async (req, res) => {
         },
         {
           $project: {
+            detalleTransacciones: '$detalleTransacciones',
+            creditoDebito: '$creditoDebito',
+            totalRetenciones: '$totalRetenciones',
+            valorTotal: '$valor',
             // costoTotal: { $add: ['$valor', { $ifNull: ['$detalleNotaDebito.totalNotaDebito', 0] }] },
             costoTotal: {
               $round: [
@@ -1780,7 +1784,7 @@ export const getDetalleProveedor = async (req, res) => {
                   $subtract: [
                     { $add: ['$valor', { $ifNull: ['$creditoDebito.totalNotaDebito', 0] }] },
                     {
-                      $add: ['$detalleTransacciones.totalAbono', { $ifNull: ['$creditoDebito.totalNotaCredito', 0] },
+                      $add: [{ $ifNull: ['$detalleTransacciones.totalAbono', 0] }, { $ifNull: ['$creditoDebito.totalNotaCredito', 0] },
                         { $ifNull: ['$totalRetenciones.totalRetIva', 0] }, { $ifNull: ['$totalRetenciones.totalRetIslr', 0] }]
                     }
                   ]
@@ -1812,13 +1816,13 @@ export const getDetalleProveedor = async (req, res) => {
                     ]
                   },
                   {
-                    $add: ['$detalleTransacciones.totalAbono', { $ifNull: ['$creditoDebito.totalNotaCredito', 0] }]
+                    $add: [{ $ifNull: ['$detalleTransacciones.totalAbono', 0] }, { $ifNull: ['$creditoDebito.totalNotaCredito', 0] },
+                      { $ifNull: ['$totalRetenciones.totalRetIva', 0] }, { $ifNull: ['$totalRetenciones.totalRetIslr', 0] }]
                   }
                 ]
               }, 2]
             },
             fechaVencimiento: 1,
-            // detalleTransacciones: '$detalleTransacciones',
             diffFechaVencimiento:
             {
               $dateDiff: { startDate: moment(fechaActual).toDate(), endDate: '$fechaVencimiento', unit: 'day', timezone: timeZone }

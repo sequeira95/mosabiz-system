@@ -1557,7 +1557,7 @@ export const getDetalleProveedor = async (req, res) => {
             estado: { $ne: 'pagada' },
             tipoDocumento: { $in: ['Factura', 'Nota de entrega'] },
             proveedorId: new ObjectId(proveedorId),
-            fecha: { $lte: moment(fechaActual).endOf('day').toDate() }
+            fecha: { $lte: moment(fechaActual).toDate() }
           }
         },
         { $sort: { fechaVencimiento: 1 } },

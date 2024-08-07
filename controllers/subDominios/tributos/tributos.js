@@ -77,7 +77,7 @@ export const getListImpuestosRetIva = async (req, res) => {
   }
 }
 export const getFacturasPorDeclarar = async (req, res) => {
-  const { clienteId, pagina, itemsPorPagina, periodoSelect, proveedor, numeroFactura, tiposImpuesto, tipo } = req.body
+  const { clienteId, pagina, itemsPorPagina, periodoSelect, proveedor, numeroFactura, tiposImpuesto, tipo, isRetIva, cliente } = req.body
   console.log(req.body)
   try {
     const regex = {}
@@ -86,11 +86,30 @@ export const getFacturasPorDeclarar = async (req, res) => {
         { numeroFactura: { $regex: numeroFactura, $options: 'i' } }
       ]
     }
+    const lookups = []
     if (proveedor && proveedor._id) regex.proveedorId = new ObjectId(proveedor._id)
+    if (cliente && cliente._id) regex.clienteId = new ObjectId(cliente._id)
     const fechaFin = periodoSelect?.fechaFin ? moment(periodoSelect.fechaFin).toDate() : moment().toDate()
     const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const proveedoresFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const clientesFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'clientes' })
     const detalleDocumentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
+    if (!isRetIva) {
+      lookups.push(
+        {
+          $lookup: {
+            from: detalleDocumentosFiscalesCollection,
+            localField: '_id',
+            foreignField: 'facturaId',
+            pipeline: [
+              { $match: { tipo: 'servicio' } }
+            ],
+            as: 'detalleForServicios'
+          }
+        },
+        { $addFields: { hasServicios: { $size: '$detalleForServicios' } } },
+        { $match: { hasServicios: { $gt: 0 } } })
+    }
     const facturas = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
@@ -98,7 +117,7 @@ export const getFacturasPorDeclarar = async (req, res) => {
         {
           $match: {
             tipoMovimiento: tipo,
-            tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaDebito] },
+            tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaDebito, tiposDocumentosFiscales.notaCredito] },
             // proveedorId: new ObjectId(proveedor._id),
             ...regex,
             fecha: { $lte: fechaFin }
@@ -118,7 +137,7 @@ export const getFacturasPorDeclarar = async (req, res) => {
         // { $unwind: { path: '$detalleFactura', preserveNullAndEmptyArrays: false } },
         { $addFields: { hasRetencion: { $size: '$detalleFactura' } } },
         { $match: { hasRetencion: { $lte: 0 } } },
-        {
+        /* {
           $lookup: {
             from: detalleDocumentosFiscalesCollection,
             localField: '_id',
@@ -130,7 +149,8 @@ export const getFacturasPorDeclarar = async (req, res) => {
           }
         },
         { $addFields: { hasServicios: { $size: '$detalleForServicios' } } },
-        { $match: { hasServicios: { $gt: 0 } } },
+        { $match: { hasServicios: { $gt: 0 } } }, */
+        ...lookups,
         { $skip: (pagina - 1) * itemsPorPagina },
         { $limit: itemsPorPagina },
         {
@@ -141,7 +161,16 @@ export const getFacturasPorDeclarar = async (req, res) => {
             as: 'proveedor'
           }
         },
-        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: false } }
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: clientesFiscalesCollection,
+            localField: 'clienteId',
+            foreignField: '_id',
+            as: 'cliente'
+          }
+        },
+        { $unwind: { path: '$cliente', preserveNullAndEmptyArrays: true } }
       ]
     })
     const count = await agreggateCollectionsSD({
@@ -151,7 +180,7 @@ export const getFacturasPorDeclarar = async (req, res) => {
         {
           $match: {
             tipoMovimiento: tipo,
-            tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaDebito] },
+            tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaDebito, tiposDocumentosFiscales.notaCredito] },
             // proveedorId: new ObjectId(proveedor._id),
             ...regex,
             fecha: { $lte: fechaFin }
@@ -171,7 +200,7 @@ export const getFacturasPorDeclarar = async (req, res) => {
         // { $unwind: { path: '$detalleFactura', preserveNullAndEmptyArrays: false } },
         { $addFields: { hasRetencion: { $size: '$detalleFactura' } } },
         { $match: { hasRetencion: { $lte: 0 } } },
-        {
+        /* {
           $lookup: {
             from: detalleDocumentosFiscalesCollection,
             localField: '_id',
@@ -183,7 +212,8 @@ export const getFacturasPorDeclarar = async (req, res) => {
           }
         },
         { $addFields: { hasServicios: { $size: '$detalleForServicios' } } },
-        { $match: { hasServicios: { $gt: 0 } } },
+        { $match: { hasServicios: { $gt: 0 } } }, */
+        ...lookups,
         { $count: 'total' }
       ]
     })
@@ -931,6 +961,7 @@ export const getComprobantesRetencionIVA = async (req, res) => {
       pipeline: [
         {
           $match: {
+            tipoMovimiento: 'compra',
             tipoDeclaracion: tiposDeclaracion.iva,
             periodoInit: { $gte: moment(periodoSelect.fechaInicio).toDate() },
             priodoFin: { $lte: moment(periodoSelect.fechaFin).toDate() }
@@ -945,7 +976,7 @@ export const getComprobantesRetencionIVA = async (req, res) => {
   }
 }
 export const saveDeclaracionIva = async (req, res) => {
-  const { clienteId, _id, retenido, observacion, estado, periodoInit, priodoFin, periodo } = req.body
+  const { clienteId, _id, retenido, observacion, estado, periodoInit, priodoFin, periodo, tipoMovimiento } = req.body
   try {
     console.log(req.body, req.files)
     const documentos = req.files?.documentos
@@ -958,7 +989,8 @@ export const saveDeclaracionIva = async (req, res) => {
       priodoFin: moment(priodoFin).toDate(),
       periodo,
       retenido: Number(Number(retenido).toFixed(2)),
-      creadoPor: new ObjectId(req.uid)
+      creadoPor: new ObjectId(req.uid),
+      tipoMovimiento
     }
     if (req.files && req.files.documentos) {
       if (documentos && documentos[0]) {
@@ -2148,5 +2180,112 @@ export const getDataIva = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar datos para el IVA ' + e.message })
+  }
+}
+export const getComprobantesRetencionIVAVenta = async (req, res) => {
+  const { clienteId, periodoSelect } = req.body
+  try {
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
+    const comprobantes = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoMovimiento: 'venta',
+            tipoDocumento: tiposDocumentosFiscales.retIva,
+            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
+            // estado: { $ne: 'anulado' }
+          }
+        },
+        {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: 'proveedorId',
+            foreignField: '_id',
+            as: 'proveedor'
+          }
+        },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: 'facturaAsociada',
+            foreignField: '_id',
+            pipeline: [
+              {
+                $lookup: {
+                  from: documentosFiscalesCollection,
+                  localField: 'facturaAsociada',
+                  foreignField: '_id',
+                  as: 'detalleNota'
+                }
+              },
+              { $unwind: { path: '$detalleNota', preserveNullAndEmptyArrays: true } }
+            ],
+            as: 'factura'
+          }
+        },
+        { $unwind: { path: '$factura', preserveNullAndEmptyArrays: true } }
+      ]
+    })
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoMovimiento: 'venta',
+            tipoDocumento: tiposDocumentosFiscales.retIva,
+            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
+            // estado: { $ne: 'anulado' }
+          }
+        },
+        { $count: 'total' }
+      ]
+    })
+    const declaracion = (await agreggateCollectionsSD({
+      nameCollection: 'declaraciones',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoMovimiento: 'venta',
+            tipoDeclaracion: tiposDeclaracion.iva,
+            periodoInit: { $gte: moment(periodoSelect.fechaInicio).toDate() },
+            priodoFin: { $lte: moment(periodoSelect.fechaFin).toDate() }
+          }
+        }
+      ]
+    }))[0]
+    return res.status(200).json({ comprobantes, count: count.length ? count[0].total : 0, declaracion })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de bucar los comprobantes de retencion ISLR ' + e.message })
+  }
+}
+export const getListClientes = async (req, res) => {
+  const { clienteId, search } = req.body
+  console.log(req.body)
+  try {
+    const regex = {}
+    if (search) {
+      regex.$or = [
+        { razonSocial: { $regex: search, $options: 'i' } }
+      ]
+    }
+    const clientes = await agreggateCollectionsSD({
+      nameCollection: 'clientes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { ...regex } },
+        { $limit: 10 }
+      ]
+    })
+    return res.status(200).json({ clientes })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la lista de proveedores ' + e.message })
   }
 }

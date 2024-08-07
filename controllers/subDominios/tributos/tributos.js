@@ -319,7 +319,7 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
     const comprobantesCrear = []
     const asientosContables = []
     const tieneContabilidad = await hasContabilidad({ clienteId })
-    const ajusteCompra = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'compras' } })
+    const ajusteTributos = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'tributos' } })
     let periodo = null
     let comprobanteContable = null
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
@@ -331,13 +331,13 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
       comprobanteContable = await getItemSD({
         nameCollection: 'comprobantes',
         enviromentClienteId: clienteId,
-        filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
+        filters: { codigo: ajusteTributos.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
       })
       if (!comprobanteContable) {
         comprobanteContable = await upsertItemSD({
           nameCollection: 'comprobantes',
           enviromentClienteId: clienteId,
-          filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
+          filters: { codigo: ajusteTributos.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
           update: {
             $set: {
               nombre: 'Movimientos de compras',
@@ -382,7 +382,7 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
         const cuentaRetIslr = await getItemSD({
           nameCollection: 'planCuenta',
           enviromentClienteId: clienteId,
-          filters: { _id: new ObjectId(ajusteCompra.cuentaRetIslrCompra) }
+          filters: { _id: new ObjectId(ajusteTributos.cuentaRetIslrCompra) }
         })
         const factura = await getItemSD({
           nameCollection: 'documentosFiscales',
@@ -486,7 +486,7 @@ export const anularComprobante = async (req, res) => {
   try {
     const asientosContables = []
     const tieneContabilidad = await hasContabilidad({ clienteId })
-    const ajusteCompra = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'compras' } })
+    const ajusteTributos = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'tributos' } })
     let periodo = null
     let comprobanteContable = null
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
@@ -498,13 +498,13 @@ export const anularComprobante = async (req, res) => {
       comprobanteContable = await getItemSD({
         nameCollection: 'comprobantes',
         enviromentClienteId: clienteId,
-        filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
+        filters: { codigo: ajusteTributos.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
       })
       if (!comprobanteContable) {
         comprobanteContable = await upsertItemSD({
           nameCollection: 'comprobantes',
           enviromentClienteId: clienteId,
-          filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
+          filters: { codigo: ajusteTributos.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
           update: {
             $set: {
               nombre: 'Movimientos de compras',
@@ -561,7 +561,7 @@ export const anularComprobante = async (req, res) => {
       const cuentaRetIslr = await getItemSD({
         nameCollection: 'planCuenta',
         enviromentClienteId: clienteId,
-        filters: { _id: new ObjectId(ajusteCompra.cuentaRetIslrCompra) }
+        filters: { _id: new ObjectId(ajusteTributos.cuentaRetIslrCompra) }
       })
       asientosContables.push({
         cuentaId: new ObjectId(cuentaRetIslr._id),
@@ -699,7 +699,7 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
     const comprobantesCrear = []
     const asientosContables = []
     const tieneContabilidad = await hasContabilidad({ clienteId })
-    const ajusteCompra = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'compras' } })
+    const ajusteTributos = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'tributos' } })
     let periodo = null
     let comprobanteContable = null
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
@@ -711,13 +711,13 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
       comprobanteContable = await getItemSD({
         nameCollection: 'comprobantes',
         enviromentClienteId: clienteId,
-        filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
+        filters: { codigo: ajusteTributos.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
       })
       if (!comprobanteContable) {
         comprobanteContable = await upsertItemSD({
           nameCollection: 'comprobantes',
           enviromentClienteId: clienteId,
-          filters: { codigo: ajusteCompra.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
+          filters: { codigo: ajusteTributos.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
           update: {
             $set: {
               nombre: 'Movimientos de compras',
@@ -762,7 +762,7 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
         const cuentaRet = await getItemSD({
           nameCollection: 'planCuenta',
           enviromentClienteId: clienteId,
-          filters: { _id: new ObjectId(ajusteCompra.cuentaRetIva) }
+          filters: { _id: new ObjectId(ajusteTributos.cuentaRetIva) }
         })
         const factura = await getItemSD({
           nameCollection: 'documentosFiscales',

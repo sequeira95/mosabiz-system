@@ -4,7 +4,7 @@ import { momentDate } from '../../../utils/momentDate.js'
 import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
 import { subDominioName, documentosVentas } from '../../../constants.js'
 import moment from 'moment-timezone'
-import { getOrCreateComprobante } from '../../../utils/contabilidad.js'
+import { getOrCreateComprobante, createMovimientos } from '../../../utils/contabilidad.js'
 
 export const getData = async (req, res) => {
   const { clienteId, fechaDia, userId } = req.body
@@ -467,6 +467,11 @@ const handleVentasFactuas = async ({ clienteId, ventaInfo, creadoPor }) => {
       }
     })
   }
+  try {
+    await crearMovimientosContablesPagos({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
+  } catch (e) {
+    console.log(`${moment().format('YYYY-MM-DD')} -- ${e.message}`, e)
+  }
   return { facturaId: newFactura.insertedId }
 }
 
@@ -480,6 +485,11 @@ const handleVentasNotasEntrega = async ({ clienteId, ventaInfo, creadoPor }) => 
   const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
   await createDetalleDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
   await createPagosDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId, creadoPor })
+  try {
+    await crearMovimientosContablesPagos({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
+  } catch (e) {
+    console.log(`${moment().format('YYYY-MM-DD')} -- ${e.message}`, e)
+  }
   return { facturaId: newFactura.insertedId }
 }
 
@@ -634,25 +644,82 @@ const createPagosDocumento = async ({ clienteId, ventaInfo, facturaId, creadoPor
     credito: e.credito,
     fechaCreacion: moment().toDate()
   }))
-  createManyItemsSD({
-    nameCollection: 'transacciones',
-    enviromentClienteId: clienteId,
-    items: pagos
-  })
+  if (pagos && pagos[0]) {
+    createManyItemsSD({
+      nameCollection: 'transacciones',
+      enviromentClienteId: clienteId,
+      items: pagos
+    })
+  }
 }
-const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId, creadoPor }) => {
+const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId }) => {
   const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
   const ajustesVentas = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'ventas' } })
   const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
 
   if (!ajustesVentas) return
   if (!ajustesVentas.codigoComprobanteFacturacion) return
-  const documento = await getItemSD({enviromentClienteId: clienteId, nameCollection: 'documentosFiscales', filters: { _id: facturaId }})
+
+  const documento = await getItemSD({ enviromentClienteId: clienteId, nameCollection: 'documentosFiscales', filters: { _id: facturaId } })
   if (!documento) return
 
   const infoDoc = documentosVentas.find(e => e.value === documento.tipoDocumento)
   if (!infoDoc) return
 
+  const zonasSucursalNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
+  const [sucursalCuentas] = await agreggateCollectionsSD({
+    nameCollection: 'ventassucursales',
+    enviromentClienteId: clienteId,
+    pipeline: [
+      { $match: { _id: documento.sucursalId } },
+      {
+        $lookup: {
+          from: zonasSucursalNameCol,
+          localField: 'zonaId',
+          foreignField: '_id',
+          as: 'zonaData'
+        }
+      },
+      { $unwind: { path: '$zonaData', preserveNullAndEmptyArrays: false } },
+      {
+        $lookup: {
+          from: planCuentaCollection,
+          localField: 'zonaData.cuentaId',
+          foreignField: '_id',
+          as: 'detalleCuenta'
+        }
+      },
+      { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: false } },
+      {
+        $lookup: {
+          from: planCuentaCollection,
+          localField: 'zonaData.cuentaIdNE',
+          foreignField: '_id',
+          as: 'detalleCuentaNE'
+        }
+      },
+      { $unwind: { path: '$detalleCuentaNE', preserveNullAndEmptyArrays: false } },
+      {
+        $project: {
+          nombre: '$nombre',
+          descripcion: '$descripcion',
+          tipo: '$tipo',
+          NE: {
+            cuentaId: '$zonaData.cuentaIdNE',
+            cuentaCodigo: '$detalleCuentaNE.codigo',
+            cuentaNombre: '$detalleCuentaNE.descripcion'
+          },
+          DOC: {
+            cuentaId: '$zonaData.cuentaId',
+            cuentaCodigo: '$detalleCuenta.codigo',
+            cuentaNombre: '$detalleCuenta.descripcion',
+          }
+        }
+      }
+    ]
+  })
+  console.log(sucursalCuentas)
+  if (!sucursalCuentas) throw new Error('La sucursal asociada no posee cuenta contable asignada')
   let comprobante
   const mesPeriodo = momentDate(ajustesSistema.timeZone, ventaInfo.fecha).format('YYYY/MM')
   try {
@@ -669,34 +736,29 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId,
     console.log(e)
   }
   if (!comprobante) return
+  // create movimientos de pagos (debe)
   const movimientos = await Promise.all(ventaInfo.pagos.map(async (e) => {
+    const referencia = e.referencia || (e.metodo ? e.metodo.toUpperCase() : `${infoDoc.sigla} ${documento.numeroFactura}`)
     const movimiento = {
       descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
       comprobanteId: comprobante._id,
       periodoId: comprobante.periodoId,
       fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
       fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
-      docReferenciaAux: e.referencia || e.credito ? 'CREDITO' : `${infoDoc.sigla} ${documento.numeroFactura}`,
+      docReferenciaAux: referencia,
       documento: {
-        docReferencia: e.referencia || `${infoDoc.sigla} ${documento.numeroFactura}`
+        docReferencia: referencia
       }
     }
     const datosDebe = {
       cuentaId: '',
       cuentaCodigo: '',
       cuentaNombre: '',
-      debe: 0,
-      haber: 0
-    }
-    const datosHaber = {
-      cuentaId: '',
-      cuentaCodigo: '',
-      cuentaNombre: '',
-      debe: 0,
+      debe: Number(((e.monto || 0) * e.tasa).toFixed(2)),
       haber: 0
     }
     if (e.banco) {
-      const [banco] = await agreggateCollectionsSD({
+      const [cuenta] = await agreggateCollectionsSD({
         nameCollection: 'bancos',
         enviromentClienteId: clienteId,
         pipeline: [
@@ -709,7 +771,7 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId,
               as: 'detalleCuenta'
             }
           },
-          { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+          { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: false } },
           {
             $project: {
               nombre: '$nombre',
@@ -722,51 +784,150 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId,
           }
         ]
       })
-      if (!banco) throw new Error('no hay cuenta')
-      datosDebe.cuentaId = banco.cuentaId
-      datosDebe.cuentaCodigo = banco.cuentaCodigo
-      datosDebe.cuentaNombre = banco.cuentaNombre
+      if (!cuenta) throw new Error('no hay cuenta')
+      datosDebe.cuentaId = cuenta.cuentaId
+      datosDebe.cuentaCodigo = cuenta.cuentaCodigo
+      datosDebe.cuentaNombre = cuenta.cuentaNombre
       datosDebe.debe = Number((e.monto || 0).toFixed(2))
     }
-    return movimiento
+    if (e.metodo === 'credito') {
+      const cuenta = await getItemSD({
+        enviromentClienteId: clienteId,
+        nameCollection: 'planCuenta',
+        filters: {
+          _id: ajustesVentas.cuentaPorCobrarClienteId
+        }
+      })
+      if (!cuenta) throw new Error('no hay cuenta')
+      datosDebe.cuentaId = cuenta._id
+      datosDebe.cuentaCodigo = cuenta.codigo
+      datosDebe.cuentaNombre = cuenta.descripcion
+    }
+    if (e.moneda !== ajustesSistema.monedaPrincipal) {
+      datosDebe.fechaDolar = momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate()
+      datosDebe.monedaPrincipal = ajustesSistema.monedaPrincipal
+      datosDebe.monedasUsar = e.moneda
+      datosDebe.tasa = e.tasa
+      datosDebe.cantidad = Number((e.monto || 0).toFixed(2))
+      datosDebe.currencyField = 'debe'
+    }
+    datosDebe.debe = Math.abs(datosDebe.debe)
+    return { ...movimiento, ...datosDebe }
   }))
-  /*
-  const cuentasIds = Object.values(result._id)
-  const cuentas = await getCollectionSD({
-    enviromentClienteId: clienteId,
-    nameCollection: 'planCuenta',
-    filters: { _id: { $in: cuentasIds } }
+  // create movimientos de sucursal (base imponible, descuentos, ivas, igtf)
+  // base imponible
+  {
+    const dataCuenta = infoDoc.sigla === 'NE' ? 'NE' : 'DOC'
+    const movimiento = {
+      descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
+      comprobanteId: comprobante._id,
+      periodoId: comprobante.periodoId,
+      fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
+      fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
+      docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
+      documento: {
+        docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`
+      },
+      cuentaId: sucursalCuentas[dataCuenta]?.cuentaId,
+      cuentaCodigo: sucursalCuentas[dataCuenta]?.cuentaCodigo,
+      cuentaNombre: sucursalCuentas[dataCuenta]?.cuentaNombre,
+      debe: 0,
+      haber: Math.abs((documento.baseImponible || 0) + (documento.exentoSinDescuento || 0))
+    }
+    movimientos.push(movimiento)
+  }
+  // Descuentos
+  if (documento.totalDescuento !== 0) {
+    const cuenta = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'planCuenta',
+      filters: {
+        _id: ajustesVentas.cuentaDescuentosProductosId
+      }
+    })
+    if (cuenta) {
+      const movimiento = {
+        descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
+        comprobanteId: comprobante._id,
+        periodoId: comprobante.periodoId,
+        fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
+        fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
+        docReferenciaAux: `DESCUENTO ${infoDoc.sigla} ${documento.numeroFactura}`,
+        documento: {
+          docReferencia: `DESCUENTO ${infoDoc.sigla} ${documento.numeroFactura}`
+        },
+        cuentaId: cuenta._id,
+        cuentaCodigo: cuenta.codigo,
+        cuentaNombre: cuenta.descripcion,
+        debe: documento.totalDescuento,
+        haber: 0
+      }
+      movimientos.push(movimiento)
+    }
+  }
+  // iva
+  if (documento.iva !== 0) {
+    const cuenta = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'planCuenta',
+      filters: {
+        _id: ajustesVentas.cuentaIvaId
+      }
+    })
+    if (cuenta) {
+      const movimiento = {
+        descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
+        comprobanteId: comprobante._id,
+        periodoId: comprobante.periodoId,
+        fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
+        fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
+        docReferenciaAux: `IVA ${infoDoc.sigla} ${documento.numeroFactura}`,
+        documento: {
+          docReferencia: `IVA ${infoDoc.sigla} ${documento.numeroFactura}`
+        },
+        cuentaId: cuenta._id,
+        cuentaCodigo: cuenta.codigo,
+        cuentaNombre: cuenta.descripcion,
+        debe: 0,
+        haber: Math.abs(documento.iva)
+      }
+      movimientos.push(movimiento)
+    }
+  }
+  // iva
+  if (documento.hasIgtf) {
+    const cuenta = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'planCuenta',
+      filters: {
+        _id: ajustesVentas.cuentaIGTFPorPagarId
+      }
+    })
+    if (cuenta) {
+      const movimiento = {
+        descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
+        comprobanteId: comprobante._id,
+        periodoId: comprobante.periodoId,
+        fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
+        fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
+        docReferenciaAux: `IGTF ${infoDoc.sigla} ${documento.numeroFactura}`,
+        documento: {
+          docReferencia: `IGTF ${infoDoc.sigla} ${documento.numeroFactura}`
+        },
+        cuentaId: cuenta._id,
+        cuentaCodigo: cuenta.codigo,
+        cuentaNombre: cuenta.descripcion,
+        debe: 0,
+        haber: Math.abs(documento.totalIgtf)
+      }
+      movimientos.push(movimiento)
+    }
+  }
+  console.log({
+    movimientos
   })
-  const cuentaAcumulado = cuentas.find(e => e._id.toString() === result._id.acumulado.toString())
-  const cuentaGastos = cuentas.find(e => e._id.toString() === result._id.gastos.toString())
-  if (!cuentaGastos) throw new Error(`La categoria ${result.categoria} no tiene una cuenta de gastos asignada`)
-  if (!cuentaAcumulado) throw new Error(`La categoria ${result.categoria} no tiene una cuenta de acumulado asignada`)
-  const MovimientoGastos = {
-    ...movimiento,
-    cuentaId: cuentaGastos._id,
-    cuentaCodigo: cuentaGastos.codigo,
-    cuentaNombre: cuentaGastos.descripcion,
-    debe: 0,
-    haber: 0
-  }
-  const MovimientoAcumulado = {
-    ...movimiento,
-    cuentaId: cuentaAcumulado._id,
-    cuentaCodigo: cuentaAcumulado.codigo,
-    cuentaNombre: cuentaAcumulado.descripcion,
-    debe: 0,
-    haber: 0
-  }
-  if (valorMovimiento > 0) {
-    MovimientoGastos.debe = Math.abs(Number(valorMovimiento.toFixed(2)))
-    MovimientoAcumulado.haber = Math.abs(Number(valorMovimiento.toFixed(2)))
-  } else if (valorMovimiento < 0) {
-    MovimientoGastos.haber = Math.abs(Number(valorMovimiento.toFixed(2)))
-    MovimientoAcumulado.debe = Math.abs(Number(valorMovimiento.toFixed(2)))
-  } else {
-  }
   await createMovimientos({
     clienteId,
-    movimientos: [MovimientoGastos, MovimientoAcumulado]
-  })*/
+    movimientos
+  })
 }

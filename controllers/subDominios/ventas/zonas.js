@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb'
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, createItemSD, getItemSD, updateItemSD, formatCollectionName } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, createItemSD, updateItemSD, formatCollectionName } from '../../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../../constants.js'
 
 export const getZonas = async (req, res) => {

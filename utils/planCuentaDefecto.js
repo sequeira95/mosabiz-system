@@ -1,6 +1,6 @@
 import moment from 'moment'
 import { createManyItemsSD } from './dataBaseConfing.js'
-const planCuentaDefecto = [
+/* const planCuentaDefecto = [
   {
     codigo: '1',
     descripcion: 'ACTIVO',
@@ -64,2097 +64,2445 @@ const planCuentaDefecto = [
     nivelCuenta: 1,
     fechaCreacion: moment().toDate()
   }
-]
-/* const PlanContable = [
+] */
+const planCuentaDefecto = [
   {
     codigo: '1',
     descripcion: 'ACTIVOS',
     tipo: 'grupo',
-    nivel: 1
+    nivelCuenta: 1,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1',
+    codigo: '11',
     descripcion: 'ACTIVO CIRCULANTE',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01',
+    codigo: '1101',
     descripcion: 'EFECTIVO Y EQUIVALENTES DE EFECTIVO',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.01',
+    codigo: '110101',
     descripcion: 'EFECTIVO EN CAJAS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.01.001',
+    codigo: '110101001',
     descripcion: 'Caja principal - Bolívares',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.01.201',
+    codigo: '110101201',
     descripcion: 'Caja principal - Dólares',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.01.901',
+    codigo: '110101901',
     descripcion: 'Caja chica - Administración',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.01.902',
+    codigo: '110101902',
     descripcion: 'Caja chica - Operaciones',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.02',
+    codigo: '110102',
     descripcion: 'CAJAS Y PUNTOS DE VENTAS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.02.001',
+    codigo: '110102001',
     descripcion: 'Caja punto de venta #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.02.002',
+    codigo: '110102002',
     descripcion: 'Caja punto de venta #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.03',
+    codigo: '110103',
     descripcion: 'BANCOS NACIONALES',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.03.001',
+    codigo: '110103001',
     descripcion: 'Banco # 1 - Cta. 12345',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.03.002',
+    codigo: '110103002',
     descripcion: 'Banco # 2 - Cta. 12345',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.04',
+    codigo: '110104',
     descripcion: 'BANCOS NACIONAL CUSTODIOS ME',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.04.001',
+    codigo: '110104001',
     descripcion: 'Banco # 1 - Cta. 12345',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.04.002',
+    codigo: '110104002',
     descripcion: 'Banco # 2 - Cta. 12345',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.05',
+    codigo: '110105',
     descripcion: 'BANCOS INTERNACIONALES ME',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.05.001',
+    codigo: '110105001',
     descripcion: 'Banco # 1 - Cta. 12345',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.05.002',
+    codigo: '110105002',
     descripcion: 'Banco # 2 - Cta. 12345',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.06',
+    codigo: '110106',
     descripcion: 'DEPOSITOS EN PLAZOS FIJOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.06.001',
+    codigo: '110106001',
     descripcion: 'Deposito a plazo fijo - Banco #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.06.002',
+    codigo: '110106002',
     descripcion: 'Deposito a plazo fijo - Banco #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.07',
+    codigo: '110107',
     descripcion: 'OTRAS COLOCACIONES EN VALORES',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.07.001',
+    codigo: '110107001',
     descripcion: 'Bono #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.01.07.002',
+    codigo: '110107002',
     descripcion: 'Bono #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.02',
+    codigo: '1102',
     descripcion: 'DOCUMENTOS Y CUENTAS POR COBRAR',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.02.01',
+    codigo: '110201',
     descripcion: 'CUENTAS POR COBRAR CORRIENTES',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.02.01.001',
+    codigo: '110201001',
     descripcion: 'Cuentas por cobrar comerciales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.02.01.002',
+    codigo: '110201002',
     descripcion: 'Cuentas por cobrar empleados',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.02.01.003',
+    codigo: '110201003',
     descripcion: 'Cuentas por cobrar accionistas / socios',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.02.01.004',
+    codigo: '110201004',
     descripcion: 'Cuentas por cobrar empresas relacionadas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.02.01.005',
+    codigo: '110201005',
     descripcion: 'Cuentas por cobrar varias',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03',
+    codigo: '1103',
     descripcion: 'INVENTARIOS',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.01',
+    codigo: '110301',
     descripcion: 'INVENTARIOS GENERALES',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.01.001',
+    codigo: '110301001',
     descripcion: 'Inventarios de mercancía general',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.02',
+    codigo: '110302',
     descripcion: 'INVENTARIOS DE MATERIA PRIMA',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.02.001',
+    codigo: '110302001',
     descripcion: 'Almacén principal',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.02.002',
+    codigo: '110302002',
     descripcion: 'Almacén #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.02.003',
+    codigo: '110302003',
     descripcion: 'Almacén #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.02.701',
+    codigo: '110302701',
     descripcion: 'Almacén en transito',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.02.801',
+    codigo: '110302801',
     descripcion: 'Almacén de devoluciones',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.02.901',
+    codigo: '110302901',
     descripcion: 'Almacén en auditoria',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.03',
+    codigo: '110303',
     descripcion: 'INVENTARIOS DE PRODUCTOS EN PROCESO',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.03.001',
+    codigo: '110303001',
     descripcion: 'Almacén principal',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.03.002',
+    codigo: '110303002',
     descripcion: 'Almacén #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.03.003',
+    codigo: '110303003',
     descripcion: 'Almacén #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.03.701',
+    codigo: '110303701',
     descripcion: 'Almacén en transito',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.03.801',
+    codigo: '110303801',
     descripcion: 'Almacén de devoluciones',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.03.901',
+    codigo: '110303901',
     descripcion: 'Almacén en auditoria',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.04',
+    codigo: '110304',
     descripcion: 'INVENTARIOS DE PRODUCTOS TERMINADOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.04.001',
+    codigo: '110304001',
     descripcion: 'Almacén principal - Rubro / categoría #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.04.002',
+    codigo: '110304002',
     descripcion: 'Almacén principal - Rubro / categoría #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.04.003',
+    codigo: '110304003',
     descripcion: 'Almacén principal - Rubro / categoría #3',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.04.701',
+    codigo: '110304701',
     descripcion: 'Almacén en transito',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.04.802',
+    codigo: '110304802',
     descripcion: 'Almacén de devoluciones',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.03.04.901',
+    codigo: '110304901',
     descripcion: 'Almacén en auditoria',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04',
+    codigo: '1104',
     descripcion: 'GASTOS PAGADOS POR ANTICIPADO',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.01',
+    codigo: '110401',
     descripcion: 'GASTOS ANTICIPADOS CORRIENTES',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.01.001',
+    codigo: '110401001',
     descripcion: 'Anticipo a proveedores',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.01.002',
+    codigo: '110401002',
     descripcion: 'Seguros prepagados',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.01.003',
+    codigo: '110401003',
     descripcion: 'Mercancía en tránsito',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.01.004',
+    codigo: '110401004',
     descripcion: 'Otros gastos pagados por anticipado',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.02',
+    codigo: '110402',
     descripcion: 'IMPUESTOS Y RETENCIONES NACIONALES ',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.02.001',
+    codigo: '110402001',
     descripcion: 'IVA crédito fiscal (compras)',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.02.002',
+    codigo: '110402002',
     descripcion: 'Retenciones IVA efectivas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.02.003',
+    codigo: '110402003',
     descripcion: 'ISLR estimada',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.02.004',
+    codigo: '110402004',
     descripcion: 'Anticipo ISLR',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.02.005',
+    codigo: '110402005',
     descripcion: 'Retenciones ISLR efectivas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.03',
+    codigo: '110403',
     descripcion: 'IMPUESTOS Y RETENCIONES MUNICIPALES',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.03.001',
+    codigo: '110403001',
     descripcion: 'Retenciones municipales - municipio #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.03.002',
+    codigo: '110403002',
     descripcion: 'Estimada impuestos municipales - municipio #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.03.003',
+    codigo: '110403003',
     descripcion: 'Retenciones municipales - municipio #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.1.04.03.004',
+    codigo: '110403004',
     descripcion: 'Estimada impuestos municipales - municipio #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2',
+    codigo: '12',
     descripcion: 'ACTIVO NO CORRIENTE',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.01',
+    codigo: '1201',
     descripcion: 'INVERSIONES PERMANENTES',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.01.01',
+    codigo: '120101',
     descripcion: 'INVERSIONES EN ACCIONES ',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.01.01.001',
+    codigo: '120101001',
     descripcion: 'Compañías relacionadas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.01.01.002',
+    codigo: '120101002',
     descripcion: 'Acciones en otras compañías no relacionadas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02',
+    codigo: '1202',
     descripcion: 'PROPIEDAD, PLANTA Y EQUIPO',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.01',
+    codigo: '120201',
     descripcion: 'COSTOS DE ACTIVOS FIJOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.01.001',
+    codigo: '120201001',
     descripcion: 'Edificaciones e instalaciones',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.01.002',
+    codigo: '120201002',
     descripcion: 'Mobiliario y equipos de oficina',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.01.003',
+    codigo: '120201003',
     descripcion: 'Equipos de computación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.01.004',
+    codigo: '120201004',
     descripcion: 'Vehículos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.01.005',
+    codigo: '120201005',
     descripcion: 'Maquinaria y equipos pesados',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.02',
+    codigo: '120202',
     descripcion: 'DEPRECIACION ACUMULADA',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.02.001',
+    codigo: '120202001',
     descripcion: 'Dep. acum. edificaciones e instalaciones',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.02.002',
+    codigo: '120202002',
     descripcion: 'Dep. acum. mobiliario y equipos de oficina',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.02.003',
+    codigo: '120202003',
     descripcion: 'Dep. acum. equipos de computación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.02.004',
+    codigo: '120202004',
     descripcion: 'Dep. acum. vehículos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.02.005',
+    codigo: '120202005',
     descripcion: 'Dep. acum. maquinaria y equipos pesados',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.03',
+    codigo: '120203',
     descripcion: 'OBRAS EN PROCESO',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.03.001',
+    codigo: '120203001',
     descripcion: 'Construcciones en proceso Zona #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.02.03.002',
+    codigo: '120203002',
     descripcion: 'Construcciones en proceso Zona #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.03',
+    codigo: '1203',
     descripcion: 'ACTIVOS INTANGIBLES',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.03.01',
+    codigo: '120301',
     descripcion: 'COSTOS DE INTANGIBLES',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.03.01.001',
+    codigo: '120301001',
     descripcion: 'Software / Licencias #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.03.01.002',
+    codigo: '120301002',
     descripcion: 'Software / Licencias #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.03.02',
+    codigo: '120302',
     descripcion: 'AMORTIZACION DE INTANGIBLES',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.03.02.001',
+    codigo: '120302001',
     descripcion: 'Amort. acum. software / licencias #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.03.02.002',
+    codigo: '120302002',
     descripcion: 'Amort. acum. software / licencias #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.04',
+    codigo: '1204',
     descripcion: 'OTROS ACTIVOS',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.04.01',
+    codigo: '120401',
     descripcion: 'CARGOS DIFERIDOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.04.01.001',
+    codigo: '120401001',
     descripcion: 'Cargos diferidos  ',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '1.2.04.01.002',
+    codigo: '120401002',
     descripcion: 'Otros activos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
     codigo: '2',
     descripcion: 'PASIVO',
     tipo: 'grupo',
-    nivel: 1
+    nivelCuenta: 1,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1',
+    codigo: '21',
     descripcion: 'PASIVO CORRIENTE',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01',
+    codigo: '2101',
     descripcion: 'CUENTAS Y EFECTOS POR PAGAR',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.01',
+    codigo: '210101',
     descripcion: 'PRESTAMOS BANCARIOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.01.001',
+    codigo: '210101001',
     descripcion: 'Préstamo bancario - Banco #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.01.002',
+    codigo: '210101002',
     descripcion: 'Préstamo bancario - Banco #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.02',
+    codigo: '210102',
     descripcion: 'PRESTAMOS FINANCIEROS A CORTO PLAZO',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.02.001',
+    codigo: '210102001',
     descripcion: 'Prestamos financieros a terceros',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.03',
+    codigo: '210103',
     descripcion: 'EFECTOS POR PAGAR CORTO PLAZO',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.03.001',
+    codigo: '210103001',
     descripcion: 'Efectos por pagar a terceros',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.04',
+    codigo: '210104',
     descripcion: 'CUENTAS POR PAGAR CORRIENTES',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.04.001',
+    codigo: '210104001',
     descripcion: 'Cuentas por pagar comerciales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.04.002',
+    codigo: '210104002',
     descripcion: 'Cuentas por pagar empleados',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.04.003',
+    codigo: '210104003',
     descripcion: 'Cuentas por pagar accionistas / socios',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.04.004',
+    codigo: '210104004',
     descripcion: 'Cuentas por pagar empresas relacionadas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.01.04.005',
+    codigo: '210104005',
     descripcion: 'Cuentas por pagar varias',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02',
+    codigo: '2102',
     descripcion: 'RETENCIONES Y GASTOS ACUMULADOS POR PAGAR',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.01',
+    codigo: '210201',
     descripcion: 'OBLIGACIONES LABORALES',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.01.001',
+    codigo: '210201001',
     descripcion: 'Nomina por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.01.002',
+    codigo: '210201002',
     descripcion: 'Complemento beneficio por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.01.003',
+    codigo: '210201003',
     descripcion: 'Vacaciones por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.01.004',
+    codigo: '210201004',
     descripcion: 'Utilidades por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.01.005',
+    codigo: '210201005',
     descripcion: 'Bonificaciones a empleados y directores por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.02',
+    codigo: '210202',
     descripcion: 'RETENCIONES Y APORTES DE EMPLEADOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.02.001',
+    codigo: '210202001',
     descripcion: 'SSO por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.02.002',
+    codigo: '210202002',
     descripcion: 'RPE por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.02.003',
+    codigo: '210202003',
     descripcion: 'LPH (Banavih) por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.02.004',
+    codigo: '210202004',
     descripcion: 'INCES',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.03',
+    codigo: '210203',
     descripcion: 'IMPUESTOS POR PAGAR',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.03.001',
+    codigo: '210203001',
     descripcion: 'IVA débito fiscal (ventas)',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.03.002',
+    codigo: '210203002',
     descripcion: 'Retención IVA por pagar (compras)',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.03.003',
+    codigo: '210203003',
     descripcion: 'Retención ISLR por pagar (compras)',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.03.004',
+    codigo: '210203004',
     descripcion: 'ISLR definitivo por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.03.005',
+    codigo: '210203005',
     descripcion: 'Impuestos municipales por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.03.006',
+    codigo: '210203006',
     descripcion: 'Fonacit',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.03.007',
+    codigo: '210203007',
     descripcion: 'IGTF por pagar (ventas)',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.04',
+    codigo: '210204',
     descripcion: 'CONTRIBUCIONES POR PAGAR',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.04.001',
+    codigo: '210204001',
     descripcion: 'SSO Patronal por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.04.002',
+    codigo: '210204002',
     descripcion: 'RPE Patronal por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.04.003',
+    codigo: '210204003',
     descripcion: 'LPH Patronal por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.04.004',
+    codigo: '210204004',
     descripcion: 'INCE Patronal por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.1.02.04.005',
+    codigo: '210204005',
     descripcion: 'Aporte Patronal de pensión',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2',
+    codigo: '22',
     descripcion: 'PASINO NO CORRIENTE',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.01',
+    codigo: '2201',
     descripcion: 'CUENTAS Y EFECTOS POR PAGAR LARGO PLAZO',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.01.01',
+    codigo: '220101',
     descripcion: 'PRESTAMOS BANCARIOS A LARGO PLAZO',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.01.01.001',
+    codigo: '220101001',
     descripcion: 'Préstamo bancario a largo plazo - Banco #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.01.01.002',
+    codigo: '220101002',
     descripcion: 'Préstamo bancario a largo plazo - Banco #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.01.02',
+    codigo: '220102',
     descripcion: 'PRESTAMOS FINANCIEROS A LARGO PLAZO',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.01.02.001',
+    codigo: '220102001',
     descripcion: 'Prestamos financieros a terceros a largo plazo',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.01.03',
+    codigo: '220103',
     descripcion: 'EFECTOS POR PAGAR LARGO PLAZO',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.01.03.001',
+    codigo: '220103001',
     descripcion: 'Efectos por pagar a terceros a largo plazo',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.01.04',
+    codigo: '220104',
     descripcion: 'OBLIGACIONES LABORALES A LARGO PLAZO',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.01.04.001',
+    codigo: '220104001',
     descripcion: 'Prestaciones sociales por pagar',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.01.04.002',
+    codigo: '220104002',
     descripcion: 'Intereses sobre prestaciones sociales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.02',
+    codigo: '2202',
     descripcion: 'OTROS PASIVOS NO CORRIENTES',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.02.01',
+    codigo: '220201',
     descripcion: 'ANTICIPOS RECIBIDOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.02.01.001',
+    codigo: '220201001',
     descripcion: 'Anticipos de obras Zona #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.02.01.002',
+    codigo: '220201002',
     descripcion: 'Anticipos de obras Zona #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.02.02',
+    codigo: '220202',
     descripcion: 'OTROS DIFERIDOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '2.2.02.02.001',
+    codigo: '220202001',
     descripcion: 'Otros créditos diferidos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
     codigo: '3',
     descripcion: 'PATRIMONIO',
     tipo: 'grupo',
-    nivel: 1
+    nivelCuenta: 1,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1',
+    codigo: '31',
     descripcion: 'PATRIMONIO',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01',
+    codigo: '3101',
     descripcion: 'CAPITAL',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01.01',
+    codigo: '310101',
     descripcion: 'CAPITAL SOCIAL',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01.01.001',
+    codigo: '310101001',
     descripcion: 'Capital social suscrito',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01.01.002',
+    codigo: '310101002',
     descripcion: 'Capital social no pagado',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01.02',
+    codigo: '310102',
     descripcion: 'RESULTADOS ACUMULADOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01.02.001',
+    codigo: '310102001',
     descripcion: 'Superávit / (déficit) acumulado',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01.02.002',
+    codigo: '310102002',
     descripcion: 'Resultados del ejercicio en curso',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01.03',
+    codigo: '310103',
     descripcion: 'RESERVAS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01.03.001',
+    codigo: '310103001',
     descripcion: 'Reserva legal obligatoria',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01.04',
+    codigo: '310104',
     descripcion: 'OTROS RESULTADOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01.04.001',
+    codigo: '310104001',
     descripcion: 'Superávit en acciones recibidas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '3.1.01.04.002',
+    codigo: '310104002',
     descripcion: 'Superávit por revalorización de activos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
     codigo: '4',
     descripcion: 'INGRESOS',
     tipo: 'grupo',
-    nivel: 1
+    nivelCuenta: 1,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1',
+    codigo: '41',
     descripcion: 'INGRESOS ORDINARIOS',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.01',
+    codigo: '4101',
     descripcion: 'INGRESOS POR VENTAS DE MERCANCIAS',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.01.01',
+    codigo: '410101',
     descripcion: 'VENTAS DE MERCANCIAS EN SUCURSAL / ZONA #1',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.01.01.001',
+    codigo: '410101001',
     descripcion: 'Mercancía / Categoría de producto #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.01.01.002',
+    codigo: '410101002',
     descripcion: 'Mercancía / Categoría de producto #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.01.02',
+    codigo: '410102',
     descripcion: 'VENTAS DE MERCANCIAS EN SUCURSAL / ZONA #2',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.01.02.001',
+    codigo: '410102001',
     descripcion: 'Mercancía / Categoría de producto #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.01.02.002',
+    codigo: '410102002',
     descripcion: 'Mercancía / Categoría de producto #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.02',
+    codigo: '4102',
     descripcion: 'INGRESOS POR VENTAS DE SERVICIOS',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.02.01',
+    codigo: '410201',
     descripcion: 'SERVICIOS PRESTADOS EN ZONA #1',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.02.01.001',
+    codigo: '410201001',
     descripcion: 'Servicio #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.02.01.002',
+    codigo: '410201002',
     descripcion: 'Servicio #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.02.02',
+    codigo: '410202',
     descripcion: 'SERVICIOS PRESTADOS EN ZONA #2',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.02.02.001',
+    codigo: '410202001',
     descripcion: 'Servicio #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.1.02.02.002',
+    codigo: '410202002',
     descripcion: 'Servicio #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.2',
+    codigo: '42',
     descripcion: 'INGRESOS EXTRA-ORDINARIOS',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.2.01',
+    codigo: '4201',
     descripcion: 'INGRESOS FINANCIEROS Y OTROS INGRESOS',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.2.01.01',
+    codigo: '420101',
     descripcion: 'INGRESOS FINANCIEROS  ',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.2.01.01.001',
+    codigo: '420101001',
     descripcion: 'Intereses ganados',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.2.01.01.002',
+    codigo: '420101002',
     descripcion: 'Dividendos recibidos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.2.01.02',
+    codigo: '420102',
     descripcion: 'OTROS INGRESOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.2.01.02.001',
+    codigo: '420102001',
     descripcion: 'Ingresos por alquiler',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.2.01.02.002',
+    codigo: '420102002',
     descripcion: 'Ingresos en venta de activos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '4.2.01.02.003',
+    codigo: '420102003',
     descripcion: 'Ingresos varios',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
     codigo: '5',
     descripcion: 'COSTOS',
     tipo: 'grupo',
-    nivel: 1
+    nivelCuenta: 1,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.1',
+    codigo: '51',
     descripcion: 'COSTOS GENERALES',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.1.01',
+    codigo: '5101',
     descripcion: 'COSTOS DE VENTA GENERALES',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.1.01.01',
+    codigo: '510101',
     descripcion: 'COSTOS DE VENTAS DE MERCANCIA GENERAL',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.1.01.01.001',
+    codigo: '510101001',
     descripcion: 'Inventario inicial de mercancías',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.1.01.01.002',
+    codigo: '510101002',
     descripcion: 'Compras nacionales de mercancías generales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.1.01.01.003',
+    codigo: '510101003',
     descripcion: 'Compras importadas de mercancías generales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.1.01.01.004',
+    codigo: '510101004',
     descripcion: 'Costos de nacionalización mercancías importadas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.1.01.01.005',
+    codigo: '510101005',
     descripcion: 'Costos de fletes sobre compras',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.1.01.01.006',
+    codigo: '510101006',
     descripcion: 'Descuentos y devoluciones sobre compras',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.1.01.01.007',
+    codigo: '510101007',
     descripcion: 'Material de empaque',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.1.01.01.008',
+    codigo: '510101008',
     descripcion: 'Inventario final de mercancía generales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2',
+    codigo: '52',
     descripcion: 'COSTOS DE PRODUCCION Y VENTAS',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01',
+    codigo: '5201',
     descripcion: 'COSTOS DE PRODUCCION Y VENTAS PRODUCTOS TERMINADOS',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.01',
+    codigo: '520101',
     descripcion: 'PRODUCTOS TERMINADOS VENDIDOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.01.001',
+    codigo: '520101001',
     descripcion: 'Costos Inventarios - Rubro / categoría #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.01.002',
+    codigo: '520101002',
     descripcion: 'Costos Inventarios - Rubro / categoría #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.01.003',
+    codigo: '520101003',
     descripcion: 'Costos Inventarios - Rubro / categoría #3',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.02',
+    codigo: '520102',
     descripcion: 'CONSUMO DE MATERIA PRIMA',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.02.001',
+    codigo: '520102001',
     descripcion: 'Materia prima / materiales #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.02.002',
+    codigo: '520102002',
     descripcion: 'Materia prima / materiales #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.02.801',
+    codigo: '520102801',
     descripcion: 'Pérdida por devolución en mercancías',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.02.999',
+    codigo: '520102999',
     descripcion: 'Distribución a inventarios productos terminados',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.03',
+    codigo: '520103',
     descripcion: 'COSTOS DE FABRICACION',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.03.001',
+    codigo: '520103001',
     descripcion: 'Gasto depreciación instalaciones y edificaciones',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.03.002',
+    codigo: '520103002',
     descripcion: 'Gasto depreciación maquinarias y equipos de fabricación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.03.003',
+    codigo: '520103003',
     descripcion: 'Gasto depreciación equipos computación de fabricación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.03.004',
+    codigo: '520103004',
     descripcion: 'Gastos depreciación equipos de trasporte y carga',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.03.005',
+    codigo: '520103005',
     descripcion: 'Electricidad, agua y gas y otros servicios públicos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.03.006',
+    codigo: '520103006',
     descripcion: 'Servicios adicionales al costo contratados',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.03.007',
+    codigo: '520103007',
     descripcion: 'Descuentos y devoluciones en costos de fabricación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.03.008',
+    codigo: '520103008',
     descripcion: 'Fletes y transporte de mercancía',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.03.999',
+    codigo: '520103999',
     descripcion: 'Distribución a inventarios productos terminados',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04',
+    codigo: '520104',
     descripcion: 'COSTOS DE MANO OBRA DIRECTA',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.001',
+    codigo: '520104001',
     descripcion: 'Sueldos y salarios operacionales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.002',
+    codigo: '520104002',
     descripcion: 'Sueldos y salarios operacionales (horas extras)',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.003',
+    codigo: '520104003',
     descripcion: 'Complemento beneficio de alimentación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.004',
+    codigo: '520104004',
     descripcion: 'Cesta ticket de alimentación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.005',
+    codigo: '520104005',
     descripcion: 'Utilidades personal',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.006',
+    codigo: '520104006',
     descripcion: 'Vacaciones personal',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.007',
+    codigo: '520104007',
     descripcion: 'Bono vacacional',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.008',
+    codigo: '520104008',
     descripcion: 'Prima por antigüedad',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.009',
+    codigo: '520104009',
     descripcion: 'Aporte patronal SSO',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.010',
+    codigo: '520104010',
     descripcion: 'Aporte patronal RPE',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.011',
+    codigo: '520104011',
     descripcion: 'Aporte patronal LPH (Banavih)',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.012',
+    codigo: '520104012',
     descripcion: 'Aporte patronal INCE',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.013',
+    codigo: '520104013',
     descripcion: 'Prestaciones sociales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.014',
+    codigo: '520104014',
     descripcion: 'Intereses sobre prestaciones sociales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.015',
+    codigo: '520104015',
     descripcion: 'Uniforme del personal y artículos de seguridad',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.016',
+    codigo: '520104016',
     descripcion: 'Medicinas y gastos médicos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.017',
+    codigo: '520104017',
     descripcion: 'Gastos transporte del personal',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '5.2.01.04.999',
+    codigo: '520104999',
     descripcion: 'Distribución a inventarios productos terminados',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
     codigo: '6',
     descripcion: 'GASTOS',
     tipo: 'grupo',
-    nivel: 1
+    nivelCuenta: 1,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1',
+    codigo: '61',
     descripcion: 'GASTOS GENERALES Y DE ADMINISTRACION',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01',
+    codigo: '6101',
     descripcion: 'GASTOS OPERACIONALES',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01',
+    codigo: '610101',
     descripcion: 'GASTOS DE PERSONAL ',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.001',
+    codigo: '610101001',
     descripcion: 'Sueldos directivos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.002',
+    codigo: '610101002',
     descripcion: 'Bonificación directivos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.003',
+    codigo: '610101003',
     descripcion: 'Sueldos administración',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.004',
+    codigo: '610101004',
     descripcion: 'Complemento beneficio de alimentación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.005',
+    codigo: '610101005',
     descripcion: 'Cesta ticket de alimentación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.006',
+    codigo: '610101006',
     descripcion: 'Utilidades personal',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.007',
+    codigo: '610101007',
     descripcion: 'Vacaciones personal',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.008',
+    codigo: '610101008',
     descripcion: 'Bono vacacional',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.009',
+    codigo: '610101009',
     descripcion: 'Prima por antigüedad',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.010',
+    codigo: '610101010',
     descripcion: 'Aporte patronal SSO',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.011',
+    codigo: '610101011',
     descripcion: 'Aporte patronal RPE',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.012',
+    codigo: '610101012',
     descripcion: 'Aporte patronal LPH (Banavih)',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.013',
+    codigo: '610101013',
     descripcion: 'Aporte patronal INCE',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.014',
+    codigo: '610101014',
     descripcion: 'Prestaciones sociales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.015',
+    codigo: '610101015',
     descripcion: 'Intereses sobre prestaciones sociales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.016',
+    codigo: '610101016',
     descripcion: 'Uniformes del personal',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.017',
+    codigo: '610101017',
     descripcion: 'Medicinas y gastos médicos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.018',
+    codigo: '610101018',
     descripcion: 'Transporte del personal',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.019',
+    codigo: '610101019',
     descripcion: 'Agasajos y reconocimientos al personal',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.020',
+    codigo: '610101020',
     descripcion: 'Alimentos y bebidas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.021',
+    codigo: '610101021',
     descripcion: 'Viáticos y hospedajes',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.01.022',
+    codigo: '610101022',
     descripcion: 'Adiestramiento del personal',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02',
+    codigo: '610102',
     descripcion: 'GASTOS DE ADMINISTRACION',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.001',
+    codigo: '610102001',
     descripcion: 'Alquiler de local',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.002',
+    codigo: '610102002',
     descripcion: 'Condominio',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.003',
+    codigo: '610102003',
     descripcion: 'Gastos de supervisión',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.004',
+    codigo: '610102004',
     descripcion: 'Honorarios profesionales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.005',
+    codigo: '610102005',
     descripcion: 'Honorarios contables',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.006',
+    codigo: '610102006',
     descripcion: 'Servicios básicos (internet, agua, electricidad, etc.)',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.007',
+    codigo: '610102007',
     descripcion: 'Papelería y artículos de oficina',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.008',
+    codigo: '610102008',
     descripcion: 'Limpieza y artículos de limpieza',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.009',
+    codigo: '610102009',
     descripcion: 'Impuestos municipal por inmueble urbano',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.010',
+    codigo: '610102010',
     descripcion: 'Impuestos municipales actividades económicas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.011',
+    codigo: '610102011',
     descripcion: 'Impuesto municipal publicidad y propaganda',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.012',
+    codigo: '610102012',
     descripcion: 'Servicios municipales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.013',
+    codigo: '610102013',
     descripcion: 'FONACIT',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.014',
+    codigo: '610102014',
     descripcion: 'Gastos legales y gastos de registros',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.015',
+    codigo: '610102015',
     descripcion: 'Vigilancia y suministros de seguridad',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.016',
+    codigo: '610102016',
     descripcion: 'Compra de equipos menores',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.017',
+    codigo: '610102017',
     descripcion: 'Mantenimientos y reparaciones',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.018',
+    codigo: '610102018',
     descripcion: 'Soporte técnico',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.019',
+    codigo: '610102019',
     descripcion: 'Manejo de redes sociales',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.020',
+    codigo: '610102020',
     descripcion: 'Gasto por cuentas incobrables',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.021',
+    codigo: '610102021',
     descripcion: 'Publicidad contratada y gastos de comunicación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.022',
+    codigo: '610102022',
     descripcion: 'Gastos de representación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.023',
+    codigo: '610102023',
     descripcion: 'Viáticos y hospedajes',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.024',
+    codigo: '610102024',
     descripcion: 'Donaciones',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.025',
+    codigo: '610102025',
     descripcion: 'Fumigación instalaciones',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.026',
+    codigo: '610102026',
     descripcion: 'Pólizas de seguros',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.02.027',
+    codigo: '610102027',
     descripcion: 'Gastos varios',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.03',
+    codigo: '610103',
     descripcion: 'GASTOS NO DEDUCIBLES',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.03.001',
+    codigo: '610103001',
     descripcion: 'Impuesto IGTF (no deducible)',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.03.002',
+    codigo: '610103002',
     descripcion: 'Multas (no deducible)',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.01.03.003',
+    codigo: '610103003',
     descripcion: 'Otros gastos no deducibles',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.02',
+    codigo: '6102',
     descripcion: 'GASTOS DE DEPRECIACION Y AMORTIZACION',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.02.01',
+    codigo: '610201',
     descripcion: 'GASTOS DE DEPRECIACION',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.02.01.001',
+    codigo: '610201001',
     descripcion: 'Depreciación edificaciones e instalaciones',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.02.01.002',
+    codigo: '610201002',
     descripcion: 'Depreciación mobiliario y equipos de oficina',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.02.01.003',
+    codigo: '610201003',
     descripcion: 'Depreciación equipos de computación',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.02.01.004',
+    codigo: '610201004',
     descripcion: 'Depreciación vehículos',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.02.01.005',
+    codigo: '610201005',
     descripcion: 'Depreciación maquinaria y equipos pesados',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.02.02',
+    codigo: '610202',
     descripcion: 'GASTOS DE AMORTIZACION',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.02.02.001',
+    codigo: '610202001',
     descripcion: 'Amortización software / licencias #1',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.02.02.002',
+    codigo: '610202002',
     descripcion: 'Amortización software / licencias #2',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.03',
+    codigo: '6103',
     descripcion: 'OTROS GASTOS',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.03.01',
+    codigo: '610301',
     descripcion: 'GASTOS FINANCIEROS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.03.01.001',
+    codigo: '610301001',
     descripcion: 'Comisiones bancarias',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.03.01.002',
+    codigo: '610301002',
     descripcion: 'Intereses bancarios',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '6.1.03.01.003',
+    codigo: '610301003',
     descripcion: 'Intereses moratorios',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
     codigo: '7',
     descripcion: 'OTROS INGRESOS O EGRESOS',
     tipo: 'grupo',
-    nivel: 1
+    nivelCuenta: 1,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.1',
+    codigo: '71',
     descripcion: 'OTROS INGRESOS O EGRESOS',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.1.01',
+    codigo: '7101',
     descripcion: 'OTROS INGRESOS O EGRESOS ORDINARIOS',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.1.01.01',
+    codigo: '710101',
     descripcion: 'DIFERENCIAS EN OPERACIONES DIARIAS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.1.01.01.001',
+    codigo: '710101001',
     descripcion: 'Diferencias en pagos y cobros',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.1.01.01.002',
+    codigo: '710101002',
     descripcion: 'Sobrante / Faltante en caja',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.1.01.02',
+    codigo: '710102',
     descripcion: 'DIFERENCIAL CAMBIARIO',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.1.01.02.001',
+    codigo: '710102001',
     descripcion: 'Ganancia por diferencias en cambio de divisas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.1.01.02.002',
+    codigo: '710102002',
     descripcion: 'Perdida por diferencias en cambio de divisas',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.1.01.03',
+    codigo: '710103',
     descripcion: 'AJUSTES DE INVENTARIOS',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.1.01.03.001',
+    codigo: '710103001',
     descripcion: 'Ganancias en ajustes de inventario',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.1.01.03.002',
+    codigo: '710103002',
     descripcion: 'Perdidas en ajustes de inventario',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.2',
+    codigo: '72',
     descripcion: 'CUENTAS DE CIERRE DEL EJERCICIO',
     tipo: 'grupo',
-    nivel: 2
+    nivelCuenta: 2,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.2.01',
+    codigo: '7201',
     descripcion: 'IMPUESTOS DEL EJERCICIO',
     tipo: 'grupo',
-    nivel: 3
+    nivelCuenta: 3,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.2.01.01',
+    codigo: '720101',
     descripcion: 'IMPUESTO SOBRE LA RENTA',
     tipo: 'grupo',
-    nivel: 4
+    nivelCuenta: 4,
+    fechaCreacion: moment().toDate()
   },
   {
-    codigo: '7.2.01.01.001',
+    codigo: '720101001',
     descripcion: 'Gasto de ISLR del ejercicio',
     tipo: 'movimiento',
-    nivel: 5
+    nivelCuenta: 5,
+    fechaCreacion: moment().toDate()
   },
   {
     codigo: '8',
     descripcion: 'CUENTAS DE ORDEN (DEUDOR)',
     tipo: 'grupo',
-    nivel: 1
+    nivelCuenta: 1,
+    fechaCreacion: moment().toDate()
   },
   {
     codigo: '9',
     descripcion: 'CUENTAS DE ORDEN (ACREEDOR)',
     tipo: 'grupo',
-    nivel: 1
+    nivelCuenta: 1,
+    fechaCreacion: moment().toDate()
   }
-] */
+]
 export async function createPlanCuenta ({ clienteId }) {
   await createManyItemsSD({
     nameCollection: 'planCuenta',

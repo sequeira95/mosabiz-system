@@ -1,5 +1,5 @@
 import moment from 'moment-timezone'
-import { agreggateCollections, agreggateCollectionsSD, createManyItemsSD, formatCollectionName, getCollection, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, createManyItemsSD, formatCollectionName, getCollection, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { formatearNumeroRetencionIslr, formatearNumeroRetencionIva, subDominioName, tiposDeclaracion, tiposDocumentosFiscales, tiposIVa } from '../../../constants.js'
 import { ObjectId } from 'mongodb'
 import { uploadImg } from '../../../utils/cloudImage.js'
@@ -2287,5 +2287,296 @@ export const getListClientes = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la lista de proveedores ' + e.message })
+  }
+}
+export const saveComprobanteRetIvaVentas = async (req, res) => {
+  console.log(req.body)
+  try {
+    const { clienteId, comprobantes, fecha } = req.body
+    const comprobantesCrear = []
+    const asientosContables = []
+    const tieneContabilidad = await hasContabilidad({ clienteId })
+    const ajusteTributos = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'tributos' } })
+    let periodo = null
+    let comprobanteContable = null
+    const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    if (tieneContabilidad) {
+      periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fecha).toDate() }, fechaFin: { $gte: moment(fecha).toDate() } } })
+      // console.log({ periodo })
+      if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
+      const mesPeriodo = moment(fecha).format('YYYY/MM')
+      comprobanteContable = await getItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: ajusteTributos.codigoComprobanteVentas, periodoId: periodo._id, mesPeriodo }
+      })
+      if (!comprobanteContable) {
+        comprobanteContable = await upsertItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteTributos.codigoComprobanteVentas, periodoId: periodo._id, mesPeriodo },
+          update: {
+            $set: {
+              nombre: 'Movimientos de compras',
+              isBloqueado: false,
+              fechaCreacion: moment().toDate()
+            }
+          }
+        })
+      }
+    }
+    for (const comprobante of comprobantes) {
+      const verifyComprobante = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { facturaAsociada: new ObjectId(comprobante.facturaAsociada), tipoDocumento: tiposDocumentosFiscales.retIva }
+      })
+      if (verifyComprobante) throw new Error('Ya existe un comprobante para la factura N° ' + comprobante.numeroFacturaAsociada)
+      comprobantesCrear.push({
+        tipoMovimiento: 'venta',
+        tipoDocumento: tiposDocumentosFiscales.retIva,
+        numeroFactura: comprobante.numeroFactura,
+        facturaAsociada: new ObjectId(comprobante.facturaAsociada),
+        tipoDocumentoAfectado: comprobante.tipoDocumentoAfectado,
+        fecha: moment(comprobante.fecha).toDate(),
+        baseImponible: Number(comprobante.baseImponible.toFixed(2)),
+        porcentajeRetenido: Number(comprobante.porcentajeRetenido.toFixed(2)),
+        totalCompra: Number(comprobante.totalCompra.toFixed(2)),
+        iva: Number(comprobante.iva.toFixed(2)),
+        sinDerechoCredito: Number(comprobante.sinDerechoCredito.toFixed(2)),
+        totalRetenido: Number(comprobante.totalRetenido.toFixed(2)),
+        tipoRetencion: comprobante.tipoRetencion,
+        proveedorId: new ObjectId(comprobante.proveedorId),
+        creadoPor: new ObjectId(req.uid),
+        tasaDia: Number(comprobante.tasaDia),
+        totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2))
+      })
+      /* if (tieneContabilidad) {
+        console.log('entrando')
+        const cuentaRet = await getItemSD({
+          nameCollection: 'planCuenta',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(ajusteTributos.cuentaRetIvaVenta) }
+        })
+        const factura = await getItemSD({
+          nameCollection: 'documentosFiscales',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(comprobante.facturaAsociada) }
+        })
+        const detalleProveedor = await agreggateCollectionsSD({
+          nameCollection: 'proveedores',
+          enviromentClienteId: clienteId,
+          pipeline: [
+            { $match: { _id: new ObjectId(comprobante.proveedorId) } },
+            {
+              $lookup: {
+                from: categoriasCollection,
+                localField: 'categoria',
+                foreignField: '_id',
+                as: 'detalleCategoria'
+              }
+            },
+            { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } }
+          ]
+        })
+        const cuentaProveedor = await getItemSD({
+          nameCollection: 'planCuenta',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(detalleProveedor[0]?.detalleCategoria?.cuentaId) }
+        })
+        let terceroProveedor = await getItemSD({
+          nameCollection: 'terceros',
+          enviromentClienteId: clienteId,
+          filters: { cuentaId: new ObjectId(cuentaProveedor._id), nombre: detalleProveedor[0]?.razonSocial.toUpperCase() }
+        })
+        if (!terceroProveedor) {
+          terceroProveedor = await upsertItemSD({
+            nameCollection: 'terceros',
+            enviromentClienteId: clienteId,
+            filters: { cuentaId: new ObjectId(cuentaProveedor._id), nombre: detalleProveedor[0]?.razonSocial.toUpperCase() },
+            update: {
+              $set: {
+                nombre: detalleProveedor[0]?.razonSocial.toUpperCase(),
+                cuentaId: new ObjectId(cuentaProveedor._id)
+              }
+            }
+          })
+        }
+        asientosContables.push({
+          cuentaId: new ObjectId(cuentaProveedor._id),
+          cuentaCodigo: cuentaProveedor.codigo,
+          cuentaNombre: cuentaProveedor.descripcion,
+          comprobanteId: new ObjectId(comprobanteContable._id),
+          periodoId: new ObjectId(periodo._id),
+          descripcion: `COMPROBANTE RET IVA N°${formatearNumeroRetencionIva(contador, moment(fecha).format('YYYYMM'))} DE ${factura.tipoDocumento}-${factura.numeroFactura}`,
+          fecha: moment(comprobante.fecha).toDate(),
+          debe: Number(comprobante.totalRetenido.toFixed(2)),
+          haber: 0,
+          fechaCreacion: moment().toDate(),
+          terceroId: new ObjectId(terceroProveedor._id),
+          terceroNombre: terceroProveedor.nombre,
+          docReferencia: `RET IVA N°${formatearNumeroRetencionIva(contador, moment(fecha).format('YYYYMM'))}`,
+          documento: {
+            docReferencia: `RET IVA N°${formatearNumeroRetencionIva(contador, moment(fecha).format('YYYYMM'))}`,
+            docFecha: moment(comprobante.fecha).toDate()
+          }
+        }, {
+          cuentaId: new ObjectId(cuentaRet._id),
+          cuentaCodigo: cuentaRet.codigo,
+          cuentaNombre: cuentaRet.descripcion,
+          comprobanteId: new ObjectId(comprobanteContable._id),
+          periodoId: new ObjectId(periodo._id),
+          descripcion: `COMPROBANTE RET IVA N°${formatearNumeroRetencionIva(contador, moment(fecha).format('YYYYMM'))} DE ${factura.tipoDocumento}-${factura.numeroFactura}`,
+          fecha: moment(comprobante.fecha).toDate(),
+          debe: 0,
+          haber: Number(comprobante.totalRetenido.toFixed(2)),
+          fechaCreacion: moment().toDate(),
+          docReferencia: `RET IVA N°${formatearNumeroRetencionIva(contador, moment(fecha).format('YYYYMM'))}`,
+          documento: {
+            docReferencia: `RET IVA N°${formatearNumeroRetencionIva(contador, moment(fecha).format('YYYYMM'))}`,
+            docFecha: moment(comprobante.fecha).toDate()
+          }
+        })
+      } */
+    }
+    await createManyItemsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      items: [
+        ...comprobantesCrear
+      ]
+    })
+    console.log({ asientosContables })
+    if (asientosContables[0]) await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: [...asientosContables] })
+    return res.status(200).json({ status: 'Comprobantes creados exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar los comprobantes ' + e.message })
+  }
+}
+export const getFacturasPorDeclararIva = async (req, res) => {
+  const { clienteId, pagina, itemsPorPagina, periodoSelect, tipo } = req.body
+  console.log(req.body)
+  try {
+    const fechaFin = periodoSelect?.fechaFin ? moment(periodoSelect.fechaFin).toDate() : moment().toDate()
+    const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
+    const proveedoresFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const clientesFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'clientes' })
+    const facturas = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoMovimiento: tipo,
+            tipoDocumento: { $in: [tiposDocumentosFiscales.factura] },
+            declarado: { $ne: true },
+            fecha: { $lte: fechaFin }
+          }
+        },
+        { $skip: (pagina - 1) * itemsPorPagina },
+        { $limit: itemsPorPagina },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: '_id',
+            foreignField: 'facturaAsociada',
+            pipeline: [
+              { $match: { estado: { $ne: 'anulado' } } },
+              {
+                $group: {
+                  _id: 0,
+                  notasDebito: { $sum: { $cond: { if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] }, then: 1, else: 0 } } },
+                  notasCredito: { $sum: { $cond: { if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] }, then: 1, else: 0 } } },
+                  retIva: { $sum: { $cond: { if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIva] }, then: 1, else: 0 } } },
+                  retIslr: { $sum: { $cond: { if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIslr] }, then: 1, else: 0 } } }
+                }
+              }
+            ],
+            as: 'detallesDocumentos'
+          }
+        },
+        { $unwind: { path: '$detallesDocumentos', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: proveedoresFiscalesCollection,
+            localField: 'proveedorId',
+            foreignField: '_id',
+            as: 'proveedor'
+          }
+        },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: clientesFiscalesCollection,
+            localField: 'clienteId',
+            foreignField: '_id',
+            as: 'cliente'
+          }
+        },
+        { $unwind: { path: '$cliente', preserveNullAndEmptyArrays: true } }
+      ]
+    })
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoMovimiento: tipo,
+            tipoDocumento: { $in: [tiposDocumentosFiscales.factura] },
+            declarado: { $ne: true },
+            fecha: { $lte: fechaFin }
+          }
+        },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ facturas, count: count.length ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las facturas por declarar ' + e.message })
+  }
+}
+export const savePeriodoFactura = async (req, res) => {
+  const { clienteId, facturas, periodo } = req.body
+  try {
+    const idFacturas = facturas.map(factura => new ObjectId(factura._id))
+    const datosUpdate = {
+      periodoIvaInit: moment(periodo.fechaInicio).toDate(),
+      periodoIvaEnd: moment(periodo.fechaFin).toDate(),
+      periodoIvaNombre: periodo.periodo
+    }
+    await updateManyItemSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      filters: { _id: { $in: idFacturas } },
+      update: { $set: { ...datosUpdate } }
+    })
+    return res.status(200).json({ status: 'Periodo asignados a facturas correctamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de asignar los periodos ' + e.message })
+  }
+}
+export const deletePeriodoFactura = async (req, res) => {
+  const { clienteId, facturas } = req.body
+  try {
+    const idFacturas = facturas.map(factura => new ObjectId(factura._id))
+    const datosUpdate = {
+      periodoIvaInit: null,
+      periodoIvaEnd: null,
+      periodoIvaNombre: null
+    }
+    await updateManyItemSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      filters: { _id: { $in: idFacturas } },
+      update: { $set: { ...datosUpdate } }
+    })
+    return res.status(200).json({ status: 'Periodo eliminados de las facturas correctamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar los periodos de las facturas ' + e.message })
   }
 }

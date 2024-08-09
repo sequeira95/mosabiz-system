@@ -1,6 +1,6 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { anularComprobante, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIVA, getComprobantesRetencionIVAVenta, getDataIva, getFacturasPorDeclarar, getListClientes, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, saveComprobanteRetIslrCompras, saveComprobanteRetIvaCompras, saveDeclaracionIslr, saveDeclaracionIva, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
+import { anularComprobante, deletePeriodoFactura, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIVA, getComprobantesRetencionIVAVenta, getDataIva, getFacturasPorDeclarar, getFacturasPorDeclararIva, getListClientes, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, saveComprobanteRetIslrCompras, saveComprobanteRetIvaCompras, saveDeclaracionIslr, saveDeclaracionIva, savePeriodoFactura, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
 
 const router = express.Router()
 
@@ -20,4 +20,7 @@ router.post('/save/declaracionIva', requireSubDominioToken, saveDeclaracionIva)
 router.post('/get/dataIva', requireSubDominioToken, getDataIva)
 router.post('/get/retIvaVenta', requireSubDominioToken, getComprobantesRetencionIVAVenta)
 router.post('/get/clientesVentas', requireSubDominioToken, getListClientes)
+router.post('/get/facturas/porDeclarar/iva', requireSubDominioToken, getFacturasPorDeclararIva)
+router.post('/save/periodoFactura', requireSubDominioToken, savePeriodoFactura)
+router.post('/delete/periodoFactura', requireSubDominioToken, deletePeriodoFactura)
 export default router

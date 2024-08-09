@@ -8,7 +8,7 @@ export const lengthCodigoByNiveles = {
   3: 4,
   4: 6,
   5: 9,
-  6: 13
+  6: 12
 }
 export const nivelesCodigoByLength = {
   1: 1,
@@ -16,7 +16,7 @@ export const nivelesCodigoByLength = {
   4: 3,
   6: 4,
   9: 5,
-  13: 6
+  12: 6
 }
 export const ObjectNumbersMonths = {
   ENERO: 1,

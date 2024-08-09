@@ -1,6 +1,6 @@
 import moment from 'moment'
 import { createManyItemsSD } from './dataBaseConfing.js'
-/* const planCuentaDefecto = [
+const planCuentaLightDefecto = [
   {
     codigo: '1',
     descripcion: 'ACTIVO',
@@ -64,7 +64,7 @@ import { createManyItemsSD } from './dataBaseConfing.js'
     nivelCuenta: 1,
     fechaCreacion: moment().toDate()
   }
-] */
+]
 const planCuentaDefecto = [
   {
     codigo: '1',
@@ -2508,5 +2508,13 @@ export async function createPlanCuenta ({ clienteId }) {
     nameCollection: 'planCuenta',
     enviromentClienteId: clienteId,
     items: planCuentaDefecto
+  })
+}
+
+export async function createPlanCuentaLight ({ clienteId }) {
+  await createManyItemsSD({
+    nameCollection: 'planCuenta',
+    enviromentClienteId: clienteId,
+    items: planCuentaLightDefecto
   })
 }

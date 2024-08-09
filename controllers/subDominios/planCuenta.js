@@ -3,7 +3,7 @@ import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD, formatCollectio
 import { nivelesCodigoByLength, subDominioName } from '../../constants.js'
 import { ObjectId } from 'mongodb'
 import { deleteCuentasForChangeLevel, updateManyDetalleComprobante } from '../../utils/updateComprobanteForChangeCuenta.js'
-import { createPlanCuenta } from '../../utils/planCuentaDefecto.js'
+import { createPlanCuenta, createPlanCuentaLight } from '../../utils/planCuentaDefecto.js'
 
 export const getPlanCuenta = async (req, res) => {
   const { clienteId } = req.body
@@ -371,7 +371,7 @@ export const deletePlanCuenta = async (req, res) => {
       filters: { tipo: 'contable' },
       update: { $set: { cuentaPerdidaAcum: '', cuentaSuperAvitAcum: '', cuentaSuperAvitOperdidaActual: '' } }
     })
-    createPlanCuenta({ clienteId })
+    createPlanCuentaLight({ clienteId })
     return res.status(200).json({ status: 'Plan de cuenta eliminado  exitosamente' })
   } catch (e) {
     console.log(e)

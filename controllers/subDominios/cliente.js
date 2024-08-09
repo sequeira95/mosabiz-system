@@ -267,15 +267,15 @@ export const createCliente = async (req, res) => {
       enviromentClienteId: clienteCol.insertedId,
       items: [
         {
-          codigo: '1',
+          codigo: '7000',
           nombre: 'Transito'
         },
         {
-          codigo: '2',
+          codigo: '9000',
           nombre: 'Auditoria'
         },
         {
-          codigo: '',
+          codigo: '8000',
           nombre: 'Devoluciones'
         }
       ]

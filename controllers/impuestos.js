@@ -13,8 +13,8 @@ export const getIva = async (req, res) => {
       nameCollection: 'iva',
       pipeline: [
         { $match: matchConfig },
-        { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
-        { $limit: Number(itemsPorPagina) }
+        { $skip: (Number(pagina || 1) - 1) * Number(itemsPorPagina || 1000) },
+        { $limit: Number(itemsPorPagina || 1000) }
       ]
     })
     const countIva = await agreggateCollections({
@@ -31,7 +31,7 @@ export const getIva = async (req, res) => {
   }
 }
 export const saveIva = async (req, res) => {
-  const { _id, iva, descripcion, pais, isExento, isExonerado, isNoSujeto, SinDeretoCredito, nombreCorto } = req.body
+  const { _id, iva, descripcion, pais, isExento, isExonerado, isNoSujeto, SinDeretoCredito, nombreCorto, tipo } = req.body
   try {
     if (!_id) {
       const ivaSave = await upsertItem({
@@ -46,7 +46,8 @@ export const saveIva = async (req, res) => {
             isExonerado,
             isNoSujeto,
             SinDeretoCredito,
-            nombreCorto
+            nombreCorto,
+            tipo
           }
         }
       })
@@ -64,7 +65,8 @@ export const saveIva = async (req, res) => {
           isExonerado,
           isNoSujeto,
           SinDeretoCredito,
-          nombreCorto
+          nombreCorto,
+          tipo
         }
       }
     })
@@ -113,7 +115,7 @@ export const getIslr = async (req, res) => {
   }
 }
 export const saveIslr = async (req, res) => {
-  const { _id, nombre, valorRet, codigo, tipoCalculo, sustraendo, minimo, pais, tipoRetencion, valorBaseImponible } = req.body
+  const { _id, nombre, valorRet, codigo, tipoCalculo, sustraendo, minimo, pais, tipoRetencion, valorBaseImponible, valorUT } = req.body
   try {
     if (!_id) {
       const islrSave = await upsertItem({
@@ -129,7 +131,8 @@ export const saveIslr = async (req, res) => {
             sustraendo: sustraendo ? Number(sustraendo) : 0,
             minimo: minimo ? Number(minimo) : 0,
             tipoRetencion,
-            valorBaseImponible: Number(valorBaseImponible)
+            valorBaseImponible: Number(valorBaseImponible),
+            valorUT: Number(valorUT)
           }
         }
       })
@@ -148,7 +151,8 @@ export const saveIslr = async (req, res) => {
           sustraendo: sustraendo ? Number(sustraendo) : 0,
           minimo: minimo ? Number(minimo) : 0,
           tipoRetencion,
-          valorBaseImponible: Number(valorBaseImponible)
+          valorBaseImponible: Number(valorBaseImponible),
+          valorUT: valorUT ? Number(valorUT) : 0
         }
       }
     })
@@ -269,20 +273,22 @@ export const getCiclos = async (req, res) => {
   }
 }
 export const saveCiclos = async (req, res) => {
-  const { _id, descripcion, fechaInicio, fechaFin, isFechaActual, pais, tipoCiclo, tipoImpuesto } = req.body
+  const { _id, descripcion, fechaInicio, fechaFin, isFechaActual, pais, tipoCiclo, tipoImpuesto, isSujetoPasivoEspecial } = req.body
   console.log({ ciclo: req.body })
   try {
     if (isFechaActual) {
       const verifyCicloFechaActual = await getItem({
         nameCollection: 'ciclosImpuestos',
-        filters: { pais, isFechaActual }
+        filters: { pais, isFechaActual, tipoImpuesto, isSujetoPasivoEspecial }
       })
+      console.log({ verifyCicloFechaActual })
       if (verifyCicloFechaActual && verifyCicloFechaActual._id.toString() !== _id.toString()) return res.status(400).json({ error: 'Ya existe un ciclo de impuestos hasta la fecha actual.' })
     }
     const verifyFechaIinit = await getItem({
       nameCollection: 'ciclosImpuestos',
-      filters: { pais, fechaFin: { $gte: new Date(fechaInicio) } }
+      filters: { pais, fechaFin: { $gte: new Date(fechaInicio) }, tipoImpuesto, isSujetoPasivoEspecial }
     })
+    console.log({ verifyFechaIinit })
     if (verifyFechaIinit && verifyFechaIinit._id.toString() !== _id.toString()) return res.status(400).json({ error: 'No puede crear un ciclo que la fecha de inicio sea menor o igual a la fecha final de otro ciclo.' })
     if (!_id) {
       const ciclo = await upsertItem({
@@ -296,7 +302,8 @@ export const saveCiclos = async (req, res) => {
             isFechaActual,
             pais,
             tipoCiclo,
-            tipoImpuesto
+            tipoImpuesto,
+            isSujetoPasivoEspecial
           }
         }
       })
@@ -313,7 +320,8 @@ export const saveCiclos = async (req, res) => {
           isFechaActual,
           pais,
           tipoCiclo,
-          tipoImpuesto
+          tipoImpuesto,
+          isSujetoPasivoEspecial
         }
       }
     })

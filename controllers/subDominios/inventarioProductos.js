@@ -99,6 +99,7 @@ export const getProductos = async (req, res) => {
               }
             },
             iva: '$iva',
+            ivaId: '$ivaId',
             costoPromedio: '$costoPromedio',
             isDataInicial: '$isDataInicial'
           }
@@ -775,7 +776,7 @@ export const saveAjusteAlmacen = async (req, res) => {
   }
 }
 export const saveProductosVentas = async (req, res) => {
-  const { descripcion, observacion, clienteId, _id, moneda, isExento, precioVenta, iva } = req.body
+  const { descripcion, observacion, clienteId, _id, moneda, isExento, precioVenta, ivaId } = req.body
   try {
     const producto = await updateItemSD({
       nameCollection: 'productos',
@@ -787,7 +788,7 @@ export const saveProductosVentas = async (req, res) => {
           moneda,
           isExento,
           precioVenta: Number(precioVenta),
-          iva,
+          ivaId: new ObjectId(ivaId),
           observacion
         }
       }

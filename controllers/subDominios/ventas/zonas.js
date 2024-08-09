@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb'
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, createItemSD, getItemSD, updateItemSD, formatCollectionName } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, createItemSD, updateItemSD, formatCollectionName } from '../../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../../constants.js'
 
 export const getZonas = async (req, res) => {
@@ -19,7 +19,7 @@ export const getZonas = async (req, res) => {
             as: 'cuentaData'
           }
         },
-        { $unwind: '$cuentaData' },
+        { $unwind: { path: '$cuentaData', preserveNullAndEmptyArrays: true } },
         {
           $addFields: {
             cuenta: '$cuentaData.codigo'
@@ -95,7 +95,7 @@ export const saveZonas = async (req, res) => {
         item: {
           nombre,
           observacion,
-          cuentaId: new ObjectId(cuentaId)
+          cuentaId: cuentaId && new ObjectId(cuentaId)
         }
       })
       zona = await agreggateCollectionsSD({
@@ -111,7 +111,7 @@ export const saveZonas = async (req, res) => {
               as: 'cuentaData'
             }
           },
-          { $unwind: '$cuentaData' },
+          { $unwind: { path: '$cuentaData', preserveNullAndEmptyArrays: true } },
           {
             $addFields: {
               cuenta: '$cuentaData.codigo'

@@ -2,6 +2,7 @@ import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
 import {
   addImagenCompras,
+  anularDocumento,
   aprobarOrdenCompra,
   aprobarPagosOrdenCompra,
   cancelarCompra, createFacturas, createOrdenCompra,
@@ -12,6 +13,8 @@ import {
   getDataOrdenesComprasPorPagar,
   getDetalleProveedor,
   getFacturas,
+  getFacturasPagadas,
+  getHistorialOrdenes,
   getListImpuestosIslr,
   getListImpuestosIva,
   getListProductosForCompra,
@@ -19,7 +22,8 @@ import {
   getListadoPagos,
   getOrdenesComprasForFacturas,
   getServiciosForCompra,
-  getSolicitudesInventario
+  getSolicitudesInventario,
+  saveEditFactura
 } from '../../controllers/subDominios/compras/compras.js'
 import { dataReportePorPagar } from '../../controllers/subDominios/compras/reportes.js'
 
@@ -47,4 +51,8 @@ router.post('/get/listadoFacturas', requireSubDominioToken, getFacturas)
 router.post('/delete/img', requireSubDominioToken, deleteImgCompras)
 router.post('/add/img', requireSubDominioToken, addImagenCompras)
 router.post('/getDataReportePorPagar', requireSubDominioToken, dataReportePorPagar)
+router.post('/get/listadoFacturasPagadas', requireSubDominioToken, getFacturasPagadas)
+router.post('/save/EditFactura', requireSubDominioToken, saveEditFactura)
+router.post('/anular/documento', requireSubDominioToken, anularDocumento)
+router.post('/get/ordenesCompra/historial', requireSubDominioToken, getHistorialOrdenes)
 export default router

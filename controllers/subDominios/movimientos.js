@@ -2975,7 +2975,7 @@ export const getDataCompraRecepcion = async (req, res) => {
       nameCollection: 'compras',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { _id: new ObjectId(compraId) } },
+        { $match: { _id: new ObjectId(compraId), estado: { $ne: 'recibido' } } },
         {
           $lookup: {
             from: proveedoresCollection,

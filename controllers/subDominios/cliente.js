@@ -209,6 +209,14 @@ export const createCliente = async (req, res) => {
         }
       })
     }
+    createItemSD({
+      nameCollection: 'ajustes',
+      enviromentClienteId: clienteCol.insertedId,
+      item: {
+        tipo: 'contable',
+        nivelCuenta: 5
+      }
+    })
     // creamos un plan de cuenta por defecto con las cuentas de grupo basicas (cuando creemos todas las colecciones mover la logia)
     createPlanCuenta({ clienteId: clienteCol.insertedId })
     // creamos el usuario asociado a este nuevo cliente
@@ -259,15 +267,15 @@ export const createCliente = async (req, res) => {
       enviromentClienteId: clienteCol.insertedId,
       items: [
         {
-          codigo: '1',
+          codigo: '7000',
           nombre: 'Transito'
         },
         {
-          codigo: '2',
+          codigo: '9000',
           nombre: 'Auditoria'
         },
         {
-          codigo: '',
+          codigo: '8000',
           nombre: 'Devoluciones'
         }
       ]

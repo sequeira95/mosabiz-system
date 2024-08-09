@@ -42,10 +42,15 @@ export const upsertAjusteCliente = async (req, res) => {
   if (ajuste.cuentaIva && ajuste.cuentaIva._id) ajuste.cuentaIva = new ObjectId(ajuste.cuentaIva._id)
   if (ajuste.cuentaRetIva && ajuste.cuentaRetIva._id) ajuste.cuentaRetIva = new ObjectId(ajuste.cuentaRetIva._id)
   if (ajuste.cuentaRetIslrCompra && ajuste.cuentaRetIslrCompra._id) ajuste.cuentaRetIslrCompra = new ObjectId(ajuste.cuentaRetIslrCompra._id)
+  if (ajuste.cuentaRetIvaVenta && ajuste.cuentaRetIvaVenta._id) ajuste.cuentaRetIvaVenta = new ObjectId(ajuste.cuentaRetIvaVenta._id)
   if (ajuste.cuentaIgtf && ajuste.cuentaIgtf._id) ajuste.cuentaIgtf = new ObjectId(ajuste.cuentaIgtf._id)
   if (ajuste.cuentaVariacionCambiaria && ajuste.cuentaVariacionCambiaria._id) ajuste.cuentaVariacionCambiaria = new ObjectId(ajuste.cuentaVariacionCambiaria._id)
   if (ajuste.cuentaVariacionCambiariaGastos && ajuste.cuentaVariacionCambiariaGastos._id) ajuste.cuentaVariacionCambiariaGastos = new ObjectId(ajuste.cuentaVariacionCambiariaGastos._id)
   if (ajuste.cuentaDescuentosDevolucionesCompras && ajuste.cuentaDescuentosDevolucionesCompras._id) ajuste.cuentaDescuentosDevolucionesCompras = new ObjectId(ajuste.cuentaDescuentosDevolucionesCompras._id)
+  if (ajuste.cuentaIvaId) ajuste.cuentaIvaId = new ObjectId(ajuste.cuentaIvaId)
+  if (ajuste.cuentaPorCobrarClienteId) ajuste.cuentaPorCobrarClienteId = new ObjectId(ajuste.cuentaPorCobrarClienteId)
+  if (ajuste.cuentaDescuentosProductosId) ajuste.cuentaDescuentosProductosId = new ObjectId(ajuste.cuentaDescuentosProductosId)
+  if (ajuste.cuentaIGTFPorPagarId) ajuste.cuentaIGTFPorPagarId = new ObjectId(ajuste.cuentaIGTFPorPagarId)
   if (ajuste._id) delete ajuste._id
   if (ajuste.puedeDesbloquearComprobantes) {
     ajuste.puedeDesbloquearComprobantes = ajuste.puedeDesbloquearComprobantes.map(userId => new ObjectId(userId))

@@ -84,7 +84,10 @@ export const saveProveedor = async (req, res) => {
             credito: proveedor.credito ? Number(proveedor.credito) : null,
             duracionCredito: proveedor.duracionCredito ? Number(proveedor.duracionCredito) : null,
             moneda: proveedor.moneda ? proveedor.moneda : null,
-            fechaCreacion: moment().toDate()
+            fechaCreacion: moment().toDate(),
+            utilidadFija: proveedor.utilidadFija || false,
+            utilidaVariableDesde: proveedor.utilidaVariableDesde || false,
+            utilidaVariableHasta: proveedor.utilidaVariableHasta || false
           }
         }
       })
@@ -127,7 +130,10 @@ export const saveProveedor = async (req, res) => {
           credito: proveedor.credito ? Number(proveedor.credito) : null,
           duracionCredito: proveedor.duracionCredito ? Number(proveedor.duracionCredito) : null,
           categoria: proveedor.categoria && proveedor.categoria._id ? new ObjectId(proveedor.categoria._id) : null,
-          moneda: proveedor.moneda ? proveedor.moneda : null
+          moneda: proveedor.moneda ? proveedor.moneda : null,
+          utilidadFija: proveedor.utilidadFija || false,
+          utilidaVariableDesde: proveedor.utilidaVariableDesde || false,
+          utilidaVariableHasta: proveedor.utilidaVariableHasta || false
         }
       }
     })

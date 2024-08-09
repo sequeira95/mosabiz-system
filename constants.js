@@ -6,17 +6,17 @@ export const lengthCodigoByNiveles = {
   1: 1,
   2: 2,
   3: 4,
-  4: 7,
-  5: 10,
-  6: 13
+  4: 6,
+  5: 9,
+  6: 12
 }
 export const nivelesCodigoByLength = {
   1: 1,
   2: 2,
   4: 3,
-  7: 4,
-  10: 5,
-  13: 6
+  6: 4,
+  9: 5,
+  12: 6
 }
 export const ObjectNumbersMonths = {
   ENERO: 1,
@@ -62,7 +62,7 @@ export const collectionNameClient = [
   'ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios', 'categorias',
   'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos', 'contadores', 'movimientos', 'detalleMovimientos',
   'productosPorAlmacen', 'retencionISLR', 'bancos', 'clientes', 'servicios', 'iva', 'proveedores', 'metodosPagos', 'compras', 'detalleCompra', 'transacciones',
-  'documentosFiscales', 'detalleDocumentosFiscales', 'ventassucursales', 'ventaszonas', 'zonasPorSucursales'
+  'documentosFiscales', 'detalleDocumentosFiscales', 'ventassucursales', 'ventaszonas', 'zonasPorSucursales', 'declaraciones'
 ]
 export const collectionNameAIbiz = [
   'islr', 'iva', 'bancos', 'retIva'
@@ -109,16 +109,79 @@ export const tipoMovimientosShort = {
 
 // ventas
 export const documentosVentas = [
-  { text: 'Facturas', value: 'Factura', isFiscal: true },
-  { text: 'Nota de crédito', value: 'Nota de crédito', isFiscal: true },
-  { text: 'Nota de débito', value: 'Nota de débito', isFiscal: true },
-  { text: 'Pedido de venta', value: 'Pedido de venta', isFiscal: false },
-  { text: 'Nota de entrega', value: 'Nota de entrega', isFiscal: false },
-  { text: 'Presupuesto', value: 'Presupuesto', isFiscal: false }
+  {
+    text: 'Facturas',
+    value: 'Factura',
+    sigla: 'FC',
+    isFiscal: true
+  },
+  {
+    text: 'Nota de crédito',
+    value: 'Nota de crédito',
+    sigla: 'NC',
+    isFiscal: true
+  },
+  {
+    text: 'Nota de débito',
+    value: 'Nota de débito',
+    sigla: 'ND',
+    isFiscal: true
+  },
+  {
+    text: 'Pedido de venta',
+    value: 'Pedido de venta',
+    sigla: 'PV',
+    isFiscal: false
+  },
+  {
+    text: 'Nota de entrega',
+    value: 'Nota de entrega',
+    sigla: 'NE',
+    isFiscal: false
+  },
+  {
+    text: 'Presupuesto',
+    value: 'Presupuesto',
+    sigla: 'PT',
+    isFiscal: false
+  }
 ]
+
 export const tiposDocumentosFiscales = {
   notaDebito: 'Nota de débito',
   notaCredito: 'Nota de crédito',
   factura: 'Factura',
-  retIslr: 'Retención ISLR'
+  retIslr: 'Retención ISLR',
+  retIva: 'Retención IVA',
+  'RET ISLR': 'Retención ISLR',
+  'RET IVA': 'Retención IVA'
+}
+export const tiposDeclaracion = {
+  islr: 'retIslr',
+  iva: 'retIva'
+}
+export const tiposIVa = {
+  general: 'General',
+  reducida: 'Reducida',
+  adicional: 'General+Adicional'
+}
+
+export const formatearNumeroRetencionIslr = (numero) => {
+  // Convertir el número a cadena y rellenar con ceros a la izquierda
+  const cadenaConCeros = numero.toString().padStart(6, '0')
+
+  // Cortar la cadena al tamaño máximo deseado
+  const cadenaFormateada = cadenaConCeros.slice(0, 6)
+
+  return cadenaFormateada
+}
+
+export const formatearNumeroRetencionIva = (numero, fecha) => {
+  // Convertir el número a cadena y rellenar con ceros a la izquierda
+  const cadenaConCeros = numero.toString().padStart(8, '')
+
+  // Cortar la cadena al tamaño máximo deseado
+  const cadenaFormateada = `${fecha}${cadenaConCeros.slice(0, 8)}`
+
+  return cadenaFormateada
 }

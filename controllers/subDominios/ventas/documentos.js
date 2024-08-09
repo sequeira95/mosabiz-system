@@ -7,12 +7,10 @@ import moment from 'moment-timezone'
 export const getDocumentosByTipo = async (req, res) => {
   const { clienteId, itemsPorPagina, pagina } = req.body
   const { tipo } = req.params
-  const isFiscal = documentosVentas.find(e => e.value === tipo)?.isFiscal
   try {
-    const nameCollection = isFiscal ? 'documentosFiscales' : 'documentosVentas'
     const documentos = await agreggateCollectionsSD({
       enviromentClienteId: clienteId,
-      nameCollection,
+      nameCollection: 'documentosFiscales',
       pipeline: [
         {
           $match: {
@@ -20,14 +18,14 @@ export const getDocumentosByTipo = async (req, res) => {
             tipoDocumento: tipo
           }
         },
-        { $sort: { numeroFactura: -1 } },
+        { $sort: { fechaCreacion: -1 } },
         { $skip: ((pagina || 1) - 1) * (itemsPorPagina || 10) },
         { $limit: itemsPorPagina || 10 }
       ]
     })
     const cantidad = await agreggateCollectionsSD({
       enviromentClienteId: clienteId,
-      nameCollection,
+      nameCollection: 'documentosFiscales',
       pipeline: [
         {
           $match: {
@@ -42,5 +40,44 @@ export const getDocumentosByTipo = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de facturacion: ' + e.message })
+  }
+}
+
+export const getDocumentoByTipo = async (req, res) => {
+  const { clienteId, documentoId } = req.body
+  const { tipo } = req.params
+  try {
+    const nameCollection = 'documentosFiscales'
+    const nameDetalleCollection = 'detalleDocumentosFiscales'
+    const detalleDocCol = formatCollectionName({
+      enviromentEmpresa: subDominioName,
+      enviromentClienteId: clienteId,
+      nameCollection: nameDetalleCollection
+    })
+    const [documento] = await agreggateCollectionsSD({
+      enviromentClienteId: clienteId,
+      nameCollection,
+      pipeline: [
+        {
+          $match: {
+            _id: new ObjectId(documentoId),
+            tipoMovimiento: 'venta',
+            tipoDocumento: tipo
+          }
+        },
+        {
+          $lookup: {
+            from: detalleDocCol,
+            localField: '_id',
+            foreignField: 'facturaId',
+            as: 'detalleProductos'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ documento })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la data del documento: ' + e.message })
   }
 }

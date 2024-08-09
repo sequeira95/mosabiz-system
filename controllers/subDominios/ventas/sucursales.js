@@ -44,7 +44,19 @@ export const getSucursales = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ sucursales, usuarios, almacenes })
+    const cajas = await agreggateCollectionsSD({
+      nameCollection: 'ventascajas',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $project: {
+            _id: 1,
+            nombre: '$nombre'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ sucursales, usuarios, almacenes, cajas })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
@@ -52,7 +64,7 @@ export const getSucursales = async (req, res) => {
 }
 
 export const createSucursal = async (req, res) => {
-  const { _id, zonaId, codigo, nombre, rif, logo: logoRef, direccion, usuarios, almacenes, clienteId } = req.body
+  const { _id, zonaId, cajasId, codigo, nombre, rif, logo: logoRef, direccion, usuarios, almacenes, clienteId } = req.body
   const file = req.files?.logo
   if (!codigo || !nombre) throw new Error('Debe un gresar un nombre y codigo valido')
   try {
@@ -104,6 +116,11 @@ export const createSucursal = async (req, res) => {
       : almacenes
         ? [almacenes]
         : undefined
+    const cajasArray = Array.isArray(cajasId)
+      ? cajasId
+      : cajasId
+        ? [cajasId]
+        : undefined
     if (_id) {
       const logo = {}
       console.log({
@@ -128,6 +145,7 @@ export const createSucursal = async (req, res) => {
             usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
             almacenes: (almacenesArray || []).map(e => new ObjectId(e)),
             zonaId: new ObjectId(zonaId),
+            cajasId: (cajasArray || []).length > 0 ? cajasArray.map(cajaId => new ObjectId(cajaId)) : [],
             ...logo
           }
         }
@@ -144,6 +162,7 @@ export const createSucursal = async (req, res) => {
           direccion,
           usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
           almacenes: (almacenesArray || []).map(e => new ObjectId(e)),
+          cajasId: (cajasArray || []).length > 0 ? cajasArray.map(cajaId => new ObjectId(cajaId)) : [],
           zonaId: new ObjectId(zonaId)
         }
       })

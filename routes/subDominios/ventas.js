@@ -10,6 +10,13 @@ import {
 } from '../../controllers/subDominios/ventas/sucursales.js'
 
 import {
+  createCajas,
+  deleteCajas,
+  getCajas,
+  saveCajas
+} from '../../controllers/subDominios/ventas/cajas.js'
+
+import {
   deleteZonas,
   getZonas,
   saveZonas,
@@ -20,6 +27,8 @@ import {
   getData,
   getPedidosVentas,
   getDetallePedidoVenta,
+  getFacturas,
+  getDetalleFacturas,
   getProductos,
   handleVenta
 } from '../../controllers/subDominios/ventas/facturacion.js'
@@ -38,6 +47,11 @@ router.post('/sucursales/delete', requireSubDominioToken, deleteSucursales)
 router.post('/sucursales/zonas', requireSubDominioToken, listSucursalesPorZonas)
 router.post('/sucursales/zonas/save', requireSubDominioToken, saveSucursalesPorZonas)
 
+router.post('/cajas/get', requireSubDominioToken, getCajas)
+router.post('/cajas/set', requireSubDominioToken, createCajas)
+router.post('/cajas/save', requireSubDominioToken, saveCajas)
+router.post('/cajas/delete', requireSubDominioToken, deleteCajas)
+
 router.post('/zonas/get', requireSubDominioToken, getZonas)
 router.post('/zonas/set', requireSubDominioToken, saveZonas)
 router.post('/zonas/save', requireSubDominioToken, saveZonasToArray)
@@ -46,6 +60,8 @@ router.post('/zonas/delete', requireSubDominioToken, deleteZonas)
 router.post('/facturacion/data', requireSubDominioToken, getData)
 router.post('/facturacion/pedidos-venta', requireSubDominioToken, getPedidosVentas)
 router.post('/facturacion/pedidos-venta/detalle', requireSubDominioToken, getDetallePedidoVenta)
+router.post('/facturacion/facturas', requireSubDominioToken, getFacturas)
+router.post('/facturacion/facturas/detalle', requireSubDominioToken, getDetalleFacturas)
 router.post('/facturacion/productos', requireSubDominioToken, getProductos)
 router.post('/facturacion/pago-venta', requireSubDominioToken, handleVenta)
 

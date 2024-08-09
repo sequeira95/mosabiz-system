@@ -9,7 +9,17 @@ import { getOrCreateComprobante, createMovimientos } from '../../../utils/contab
 export const getData = async (req, res) => {
   const { clienteId, fechaDia, userId } = req.body
   try {
+    const usuario = await getItemSD({
+      nameCollection: 'personas',
+      pipeline: [
+        { $match: { usuarioId: new ObjectId(userId) } }
+      ]
+    })
+    if (!usuario) throw new Error('Su usuario no existe en la base de datos')
+    const query = { usuarios: { $exists: true, $elemMatch: { $eq: new ObjectId(userId) } } }
+    const isEmpresa = usuario.isEmpresa
     const almacenNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const cajasNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventascajas' })
     const { monedasUsar, monedaPrincipal } = await getItemSD({
       enviromentClienteId: clienteId,
       nameCollection: 'ajustes',
@@ -25,16 +35,15 @@ export const getData = async (req, res) => {
       nameCollection: 'ventassucursales',
       enviromentClienteId: clienteId,
       pipeline: [
-        /* {
-          $match: {
-            usuarios: { $exists: true, $elemMatch: { $eq: new ObjectId(userId) } }
-          }
-        }, */
+        {
+          $match: isEmpresa ? ({}) : query
+        },
         {
           $project: {
             _id: 1,
             nombre: 1,
-            almacenes: 1
+            almacenes: 1,
+            cajasId: 1
           }
         },
         {
@@ -57,6 +66,29 @@ export const getData = async (req, res) => {
           $match: {
             $expr: {
               $gt: [{ $size: '$almacenData' }, 0]
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: cajasNameCol,
+            localField: 'cajasId',
+            foreignField: '_id',
+            pipeline: [
+              {
+                $project: {
+                  _id: 1,
+                  nombre: '$nombre'
+                }
+              }
+            ],
+            as: 'cajasData'
+          }
+        },
+        {
+          $match: {
+            $expr: {
+              $gt: [{ $size: '$cajasData' }, 0]
             }
           }
         }
@@ -115,6 +147,7 @@ export const getPedidosVentas = async (req, res) => {
       nameCollection: 'documentosFiscales',
       pipeline: [
         { $match: query },
+        { $limit: 10 },
         {
           $project: {
             _id: 1,
@@ -270,6 +303,165 @@ export const getDetallePedidoVenta = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de los pedidos de venta: ' + e.message })
+  }
+}
+export const getFacturas = async (req, res) => {
+  const { clienteId, search } = req.body
+  try {
+    const query = {
+      tipoMovimiento: 'venta',
+      tipoDocumento: 'Factura'
+    }
+    if (search) {
+      query.numeroFactura = { $regex: `^${search}` }
+    }
+    const facturas = await agreggateCollectionsSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      pipeline: [
+        { $match: query },
+        { $limit: 10 },
+        {
+          $project: {
+            _id: 1,
+            numeroFactura: 1
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ facturas })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de los pedidos de venta: ' + e.message })
+  }
+}
+export const getDetalleFacturas = async (req, res) => {
+  const { clienteId, facturaId, almacenId } = req.body
+  try {
+    const prodtuctosNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+    const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones'] } } })
+    const matchAlmacen = almacenId ? { almacenId: new ObjectId(almacenId) } : { almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } }
+
+    const detalles = await agreggateCollectionsSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'detalleDocumentosFiscales',
+      pipeline: [
+        { $match: { facturaId: new ObjectId(facturaId) } },
+        {
+          $lookup: {
+            from: prodtuctosNameCol,
+            localField: 'productoId',
+            foreignField: '_id',
+            pipeline: [
+              { $match: { activo: { $ne: false } } },
+              {
+                $lookup: {
+                  from: categoriasCollection,
+                  localField: 'categoria',
+                  foreignField: '_id',
+                  as: 'detalleCategoria'
+                }
+              },
+              { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: productorPorAlamcenCollection,
+                  localField: '_id',
+                  foreignField: 'productoId',
+                  pipeline: [
+                    { $match: { ...matchAlmacen, lote: { $ne: null } } },
+                    {
+                      $group: {
+                        _id: '$productoId',
+                        entrada: {
+                          $sum: {
+                            $cond: {
+                              if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                            }
+                          }
+                        },
+                        salida: {
+                          $sum: {
+                            $cond: {
+                              if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      $project: {
+                        cantidad: { $subtract: ['$entrada', '$salida'] },
+                        entrada: '$entrada',
+                        salida: '$salida'
+                      }
+                    }
+                  ],
+                  as: 'detalleCantidadProducto'
+                }
+              },
+              { $unwind: { path: '$detalleCantidadProducto', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  codigo: '$codigo',
+                  nombre: '$nombre',
+                  descripcion: '$descripcion',
+                  unidad: '$unidad',
+                  categoriaId: '$categoria',
+                  categoria: '$detalleCategoria.nombre',
+                  descuento: '$detalleCategoria.descuento',
+                  hasDescuento: '$detalleCategoria.hasDescuento',
+                  utilidad: '$detalleCategoria.utilidad',
+                  tipoDescuento: '$detalleCategoria.tipoDescuento',
+                  observacion: '$observacion',
+                  // detalleCantidadProducto: '$detalleCantidadProducto',
+                  stock: '$detalleCantidadProducto.cantidad',
+                  entrada: '$detalleCantidadProducto.entrada',
+                  salida: '$detalleCantidadProducto.salida',
+                  moneda: '$moneda',
+                  isExento: '$isExento',
+                  precioVenta: {
+                    $cond: {
+                      if: { $gt: ['$precioVenta', 0] },
+                      then: '$precioVenta',
+                      else: {
+                        $cond: {
+                          if: { $gt: ['$detalleCategoria.utilidad', 0] },
+                          then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                          else: 0
+                        }
+                      }
+                    }
+                  },
+                  iva: '$iva',
+                  costoPromedio: '$costoPromedio',
+                  isDataInicial: '$isDataInicial'
+                }
+              }
+            ],
+            as: 'producto'
+          }
+        },
+        { $unwind: '$producto' },
+        { $project: { producto: 1, cantidad: 1, descuento: 1 } }
+      ]
+    })
+    const productos = detalles.map(({ producto, cantidad, descuento }) => {
+      const descuentoTotal = descuento ? (producto.precioVenta * cantidad) * ((descuento * 100) / 100) : 0
+      return {
+        ...producto,
+        descuentoTotal,
+        cantidad,
+        descuento: descuento * 100,
+        precioTotal: (producto.precioVenta * cantidad) - descuentoTotal
+      }
+    })
+    return res.status(200).json({ productos })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de las facturas: ' + e.message })
   }
 }
 export const getProductos = async (req, res) => {
@@ -528,6 +720,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       // numeroControl: ventaInfo.numeroControl,
       sucursalId: new ObjectId(ventaInfo.sucursalId),
       almacenId: new ObjectId(ventaInfo.almacenId),
+      cajaId: new ObjectId(ventaInfo.cajaId),
       // datos de monedas
       tasaDia: Number(ventaInfo.tasa) || 0,
       moneda: ventaInfo.moneda,

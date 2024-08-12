@@ -1057,7 +1057,9 @@ export const getDataIva = async (req, res) => {
       pipeline: [
         {
           $match: {
-            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
+            periodoIvaInit: { $gte: moment(periodoSelect.fechaInicio).toDate() },
+            periodoIvaEnd: { $lte: moment(periodoSelect.fechaFin).toDate() }
+            // fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
           }
         },
         {
@@ -2349,7 +2351,10 @@ export const saveComprobanteRetIvaVentas = async (req, res) => {
         proveedorId: new ObjectId(comprobante.proveedorId),
         creadoPor: new ObjectId(req.uid),
         tasaDia: Number(comprobante.tasaDia),
-        totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2))
+        totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2)),
+        periodoIvaInit: moment(comprobante.periodoIvaInit).toDate(),
+        periodoIvaEnd: moment(comprobante.periodoIvaEnd).toDate(),
+        periodoIvaNombre: comprobante.periodoIvaNombre
       })
       /* if (tieneContabilidad) {
         console.log('entrando')
@@ -2547,11 +2552,19 @@ export const savePeriodoFactura = async (req, res) => {
       periodoIvaEnd: moment(periodo.fechaFin).toDate(),
       periodoIvaNombre: periodo.periodo
     }
+    const otrosDocumentosId = await agreggateCollections({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { facturaAsociada: { $in: idFacturas }, tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] } } },
+        { $project: { _id: 1 } }
+      ]
+    })
     await updateManyItemSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       filters: { _id: { $in: idFacturas } },
-      update: { $set: { ...datosUpdate } }
+      update: { $set: { ...datosUpdate, ...otrosDocumentosId } }
     })
     return res.status(200).json({ status: 'Periodo asignados a facturas correctamente' })
   } catch (e) {
@@ -2568,11 +2581,19 @@ export const deletePeriodoFactura = async (req, res) => {
       periodoIvaEnd: null,
       periodoIvaNombre: null
     }
+    const otrosDocumentosId = await agreggateCollections({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { facturaAsociada: { $in: idFacturas }, tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] } } },
+        { $project: { _id: 1 } }
+      ]
+    })
     await updateManyItemSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       filters: { _id: { $in: idFacturas } },
-      update: { $set: { ...datosUpdate } }
+      update: { $set: { ...datosUpdate, ...otrosDocumentosId } }
     })
     return res.status(200).json({ status: 'Periodo eliminados de las facturas correctamente' })
   } catch (e) {

@@ -91,9 +91,16 @@ export const getProductos = async (req, res) => {
                 then: '$precioVenta',
                 else: {
                   $cond: {
-                    if: { $gt: ['$detalleCategoria.utilidad', 0] },
+                    if: { $and: [
+                      { $gt: ['$detalleCategoria.utilidad', 0] },
+                      { $lt: ['$detalleCategoria.utilidad', 100] }
+                    ] },
                     then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                    else: 0
+                    else: { $cond: {
+                      if: { $gte: ['$detalleCategoria.utilidad', 100] },
+                      then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                      else: 0
+                    } }
                   }
                 }
               }

@@ -269,9 +269,16 @@ export const getDetallePedidoVenta = async (req, res) => {
                       then: '$precioVenta',
                       else: {
                         $cond: {
-                          if: { $gt: ['$detalleCategoria.utilidad', 0] },
+                          if: { $and: [
+                            { $gt: ['$detalleCategoria.utilidad', 0] },
+                            { $lt: ['$detalleCategoria.utilidad', 100] }
+                          ] },
                           then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                          else: 0
+                          else: { $cond: {
+                            if: { $gte: ['$detalleCategoria.utilidad', 100] },
+                            then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                            else: 0
+                          } }
                         }
                       }
                     }
@@ -428,9 +435,16 @@ export const getDetalleFacturas = async (req, res) => {
                       then: '$precioVenta',
                       else: {
                         $cond: {
-                          if: { $gt: ['$detalleCategoria.utilidad', 0] },
+                          if: { $and: [
+                            { $gt: ['$detalleCategoria.utilidad', 0] },
+                            { $lt: ['$detalleCategoria.utilidad', 100] }
+                          ] },
                           then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                          else: 0
+                          else: { $cond: {
+                            if: { $gte: ['$detalleCategoria.utilidad', 100] },
+                            then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                            else: 0
+                          } }
                         }
                       }
                     }
@@ -445,10 +459,11 @@ export const getDetalleFacturas = async (req, res) => {
           }
         },
         { $unwind: '$producto' },
-        { $project: { producto: 1, cantidad: 1, descuento: 1 } }
+        // { $project: { producto: 1, cantidad: 1, descuento: 1 } }
       ]
     })
-    const productos = detalles.map(({ producto, cantidad, descuento }) => {
+    const productos = detalles/*
+    .map(({ producto, cantidad, descuento }) => {
       const descuentoTotal = descuento ? (producto.precioVenta * cantidad) * ((descuento * 100) / 100) : 0
       return {
         ...producto,
@@ -458,6 +473,7 @@ export const getDetalleFacturas = async (req, res) => {
         precioTotal: (producto.precioVenta * cantidad) - descuentoTotal
       }
     })
+      */
     return res.status(200).json({ productos })
   } catch (e) {
     console.log(e)
@@ -550,9 +566,16 @@ export const getProductos = async (req, res) => {
                 then: '$precioVenta',
                 else: {
                   $cond: {
-                    if: { $gt: ['$detalleCategoria.utilidad', 0] },
+                    if: { $and: [
+                      { $gt: ['$detalleCategoria.utilidad', 0] },
+                      { $lt: ['$detalleCategoria.utilidad', 100] }
+                    ] },
                     then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                    else: 0
+                    else: { $cond: {
+                      if: { $gte: ['$detalleCategoria.utilidad', 100] },
+                      then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                      else: 0
+                    } }
                   }
                 }
               }
@@ -596,7 +619,7 @@ export const handleVenta = async (req, res) => {
         break
       }
       case 'Nota de débito': {
-        const data = await handleVentasFactuas({ clienteId, ventaInfo, req, creadoPor: req.uid })
+        const data = await handleVentasND({ clienteId, ventaInfo, req, creadoPor: req.uid })
         facturaId = data.facturaId
         break
       }
@@ -667,6 +690,33 @@ const handleVentasFactuas = async ({ clienteId, ventaInfo, creadoPor }) => {
   return { facturaId: newFactura.insertedId }
 }
 
+const handleVentasND = async ({ clienteId, ventaInfo, creadoPor }) => {
+  const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
+  ventaInfo.productos = ventaInfo.productos.filter(e => {
+    return e.precioUnitarioNDEditable > e.precioVenta
+  }).map(e => {
+    const valorAjustado = Number(e.precioUnitarioNDEditable) - Number(e.precioVenta)
+    return {
+      ...e,
+      nombre: `${e.nombre} (Ajuste de precio)`,
+      precioVenta: valorAjustado,
+      precioSinDescuento: valorAjustado * e.cantidad,
+      descuento: 0,
+      descuentoTotal: 0,
+      precioConDescuento: valorAjustado * e.cantidad,
+      precioTotal: valorAjustado * e.cantidad
+    }
+  })
+  await createDetalleDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
+  await createPagosDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId, creadoPor })
+  try {
+    await crearMovimientosContablesPagos({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
+  } catch (e) {
+    console.log(`${moment().format('YYYY-MM-DD')} -- ${e.message}`, e)
+  }
+  return { facturaId: newFactura.insertedId }
+}
+
 const handleVentasPedidos = async ({ clienteId, ventaInfo, creadoPor }) => {
   const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor, activo: true })
   await createDetalleDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
@@ -717,10 +767,12 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       tipoDocumento: ventaInfo.documento,
       activo,
       isExportacion: ventaInfo.isExportacion,
+      isDespacho: ventaInfo.isDespacho,
       // numeroControl: ventaInfo.numeroControl,
       sucursalId: new ObjectId(ventaInfo.sucursalId),
       almacenId: new ObjectId(ventaInfo.almacenId),
       cajaId: new ObjectId(ventaInfo.cajaId),
+      facturaId: ventaInfo.facturaId ? new ObjectId(ventaInfo.facturaId) : '',
       // datos de monedas
       tasaDia: Number(ventaInfo.tasa) || 0,
       moneda: ventaInfo.moneda,
@@ -803,8 +855,9 @@ const createDetalleDocumento = async ({ clienteId, ventaInfo, facturaId }) => {
       descuento: Number(e.descuento) / 100,
       descuentoTotal: Number(e.descuentoTotal),
       precioConDescuento: Number(e.precioTotal),
-      baseImponible,
+      baseImponible: Number(baseImponible.toFixed(2)),
       montoIva,
+      ivaId: e.ivaId ? new ObjectId(e.ivaId) : '',
       iva: e.iva ? e.iva : 0,
       precioTotal: baseImponibleConDescuento + montoIva,
       fechaCreacion: moment().toDate()
@@ -911,7 +964,6 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId 
       }
     ]
   })
-  console.log(sucursalCuentas)
   if (!sucursalCuentas) throw new Error('La sucursal asociada no posee cuenta contable asignada')
   let comprobante
   const mesPeriodo = momentDate(ajustesSistema.timeZone, ventaInfo.fecha).format('YYYY/MM')
@@ -926,7 +978,7 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId 
       true
     )
   } catch (e) {
-    console.log(e)
+    console.log('error al crear comprobante en movimientos de ventas', e)
   }
   if (!comprobante) return
   // create movimientos de pagos (debe)
@@ -1045,9 +1097,9 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId 
         periodoId: comprobante.periodoId,
         fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
         fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
-        docReferenciaAux: `DESCUENTO ${infoDoc.sigla} ${documento.numeroFactura}`,
+        docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
         documento: {
-          docReferencia: `DESCUENTO ${infoDoc.sigla} ${documento.numeroFactura}`
+          docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`
         },
         cuentaId: cuenta._id,
         cuentaCodigo: cuenta.codigo,
@@ -1074,9 +1126,9 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId 
         periodoId: comprobante.periodoId,
         fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
         fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
-        docReferenciaAux: `IVA ${infoDoc.sigla} ${documento.numeroFactura}`,
+        docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
         documento: {
-          docReferencia: `IVA ${infoDoc.sigla} ${documento.numeroFactura}`
+          docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`
         },
         cuentaId: cuenta._id,
         cuentaCodigo: cuenta.codigo,
@@ -1103,9 +1155,9 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId 
         periodoId: comprobante.periodoId,
         fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
         fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
-        docReferenciaAux: `IGTF ${infoDoc.sigla} ${documento.numeroFactura}`,
+        docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
         documento: {
-          docReferencia: `IGTF ${infoDoc.sigla} ${documento.numeroFactura}`
+          docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`
         },
         cuentaId: cuenta._id,
         cuentaCodigo: cuenta.codigo,

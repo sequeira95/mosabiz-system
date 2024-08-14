@@ -1,5 +1,5 @@
 import moment from 'moment-timezone'
-import { agreggateCollections, agreggateCollectionsSD, createManyItemsSD, formatCollectionName, getCollection, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, formatCollectionName, getCollection, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { formatearNumeroRetencionIslr, formatearNumeroRetencionIva, subDominioName, tiposDeclaracion, tiposDocumentosFiscales, tiposIVa } from '../../../constants.js'
 import { ObjectId } from 'mongodb'
 import { uploadImg } from '../../../utils/cloudImage.js'
@@ -347,6 +347,7 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
   try {
     const { clienteId, comprobantes, fecha } = req.body
     const comprobantesCrear = []
+    const facturasUpdate = []
     const asientosContables = []
     const tieneContabilidad = await hasContabilidad({ clienteId })
     const ajusteTributos = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'tributos' } })
@@ -382,7 +383,7 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
       const verifyComprobante = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { facturaAsociada: new ObjectId(comprobante.facturaAsociada), tipoDocumento: tiposDocumentosFiscales.retIslr }
+        filters: { facturaAsociada: new ObjectId(comprobante.facturaAsociada), tipoDocumento: tiposDocumentosFiscales.retIslr, estado: { $ne: 'anulado' } }
       })
       if (verifyComprobante) throw new Error('Ya existe un comprobante para la factura N° ' + comprobante.numeroFacturaAsociada)
       let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIslr' } }))?.contador || 0
@@ -407,6 +408,32 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
         tasaDia: Number(comprobante.tasaDia),
         totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2))
       })
+      const factura = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: {
+          _id: new ObjectId(comprobante.facturaAsociada),
+          declarado: { $ne: true },
+          $or: [
+            { periodoIvaNombre: { $exists: false } },
+            { periodoIvaNombre: { $in: ['', null, undefined] } }
+          ]
+        }
+      })
+      if (factura) {
+        facturasUpdate.push({
+          updateOne: {
+            filter: { _id: factura._id },
+            update: {
+              $set: {
+                periodoIvaNombre: comprobante.periodoIvaNombre,
+                periodoIvaInit: moment(comprobante.periodoIvaInit).toDate(),
+                periodoIvaEnd: moment(comprobante.periodoIvaEnd).toDate()
+              }
+            }
+          }
+        })
+      }
       if (tieneContabilidad) {
         console.log('entrando')
         const cuentaRetIslr = await getItemSD({
@@ -503,6 +530,7 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
         ...comprobantesCrear
       ]
     })
+    if (facturasUpdate[0]) bulkWriteSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, pipeline: facturasUpdate })
     console.log({ asientosContables })
     if (asientosContables[0]) await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: [...asientosContables] })
     return res.status(200).json({ status: 'Comprobantes creados exitosamente' })
@@ -728,6 +756,7 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
     const { clienteId, comprobantes, fecha } = req.body
     const comprobantesCrear = []
     const asientosContables = []
+    const facturasUpdate = []
     const tieneContabilidad = await hasContabilidad({ clienteId })
     const ajusteTributos = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'tributos' } })
     let periodo = null
@@ -787,6 +816,32 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
         tasaDia: Number(comprobante.tasaDia),
         totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2))
       })
+      const factura = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: {
+          _id: new ObjectId(comprobante.facturaAsociada),
+          declarado: { $ne: true },
+          $or: [
+            { periodoIvaNombre: { $exists: false } },
+            { periodoIvaNombre: { $in: ['', null, undefined] } }
+          ]
+        }
+      })
+      if (factura) {
+        facturasUpdate.push({
+          updateOne: {
+            filter: { _id: factura._id },
+            update: {
+              $set: {
+                periodoIvaNombre: comprobante.periodoIvaNombre,
+                periodoIvaInit: moment(comprobante.periodoIvaInit).toDate(),
+                periodoIvaEnd: moment(comprobante.periodoIvaEnd).toDate()
+              }
+            }
+          }
+        })
+      }
       if (tieneContabilidad) {
         console.log('entrando')
         const cuentaRet = await getItemSD({
@@ -883,6 +938,7 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
         ...comprobantesCrear
       ]
     })
+    if (facturasUpdate[0]) bulkWriteSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, pipeline: facturasUpdate })
     console.log({ asientosContables })
     if (asientosContables[0]) await createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: [...asientosContables] })
     return res.status(200).json({ status: 'Comprobantes creados exitosamente' })
@@ -2474,7 +2530,7 @@ export const getFacturasPorDeclararIva = async (req, res) => {
         {
           $match: {
             tipoMovimiento: tipo,
-            tipoDocumento: { $in: [tiposDocumentosFiscales.factura] },
+            tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] },
             declarado: { $ne: true },
             fecha: { $lte: fechaFin }
           }
@@ -2552,19 +2608,11 @@ export const savePeriodoFactura = async (req, res) => {
       periodoIvaEnd: moment(periodo.fechaFin).toDate(),
       periodoIvaNombre: periodo.periodo
     }
-    const otrosDocumentosId = await agreggateCollections({
-      nameCollection: 'documentosFiscales',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        { $match: { facturaAsociada: { $in: idFacturas }, tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] } } },
-        { $project: { _id: 1 } }
-      ]
-    })
     await updateManyItemSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       filters: { _id: { $in: idFacturas } },
-      update: { $set: { ...datosUpdate, ...otrosDocumentosId } }
+      update: { $set: { ...datosUpdate } }
     })
     return res.status(200).json({ status: 'Periodo asignados a facturas correctamente' })
   } catch (e) {
@@ -2599,5 +2647,323 @@ export const deletePeriodoFactura = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar los periodos de las facturas ' + e.message })
+  }
+}
+export const saveDocumentosfiscalesToArray = async (req, res) => {
+  const { clienteId, documentosFiscales, tipo, moneda } = req.body
+  try {
+    const facturas = []
+    const debitoCredito = []
+    const retIva = []
+    /* este for se encarga solo de separar los documentos por tipo */
+    for (const documento of documentosFiscales) {
+      const tipoDocumento = documento.tipoDocumento.replaceAll(' ', '').toLowerCase()
+      if (tipoDocumento === 'nc' || tipoDocumento === 'nd') debitoCredito.push(documento)
+      if (tipoDocumento === 'ret') retIva.push(documento)
+      if (tipoDocumento === 'fac') facturas.push(documento)
+    }
+    /** funcion que crea las factuas de compra o venta para luego poder asociar id de facturas al resto de documentos */
+    await createFacturas({ documentos: facturas, moneda, uid: req.uid, tipo, clienteId })
+    /** Luego de crear las facturas crearemos las notas de debito y de credito */
+    await createNotasDebitoCredito({ documentos: debitoCredito, moneda, uid: req.uid, tipo, clienteId })
+    /** Luego creamos las ret Iva */
+    createRetencionesIva({ documentos: retIva, moneda, uid: req.uid, tipo, clienteId })
+    return res.status(200).json({ status: 'Documentos fiscales guardados correctamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar los documentos fiscales ' + e.message })
+  }
+}
+const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId }) => {
+  const documentosFacturas = []
+  for (const documento of documentos) {
+    let proveedor
+    let cliente
+    if (tipo === 'compra') {
+      proveedor = await getItemSD({
+        nameCollection: 'proveedores',
+        enviromentClienteId: clienteId,
+        filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
+      })
+      if (!proveedor) {
+        proveedor = await upsertItemSD({
+          nameCollection: 'proveedores',
+          enviromentClienteId: clienteId,
+          filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
+          update: {
+            $set: {
+              tipoDocumento: documento.tipoDocumentoIdentidad,
+              documentoIdentidad: documento.documentoIdentidad,
+              razonSocial: documento.razonSocial
+            }
+          }
+        })
+      }
+      const validarNumeroFactura = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor._id) }
+      })
+      if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
+      const compra = {
+        tipoMovimiento: documento.tipoMovimiento,
+        fecha: moment(documento.fecha).toDate(),
+        fechaVencimiento: moment().toDate(),
+        numeroFactura: documento.numeroFactura,
+        tipoDocumento: 'Factura',
+        numeroControl: documento.numeroControl,
+        proveedorId: new ObjectId(proveedor._id),
+        moneda,
+        compraFiscal: true,
+        baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : null,
+        iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : null,
+        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : null,
+        creadoPor: new ObjectId(uid),
+        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : null,
+        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : null,
+        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : null,
+        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : null,
+        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : null,
+        aplicaProrrateo: documento.aplicaProrrateo || false,
+        isImportacion: documento.isImportacion || false
+      }
+      documentosFacturas.push(compra)
+    }
+    if (tipo === 'venta') {
+      cliente = await getItemSD({
+        nameCollection: 'clientes',
+        enviromentClienteId: clienteId,
+        filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
+      })
+      if (!cliente) {
+        cliente = await upsertItemSD({
+          nameCollection: 'clientes',
+          enviromentClienteId: clienteId,
+          filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
+          update: {
+            $set: {
+              tipoDocumento: documento.tipoDocumentoIdentidad,
+              documentoIdentidad: documento.documentoIdentidad,
+              razonSocial: documento.razonSocial
+            }
+          }
+        })
+      }
+      const validarNumeroFactura = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { numeroFactura: documento.numeroFactura }
+      })
+      if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} ya se encuentra registrada`)
+    }
+    await createManyItemsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      data: documentosFacturas
+    })
+  }
+}
+const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, clienteId }) => {
+  const documentosFiscales = []
+  const tiposDocumentos = {
+    nd: 'Nota de débito',
+    nc: 'Nota de crédito'
+  }
+  for (const documento of documentos) {
+    let proveedor
+    // let cliente
+    if (tipo === 'compra') {
+      proveedor = await getItemSD({
+        nameCollection: 'proveedores',
+        enviromentClienteId: clienteId,
+        filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
+      })
+      if (!proveedor && documento.documentoIdentidad) {
+        proveedor = await upsertItemSD({
+          nameCollection: 'proveedores',
+          enviromentClienteId: clienteId,
+          filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
+          update: {
+            $set: {
+              tipoDocumento: documento.tipoDocumentoIdentidad,
+              documentoIdentidad: documento.documentoIdentidad,
+              razonSocial: documento.razonSocial
+            }
+          }
+        })
+      }
+      const validarNumeroFactura = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor._id) }
+      })
+      if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
+      const facturaAfectada = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { numeroFactura: documento.numeroFacturaAfectada }
+      })
+      if (!facturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
+      const compra = {
+        tipoMovimiento: documento.tipoMovimiento,
+        facturaAsociada: facturaAfectada._id,
+        fecha: moment(documento.fecha).toDate(),
+        fechaVencimiento: moment().toDate(),
+        numeroFactura: documento.numeroFactura,
+        tipoDocumento: tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()],
+        numeroControl: documento.numeroControl || null,
+        proveedorId: new ObjectId(proveedor._id),
+        moneda,
+        compraFiscal: true,
+        baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : null,
+        iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : null,
+        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : null,
+        creadoPor: new ObjectId(uid),
+        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : null,
+        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : null,
+        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : null,
+        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : null,
+        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : null,
+        aplicaProrrateo: documento.aplicaProrrateo || false,
+        isImportacion: documento.isImportacion || false
+      }
+      if (!documento.documentoIdentidad && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado') {
+        compra.estado = 'anulado'
+        compra.proveedorId = null
+      }
+      documentosFiscales.push(compra)
+    }
+    /* if (tipo === 'venta') {
+      cliente = await getItemSD({
+        nameCollection: 'clientes',
+        enviromentClienteId: clienteId,
+        filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
+      })
+      if (!cliente) {
+        cliente = await upsertItemSD({
+          nameCollection: 'clientes',
+          enviromentClienteId: clienteId,
+          filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
+          update: {
+            $set: {
+              tipoDocumento: documento.tipoDocumentoIdentidad,
+              documentoIdentidad: documento.documentoIdentidad,
+              razonSocial: documento.razonSocial
+            }
+          }
+        })
+      }
+      const validarNumeroFactura = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { numeroFactura: documento.numeroFactura }
+      })
+      if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} ya se encuentra registrada`)
+    } */
+    await createManyItemsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      data: documentosFiscales
+    })
+  }
+}
+const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId }) => {
+  const documentosFiscales = []
+  for (const documento of documentos) {
+    let proveedor
+    // let cliente
+    if (tipo === 'compra') {
+      proveedor = await getItemSD({
+        nameCollection: 'proveedores',
+        enviromentClienteId: clienteId,
+        filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
+      })
+      if (!proveedor && documento.documentoIdentidad) {
+        proveedor = await upsertItemSD({
+          nameCollection: 'proveedores',
+          enviromentClienteId: clienteId,
+          filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
+          update: {
+            $set: {
+              tipoDocumento: documento.tipoDocumentoIdentidad,
+              documentoIdentidad: documento.documentoIdentidad,
+              razonSocial: documento.razonSocial
+            }
+          }
+        })
+      }
+      const validarNumeroFactura = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor._id) }
+      })
+      if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
+      const facturaAfectada = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { numeroFactura: documento.numeroFacturaAfectada }
+      })
+      if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
+      const compra = {
+        tipoMovimiento: documento.tipoMovimiento,
+        facturaAsociada: facturaAfectada._id,
+        fecha: moment(documento.fecha).toDate(),
+        fechaVencimiento: moment().toDate(),
+        numeroFactura: documento.numeroFactura,
+        tipoDocumento: tiposDocumentosFiscales.retIva,
+        tipoDocumentoAfectado: facturaAfectada.tipoDocumento,
+        numeroControl: documento.numeroControl || null,
+        proveedorId: new ObjectId(proveedor._id),
+        moneda,
+        compraFiscal: true,
+        baseImponible: facturaAfectada?.baseImponible ? Number(Number(facturaAfectada?.baseImponible).toFixed(2)) : null,
+        iva: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : null,
+        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : null,
+        creadoPor: new ObjectId(uid),
+        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : null,
+        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : null,
+        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : null,
+        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : null,
+        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : null,
+        totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : null
+      }
+      if (!documento.documentoIdentidad && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado') {
+        compra.estado = 'anulado'
+        compra.proveedorId = null
+      }
+      documentosFiscales.push(compra)
+    }
+    /* if (tipo === 'venta') {
+      cliente = await getItemSD({
+        nameCollection: 'clientes',
+        enviromentClienteId: clienteId,
+        filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
+      })
+      if (!cliente) {
+        cliente = await upsertItemSD({
+          nameCollection: 'clientes',
+          enviromentClienteId: clienteId,
+          filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
+          update: {
+            $set: {
+              tipoDocumento: documento.tipoDocumentoIdentidad,
+              documentoIdentidad: documento.documentoIdentidad,
+              razonSocial: documento.razonSocial
+            }
+          }
+        })
+      }
+      const validarNumeroFactura = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { numeroFactura: documento.numeroFactura }
+      })
+      if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} ya se encuentra registrada`)
+    } */
+    await createManyItemsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      data: documentosFiscales
+    })
   }
 }

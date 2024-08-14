@@ -614,7 +614,7 @@ export const handleVenta = async (req, res) => {
         break
       }
       case 'Nota de crédito': {
-        const data = await handleVentasFactuas({ clienteId, ventaInfo, req, creadoPor: req.uid })
+        const data = await handleVentasNC({ clienteId, ventaInfo, req, creadoPor: req.uid })
         facturaId = data.facturaId
         break
       }
@@ -705,6 +705,36 @@ const handleVentasND = async ({ clienteId, ventaInfo, creadoPor }) => {
       descuentoTotal: 0,
       precioConDescuento: valorAjustado * e.cantidad,
       precioTotal: valorAjustado * e.cantidad
+    }
+  })
+  await createDetalleDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
+  await createPagosDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId, creadoPor })
+  try {
+    await crearMovimientosContablesPagos({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
+  } catch (e) {
+    console.log(`${moment().format('YYYY-MM-DD')} -- ${e.message}`, e)
+  }
+  return { facturaId: newFactura.insertedId }
+}
+
+const handleVentasNC = async ({ clienteId, ventaInfo, creadoPor }) => {
+  const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
+  ventaInfo.productos = ventaInfo.productos.filter(e => {
+    return !!e.precioUnitarioNCEditable || !!e.cantidadNC
+  }).map(e => {
+    const valorAjustado = Number(e.precioUnitarioNCEditable || e.precioVenta)
+    const setLabelAjustePrecio = e.precioUnitarioNCEditable ? ' (Ajuste de precio)' : ''
+    const cantidad = e.cantidadNC || e.cantidad
+    return {
+      ...e,
+      nombre: `${e.nombre}${setLabelAjustePrecio}`,
+      precioVenta: valorAjustado,
+      precioSinDescuento: valorAjustado * cantidad,
+      descuento: 0,
+      descuentoTotal: 0,
+      cantidad,
+      precioConDescuento: valorAjustado * cantidad,
+      precioTotal: valorAjustado * cantidad
     }
   })
   await createDetalleDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId })

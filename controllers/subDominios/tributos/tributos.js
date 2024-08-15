@@ -2650,7 +2650,7 @@ export const deletePeriodoFactura = async (req, res) => {
   }
 }
 export const saveDocumentosfiscalesToArray = async (req, res) => {
-  const { clienteId, documentosFiscales, tipo, moneda } = req.body
+  const { clienteId, documentosFiscales, tipo, moneda, sucursal } = req.body
   try {
     const facturas = []
     const debitoCredito = []
@@ -2662,19 +2662,20 @@ export const saveDocumentosfiscalesToArray = async (req, res) => {
       if (tipoDocumento === 'ret') retIva.push(documento)
       if (tipoDocumento === 'fac') facturas.push(documento)
     }
+    const clienteOwn = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(clienteId) } })
     /** funcion que crea las factuas de compra o venta para luego poder asociar id de facturas al resto de documentos */
-    await createFacturas({ documentos: facturas, moneda, uid: req.uid, tipo, clienteId })
+    await createFacturas({ documentos: facturas, moneda, uid: req.uid, tipo, clienteId: clienteOwn._id, clienteOwn, sucursal })
     /** Luego de crear las facturas crearemos las notas de debito y de credito */
-    await createNotasDebitoCredito({ documentos: debitoCredito, moneda, uid: req.uid, tipo, clienteId })
+    await createNotasDebitoCredito({ documentos: debitoCredito, moneda, uid: req.uid, tipo, clienteId: clienteOwn._id, clienteOwn, sucursal })
     /** Luego creamos las ret Iva */
-    createRetencionesIva({ documentos: retIva, moneda, uid: req.uid, tipo, clienteId })
+    await createRetencionesIva({ documentos: retIva, moneda, uid: req.uid, tipo, clienteId: clienteOwn._id, clienteOwn, sucursal })
     return res.status(200).json({ status: 'Documentos fiscales guardados correctamente' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar los documentos fiscales ' + e.message })
   }
 }
-const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId }) => {
+const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal }) => {
   const documentosFacturas = []
   for (const documento of documentos) {
     let proveedor
@@ -2706,6 +2707,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId }) => {
       })
       if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
       const compra = {
+        fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
         fecha: moment(documento.fecha).toDate(),
         fechaVencimiento: moment().toDate(),
@@ -2715,15 +2717,15 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId }) => {
         proveedorId: new ObjectId(proveedor._id),
         moneda,
         compraFiscal: true,
-        baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : null,
-        iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : null,
-        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : null,
+        baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
+        iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
+        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
-        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : null,
-        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : null,
-        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : null,
-        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : null,
-        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : null,
+        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
+        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
+        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : 0,
+        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
+        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
         aplicaProrrateo: documento.aplicaProrrateo || false,
         isImportacion: documento.isImportacion || false
       }
@@ -2755,15 +2757,47 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId }) => {
         filters: { numeroFactura: documento.numeroFactura }
       })
       if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} ya se encuentra registrada`)
+      const venta = {
+        fechaCreacion: moment().toDate(),
+        tipoMovimiento: documento.tipoMovimiento,
+        fecha: moment(documento.fecha).toDate(),
+        fechaVencimiento: moment().toDate(),
+        numeroFactura: documento.numeroFactura,
+        tipoDocumento: 'Factura',
+        numeroControl: documento.numeroControl,
+        activo: false,
+        sucursalId: sucursal ? new ObjectId(sucursal._id) : null,
+        clienteId: new ObjectId(cliente._id),
+        clienteNombre: cliente.razonSocial,
+        clienteDocumentoIdentidad: `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}`,
+        direccion: cliente?.direccion,
+        direccionEnvio: cliente?.direccionEnvio,
+        moneda,
+        compraFiscal: true,
+        baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
+        iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
+        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        creadoPor: new ObjectId(uid),
+        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
+        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
+        isExportacion: documento.isExportacion || false,
+        ownLogo: sucursal.logo || clienteOwn.logo,
+        ownRazonSocial: sucursal.nombre || clienteOwn.razonSocial,
+        ownDireccion: sucursal.direccion || clienteOwn.direccion,
+        ownDocumentoIdentidad: sucursal.rif || `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
+      }
+      documentosFacturas.push(venta)
     }
+  }
+  if (documentosFacturas[0]) {
     await createManyItemsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
-      data: documentosFacturas
+      items: documentosFacturas
     })
   }
 }
-const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, clienteId }) => {
+const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal }) => {
   const documentosFiscales = []
   const tiposDocumentos = {
     nd: 'Nota de débito',
@@ -2771,7 +2805,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
   }
   for (const documento of documentos) {
     let proveedor
-    // let cliente
+    let cliente
     if (tipo === 'compra') {
       proveedor = await getItemSD({
         nameCollection: 'proveedores',
@@ -2797,7 +2831,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         enviromentClienteId: clienteId,
         filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor._id) }
       })
-      if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
+      if (validarNumeroFactura) throw new Error(`La ${tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()]} N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
       const facturaAfectada = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
@@ -2805,25 +2839,26 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
       })
       if (!facturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
       const compra = {
+        fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
-        facturaAsociada: facturaAfectada._id,
+        facturaAsociada: facturaAfectada?._id,
         fecha: moment(documento.fecha).toDate(),
         fechaVencimiento: moment().toDate(),
         numeroFactura: documento.numeroFactura,
         tipoDocumento: tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()],
         numeroControl: documento.numeroControl || null,
-        proveedorId: new ObjectId(proveedor._id),
+        proveedorId: proveedor?._id ? new ObjectId(proveedor._id) : null,
         moneda,
         compraFiscal: true,
-        baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : null,
-        iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : null,
-        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : null,
+        baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
+        iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
+        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
-        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : null,
-        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : null,
-        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : null,
-        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : null,
-        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : null,
+        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
+        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
+        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : 0,
+        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
+        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
         aplicaProrrateo: documento.aplicaProrrateo || false,
         isImportacion: documento.isImportacion || false
       }
@@ -2833,7 +2868,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
       }
       documentosFiscales.push(compra)
     }
-    /* if (tipo === 'venta') {
+    if (tipo === 'venta') {
       cliente = await getItemSD({
         nameCollection: 'clientes',
         enviromentClienteId: clienteId,
@@ -2858,20 +2893,63 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         enviromentClienteId: clienteId,
         filters: { numeroFactura: documento.numeroFactura }
       })
-      if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} ya se encuentra registrada`)
-    } */
+      if (validarNumeroFactura) throw new Error(`La ${tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()]} N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
+      const facturaAfectada = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { numeroFactura: documento.numeroFacturaAfectada }
+      })
+      if (!facturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
+      const venta = {
+        fechaCreacion: moment().toDate(),
+        tipoMovimiento: documento.tipoMovimiento,
+        fecha: moment(documento.fecha).toDate(),
+        fechaVencimiento: moment().toDate(),
+        numeroFactura: documento.numeroFactura,
+        facturaAsociada: facturaAfectada?._id,
+        tipoDocumento: tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()],
+        numeroReporteZ: documento.numeroReporteZ,
+        numeroControl: documento.numeroControl,
+        activo: false,
+        sucursalId: sucursal ? new ObjectId(sucursal._id) : null,
+        clienteId: new ObjectId(cliente._id),
+        clienteNombre: cliente.razonSocial,
+        clienteDocumentoIdentidad: `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}`,
+        direccion: cliente?.direccion,
+        direccionEnvio: cliente?.direccionEnvio,
+        moneda,
+        compraFiscal: true,
+        baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
+        iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
+        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        creadoPor: new ObjectId(uid),
+        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
+        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
+        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : 0,
+        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
+        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
+        isExportacion: documento.isExportacion || false,
+        ownLogo: sucursal.logo || clienteOwn.logo,
+        ownRazonSocial: sucursal.nombre || clienteOwn.razonSocial,
+        ownDireccion: sucursal.direccion || clienteOwn.direccion,
+        ownDocumentoIdentidad: sucursal.rif || `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
+      }
+      documentosFiscales.push(venta)
+    }
+  }
+  if (documentosFiscales[0]) {
     await createManyItemsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
-      data: documentosFiscales
+      items: documentosFiscales
     })
   }
 }
-const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId }) => {
+const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal }) => {
   const documentosFiscales = []
   for (const documento of documentos) {
     let proveedor
-    // let cliente
+    let cliente
     if (tipo === 'compra') {
       proveedor = await getItemSD({
         nameCollection: 'proveedores',
@@ -2892,12 +2970,22 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId }
           }
         })
       }
-      const validarNumeroFactura = await getItemSD({
-        nameCollection: 'documentosFiscales',
-        enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor._id) }
-      })
-      if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
+      if (proveedor?._id) {
+        const validarNumeroFactura = await getItemSD({
+          nameCollection: 'documentosFiscales',
+          enviromentClienteId: clienteId,
+          filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor._id), estado: { $ne: 'anulado' } }
+        })
+        if (validarNumeroFactura) throw new Error(`La retención N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
+      }
+      if (!proveedor) {
+        const validarNumeroFactura = await getItemSD({
+          nameCollection: 'documentosFiscales',
+          enviromentClienteId: clienteId,
+          filters: { numeroFactura: documento.numeroFactura, estado: 'anulado' }
+        })
+        if (validarNumeroFactura) throw new Error(`La retención N° ${documento.numeroFactura} ya se encuentra registrada como anulada`)
+      }
       const facturaAfectada = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
@@ -2905,27 +2993,28 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId }
       })
       if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
       const compra = {
+        fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
-        facturaAsociada: facturaAfectada._id,
+        facturaAsociada: facturaAfectada?._id || null,
         fecha: moment(documento.fecha).toDate(),
         fechaVencimiento: moment().toDate(),
         numeroFactura: documento.numeroFactura,
         tipoDocumento: tiposDocumentosFiscales.retIva,
-        tipoDocumentoAfectado: facturaAfectada.tipoDocumento,
+        tipoDocumentoAfectado: facturaAfectada?.tipoDocumento || null,
         numeroControl: documento.numeroControl || null,
-        proveedorId: new ObjectId(proveedor._id),
+        proveedorId: proveedor?._id ? new ObjectId(proveedor._id) : null,
         moneda,
         compraFiscal: true,
-        baseImponible: facturaAfectada?.baseImponible ? Number(Number(facturaAfectada?.baseImponible).toFixed(2)) : null,
-        iva: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : null,
-        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : null,
+        baseImponible: facturaAfectada?.baseImponible ? Number(Number(facturaAfectada?.baseImponible).toFixed(2)) : 0,
+        iva: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
+        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
-        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : null,
-        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : null,
-        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : null,
-        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : null,
-        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : null,
-        totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : null
+        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
+        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
+        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : 0,
+        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
+        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
+        totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0
       }
       if (!documento.documentoIdentidad && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado') {
         compra.estado = 'anulado'
@@ -2933,7 +3022,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId }
       }
       documentosFiscales.push(compra)
     }
-    /* if (tipo === 'venta') {
+    if (tipo === 'venta') {
       cliente = await getItemSD({
         nameCollection: 'clientes',
         enviromentClienteId: clienteId,
@@ -2953,17 +3042,85 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId }
           }
         })
       }
-      const validarNumeroFactura = await getItemSD({
+      if (cliente?._id) {
+        const validarNumeroFactura = await getItemSD({
+          nameCollection: 'documentosFiscales',
+          enviromentClienteId: clienteId,
+          filters: { numeroFactura: documento.numeroFactura, estado: { $ne: 'anulado' } }
+        })
+        if (validarNumeroFactura) throw new Error(`La retención N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
+      }
+      if (!cliente) {
+        const validarNumeroFactura = await getItemSD({
+          nameCollection: 'documentosFiscales',
+          enviromentClienteId: clienteId,
+          filters: { numeroFactura: documento.numeroFactura, estado: 'anulado' }
+        })
+        if (validarNumeroFactura) throw new Error(`La retención N° ${documento.numeroFactura} ya se encuentra registrada como anulada`)
+      }
+      const facturaAfectada = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFactura }
+        filters: { numeroFactura: documento.numeroFacturaAfectada }
       })
-      if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} ya se encuentra registrada`)
-    } */
+      if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
+      const venta = {
+        fechaCreacion: moment().toDate(),
+        tipoMovimiento: documento.tipoMovimiento,
+        facturaAsociada: facturaAfectada?._id || null,
+        fecha: moment(documento.fecha).toDate(),
+        fechaVencimiento: moment().toDate(),
+        numeroFactura: documento.numeroFactura,
+        tipoDocumento: tiposDocumentosFiscales.retIva,
+        tipoDocumentoAfectado: facturaAfectada?.tipoDocumento || null,
+        numeroControl: documento.numeroControl || null,
+        activo: false,
+        sucursalId: sucursal ? new ObjectId(sucursal._id) : null,
+        clienteId: new ObjectId(cliente._id),
+        clienteNombre: cliente.razonSocial,
+        clienteDocumentoIdentidad: `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}`,
+        direccion: cliente?.direccion,
+        direccionEnvio: cliente?.direccionEnvio,
+        moneda,
+        baseImponible: facturaAfectada?.baseImponible ? Number(Number(facturaAfectada?.baseImponible).toFixed(2)) : 0,
+        iva: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
+        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        creadoPor: new ObjectId(uid),
+        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
+        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
+        totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
+        ownLogo: sucursal.logo || clienteOwn.logo,
+        ownRazonSocial: sucursal.nombre || clienteOwn.razonSocial,
+        ownDireccion: sucursal.direccion || clienteOwn.direccion,
+        ownDocumentoIdentidad: sucursal.rif || `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
+      }
+      if (!documento.documentoIdentidad && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado') {
+        venta.estado = 'anulado'
+        venta.clienteId = null
+      }
+      documentosFiscales.push(venta)
+    }
+  }
+  if (documentosFiscales[0]) {
     await createManyItemsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
-      data: documentosFiscales
+      items: documentosFiscales
     })
+  }
+}
+export const getSucursalesList = async (req, res) => {
+  const { clienteId } = req.body
+  try {
+    const sucursales = await agreggateCollectionsSD({
+      nameCollection: 'ventassucursales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+      ]
+    })
+    return res.status(200).json({ sucursales })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
   }
 }

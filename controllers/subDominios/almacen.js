@@ -719,8 +719,8 @@ export const saveCategoriaPorAlmacen = async (req, res) => {
           filter: { categoriaId: new ObjectId(e.categoriaId), almacenId: new ObjectId(almacenId) },
           update: {
             $set: {
-              cuentaId: new ObjectId(e.cuentaId),
-              cuentaCostoVentaId: new ObjectId(e.cuentaCostoVentaId),
+              cuentaId: e.cuentaId ? new ObjectId(e.cuentaId) : null,
+              cuentaCostoVentaId: e.cuentaCostoVentaId ? new ObjectId(e.cuentaCostoVentaId) : null,
               tipo
             }
           },

@@ -1,7 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollection, getCollectionSD, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
-import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
 import { subDominioName, documentosVentas } from '../../../constants.js'
 import moment from 'moment-timezone'
 import { getOrCreateComprobante, createMovimientos } from '../../../utils/contabilidad.js'
@@ -185,6 +184,62 @@ export const getDetallePedidoVenta = async (req, res) => {
     const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones'] } } })
     const matchAlmacen = almacenId ? { almacenId: new ObjectId(almacenId) } : { almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } }
 
+    const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventaszonas' })
+    const clientesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'clientes' })
+
+    const [cliente] = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: new ObjectId(pedidoId) } },
+        {
+          $lookup: {
+            from: clientesCollection,
+            localField: 'clienteId',
+            foreignField: '_id',
+            as: 'cliente'
+          }
+        },
+        { $unwind: { path: '$cliente' } },
+        {
+          $lookup: {
+            from: zonasCollection,
+            localField: 'cliente.zona',
+            foreignField: '_id',
+            as: 'detalleZona'
+          }
+        },
+        { $unwind: { path: '$detalleZona', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: categoriaCollection,
+            localField: 'cliente.categoria',
+            foreignField: '_id',
+            as: 'detalleCategoria'
+          }
+        },
+        { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: '$cliente._id',
+            zonaId: '$detalleZona._id',
+            zona: '$detalleZona.nombre',
+            categoriaId: '$detalleCategoria._id',
+            categoria: '$detalleCategoria.nombre',
+            tipoDocumento: '$cliente.tipoDocumento',
+            documentoIdentidad: '$cliente.documentoIdentidad',
+            email: '$cliente.email',
+            razonSocial: '$cliente.razonSocial',
+            telefono: '$cliente.telefono',
+            isContribuyenteEspecial: '$cliente.isContribuyenteEspecial',
+            direccion: '$cliente.direccion',
+            direccionEnvio: '$cliente.direccionEnvio',
+            observacion: '$cliente.observacion'
+          }
+        }
+      ]
+    })
     const detalles = await agreggateCollectionsSD({
       enviromentClienteId: clienteId,
       nameCollection: 'detalleDocumentosFiscales',
@@ -306,7 +361,7 @@ export const getDetallePedidoVenta = async (req, res) => {
         precioTotal: (producto.precioVenta * cantidad) - descuentoTotal
       }
     })
-    return res.status(200).json({ productos })
+    return res.status(200).json({ productos, cliente })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de los pedidos de venta: ' + e.message })
@@ -343,138 +398,211 @@ export const getFacturas = async (req, res) => {
   }
 }
 export const getDetalleFacturas = async (req, res) => {
-  const { clienteId, facturaId, almacenId } = req.body
+  const { clienteId, facturaId } = req.body
   try {
-    const prodtuctosNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
-    const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
-    const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
-    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones'] } } })
-    const matchAlmacen = almacenId ? { almacenId: new ObjectId(almacenId) } : { almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } }
+    const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventaszonas' })
+    const clientesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'clientes' })
 
+    const [cliente] = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: new ObjectId(facturaId) } },
+        {
+          $lookup: {
+            from: clientesCollection,
+            localField: 'clienteId',
+            foreignField: '_id',
+            as: 'cliente'
+          }
+        },
+        { $unwind: { path: '$cliente' } },
+        {
+          $lookup: {
+            from: zonasCollection,
+            localField: 'cliente.zona',
+            foreignField: '_id',
+            as: 'detalleZona'
+          }
+        },
+        { $unwind: { path: '$detalleZona', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: categoriaCollection,
+            localField: 'cliente.categoria',
+            foreignField: '_id',
+            as: 'detalleCategoria'
+          }
+        },
+        { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: '$cliente._id',
+            zonaId: '$detalleZona._id',
+            zona: '$detalleZona.nombre',
+            categoriaId: '$detalleCategoria._id',
+            categoria: '$detalleCategoria.nombre',
+            tipoDocumento: '$cliente.tipoDocumento',
+            documentoIdentidad: '$cliente.documentoIdentidad',
+            email: '$cliente.email',
+            razonSocial: '$cliente.razonSocial',
+            telefono: '$cliente.telefono',
+            isContribuyenteEspecial: '$cliente.isContribuyenteEspecial',
+            direccion: '$cliente.direccion',
+            direccionEnvio: '$cliente.direccionEnvio',
+            observacion: '$cliente.observacion'
+          }
+        }
+      ]
+    })
+    const documentosIdNCyND = await agreggateCollectionsSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      pipeline: [
+        { $match: { facturaId: new ObjectId(facturaId) } },
+        {
+          $group: {
+            _id: 0,
+            documentosId: {
+              $addToSet: '$_id'
+            }
+          }
+        }
+      ]
+    })
+    const documentosId = documentosIdNCyND[0]?.documentosId || []
     const detalles = await agreggateCollectionsSD({
       enviromentClienteId: clienteId,
       nameCollection: 'detalleDocumentosFiscales',
       pipeline: [
-        { $match: { facturaId: new ObjectId(facturaId) } },
+        { $match: { facturaId: { $in: [...documentosId, new ObjectId(facturaId)] } } },
+        { $sort: { fechaCreacion: -1 } },
         {
-          $lookup: {
-            from: prodtuctosNameCol,
-            localField: 'productoId',
-            foreignField: '_id',
-            pipeline: [
-              { $match: { activo: { $ne: false } } },
-              {
-                $lookup: {
-                  from: categoriasCollection,
-                  localField: 'categoria',
-                  foreignField: '_id',
-                  as: 'detalleCategoria'
-                }
-              },
-              { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
-              {
-                $lookup: {
-                  from: productorPorAlamcenCollection,
-                  localField: '_id',
-                  foreignField: 'productoId',
-                  pipeline: [
-                    { $match: { ...matchAlmacen, lote: { $ne: null } } },
-                    {
-                      $group: {
-                        _id: '$productoId',
-                        entrada: {
-                          $sum: {
-                            $cond: {
-                              if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
-                            }
-                          }
-                        },
-                        salida: {
-                          $sum: {
-                            $cond: {
-                              if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
-                            }
-                          }
-                        }
-                      }
-                    },
-                    {
-                      $project: {
-                        cantidad: { $subtract: ['$entrada', '$salida'] },
-                        entrada: '$entrada',
-                        salida: '$salida'
-                      }
-                    }
-                  ],
-                  as: 'detalleCantidadProducto'
-                }
-              },
-              { $unwind: { path: '$detalleCantidadProducto', preserveNullAndEmptyArrays: true } },
-              {
-                $project: {
-                  codigo: '$codigo',
-                  nombre: '$nombre',
-                  descripcion: '$descripcion',
-                  unidad: '$unidad',
-                  categoriaId: '$categoria',
-                  categoria: '$detalleCategoria.nombre',
-                  descuento: '$detalleCategoria.descuento',
-                  hasDescuento: '$detalleCategoria.hasDescuento',
-                  utilidad: '$detalleCategoria.utilidad',
-                  tipoDescuento: '$detalleCategoria.tipoDescuento',
-                  observacion: '$observacion',
-                  // detalleCantidadProducto: '$detalleCantidadProducto',
-                  stock: '$detalleCantidadProducto.cantidad',
-                  entrada: '$detalleCantidadProducto.entrada',
-                  salida: '$detalleCantidadProducto.salida',
-                  moneda: '$moneda',
-                  isExento: '$isExento',
-                  precioVenta: {
+          $group: {
+            _id: '$productoId',
+            codigo: {
+              $last: '$codigo'
+            },
+            descripcion: {
+              $last: '$descripcion'
+            },
+            nombre: {
+              $last: '$nombre'
+            },
+            observacion: {
+              $last: '$observacion'
+            },
+            unidad: {
+              $last: '$unidad'
+            },
+            tipo: {
+              $last: '$tipo'
+            },
+            descuento: {
+              $last: '$descuento'
+            },
+            ivaId: {
+              $last: '$ivaId'
+            },
+            iva: {
+              $last: '$iva'
+            },
+            cantidad: {
+              $sum: {
+                $cond: {
+                  if: { $and: [
+                    { $eq: ['$tipoDocumento', 'Nota de crédito'] },
+                    { $eq: ['$tipoAjuste', 'cantidad'] }
+                  ] },
+                  then: { $multiply: ['$cantidad', -1] },
+                  else: {
                     $cond: {
-                      if: { $gt: ['$precioVenta', 0] },
-                      then: '$precioVenta',
-                      else: {
-                        $cond: {
-                          if: { $and: [
-                            { $gt: ['$detalleCategoria.utilidad', 0] },
-                            { $lt: ['$detalleCategoria.utilidad', 100] }
-                          ] },
-                          then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                          else: { $cond: {
-                            if: { $gte: ['$detalleCategoria.utilidad', 100] },
-                            then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                            else: 0
-                          } }
-                        }
-                      }
+                      if: { $eq: ['$tipoDocumento', 'Factura'] },
+                      then: '$cantidad',
+                      else: 0
                     }
-                  },
-                  iva: '$iva',
-                  costoPromedio: '$costoPromedio',
-                  isDataInicial: '$isDataInicial'
+                  }
                 }
               }
-            ],
-            as: 'producto'
+            },
+            precioVenta: {
+              $sum: {
+                $cond: {
+                  if: { $and: [
+                    { $eq: ['$tipoDocumento', 'Nota de crédito'] },
+                    { $eq: ['$tipoAjuste', 'precio'] }
+                  ] },
+                  then: { $multiply: ['$precioVenta', -1] },
+                  else: {
+                    $cond: {
+                      if: { $ne: ['$tipoDocumento', 'Nota de crédito'] },
+                      then: '$precioVenta',
+                      else: 0
+                    }
+                  }
+                }
+              }
+            },
+            precioSinDescuento: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
+                  then: { $multiply: ['$precioSinDescuento', -1] },
+                  else: '$precioSinDescuento'
+                }
+              }
+            },
+            descuentoTotal: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
+                  then: { $multiply: ['$descuentoTotal', -1] },
+                  else: '$descuentoTotal'
+                }
+              }
+            },
+            precioConDescuento: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
+                  then: { $multiply: ['$precioConDescuento', -1] },
+                  else: '$precioConDescuento'
+                }
+              }
+            },
+            baseImponible: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
+                  then: { $multiply: ['$baseImponible', -1] },
+                  else: '$baseImponible'
+                }
+              }
+            },
+            montoIva: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
+                  then: { $multiply: ['$montoIva', -1] },
+                  else: '$montoIva'
+                }
+              }
+            },
+            precioTotal: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
+                  then: { $multiply: ['$precioTotal', -1] },
+                  else: '$precioTotal'
+                }
+              }
+            }
           }
-        },
-        { $unwind: '$producto' },
-        // { $project: { producto: 1, cantidad: 1, descuento: 1 } }
+        }
       ]
     })
-    const productos = detalles/*
-    .map(({ producto, cantidad, descuento }) => {
-      const descuentoTotal = descuento ? (producto.precioVenta * cantidad) * ((descuento * 100) / 100) : 0
-      return {
-        ...producto,
-        descuentoTotal,
-        cantidad,
-        descuento: descuento * 100,
-        precioTotal: (producto.precioVenta * cantidad) - descuentoTotal
-      }
-    })
-      */
-    return res.status(200).json({ productos })
+    return res.status(200).json({ productos: detalles, cliente })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de las facturas: ' + e.message })
@@ -698,13 +826,14 @@ const handleVentasND = async ({ clienteId, ventaInfo, creadoPor }) => {
     const valorAjustado = Number(e.precioUnitarioNDEditable) - Number(e.precioVenta)
     return {
       ...e,
+      tipoAjuste: 'precio',
       nombre: `${e.nombre} (Ajuste de precio)`,
-      precioVenta: valorAjustado,
-      precioSinDescuento: valorAjustado * e.cantidad,
+      precioVenta: Number(valorAjustado.toFixed(2)),
+      precioSinDescuento: Number((valorAjustado * e.cantidad).toFixed(2)),
       descuento: 0,
       descuentoTotal: 0,
-      precioConDescuento: valorAjustado * e.cantidad,
-      precioTotal: valorAjustado * e.cantidad
+      precioConDescuento: Number((valorAjustado * e.cantidad).toFixed(2)),
+      precioTotal: Number((valorAjustado * e.cantidad).toFixed(2)),
     }
   })
   await createDetalleDocumento({ clienteId, ventaInfo, facturaId: newFactura.insertedId })
@@ -724,9 +853,10 @@ const handleVentasNC = async ({ clienteId, ventaInfo, creadoPor }) => {
   }).map(e => {
     const valorAjustado = Number(e.precioUnitarioNCEditable || e.precioVenta)
     const setLabelAjustePrecio = e.precioUnitarioNCEditable ? ' (Ajuste de precio)' : ''
-    const cantidad = e.cantidadNC || e.cantidad
+    const cantidad = Number(e.cantidadNC || e.cantidad || 0)
     return {
       ...e,
+      tipoAjuste: e.precioUnitarioNCEditable ? 'precio' : 'cantidad',
       nombre: `${e.nombre}${setLabelAjustePrecio}`,
       precioVenta: valorAjustado,
       precioSinDescuento: valorAjustado * cantidad,
@@ -867,11 +997,14 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
 
 const createDetalleDocumento = async ({ clienteId, ventaInfo, facturaId }) => {
   const detalle = ventaInfo.productos.map(e => {
-    const baseImponible = Number(e.precioVenta) * Number(e.cantidad)
-    const baseImponibleConDescuento = Number(e.precioTotal)
+    const baseImponible = Number((Number(e.precioVenta) * Number(e.cantidad)).toFixed(2))
+    const baseImponibleConDescuento = Number((e.precioTotal || 0).toFixed(2))
     const montoIva = e.iva ? baseImponibleConDescuento * e.iva / 100 : 0
     return {
       facturaId,
+      tipoMovimiento: 'venta',
+      tipoDocumento: ventaInfo.documento,
+      tipoAjuste: e.tipoAjuste, // cantidad / precio / both // --- lo uso para las ND y NC
       productoId: new ObjectId(e._id),
       codigo: e.codigo,
       descripcion: e.descripcion,
@@ -880,16 +1013,16 @@ const createDetalleDocumento = async ({ clienteId, ventaInfo, facturaId }) => {
       unidad: e.unidad,
       cantidad: e.cantidad,
       tipo: e.tipo ? e.tipo : 'producto',
-      precioVenta: Number(e.precioVenta),
-      precioSinDescuento: Number(e.precioSinDescuento),
+      precioVenta: Number(e.precioVenta.toFixed(2)),
+      precioSinDescuento: Number(e.precioSinDescuento.toFixed(2)),
       descuento: Number(e.descuento) / 100,
-      descuentoTotal: Number(e.descuentoTotal),
-      precioConDescuento: Number(e.precioTotal),
+      descuentoTotal: Number(e.descuentoTotal.toFixed(2)),
+      precioConDescuento: Number(e.precioTotal.toFixed(2)),
       baseImponible: Number(baseImponible.toFixed(2)),
-      montoIva,
+      montoIva: Number(montoIva.toFixed(2)),
       ivaId: e.ivaId ? new ObjectId(e.ivaId) : '',
       iva: e.iva ? e.iva : 0,
-      precioTotal: baseImponibleConDescuento + montoIva,
+      precioTotal: Number((baseImponibleConDescuento + montoIva).toFixed(2)),
       fechaCreacion: moment().toDate()
     }
   })

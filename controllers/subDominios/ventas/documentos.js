@@ -69,7 +69,7 @@ export const getDocumentoByTipo = async (req, res) => {
           $lookup: {
             from: detalleDocCol,
             localField: '_id',
-            foreignField: 'facturaId',
+            foreignField: 'documentoId',
             as: 'detalleProductos'
           }
         }

@@ -2704,7 +2704,9 @@ export const createFacturas = async (req, res) => {
               cantidad: factura.monedaSecundaria !== factura.moneda ? Number((ordenCompra.total / factura.tasaDia).toFixed(2)) : null,
               monedasUsar: factura.monedaSecundaria !== factura.moneda ? factura.monedaSecundaria : null,
               tasa: factura.monedaSecundaria !== factura.moneda ? factura.tasaDia : null,
-              monedaPrincipal: factura.moneda
+              monedaPrincipal: factura.moneda,
+              terceroId: new ObjectId(terceroProveedor._id),
+              terceroNombre: terceroProveedor.nombre
             })
             if (diferencia > 0) {
               const cuentaVariacion = await getItemSD({

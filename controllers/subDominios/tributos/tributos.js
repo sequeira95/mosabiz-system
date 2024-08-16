@@ -2650,11 +2650,12 @@ export const deletePeriodoFactura = async (req, res) => {
   }
 }
 export const saveDocumentosfiscalesToArray = async (req, res) => {
-  const { clienteId, documentosFiscales, tipo, moneda, sucursal } = req.body
+  const { clienteId, documentosFiscales, tipo, moneda, sucursal, filtros, fechaActual } = req.body
   try {
     const facturas = []
     const debitoCredito = []
     const retIva = []
+    const tieneContabilidad = await hasContabilidad({ clienteId })
     /* este for se encarga solo de separar los documentos por tipo */
     for (const documento of documentosFiscales) {
       const tipoDocumento = documento.tipoDocumento.replaceAll(' ', '').toLowerCase()
@@ -2664,22 +2665,96 @@ export const saveDocumentosfiscalesToArray = async (req, res) => {
     }
     const clienteOwn = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(clienteId) } })
     /** funcion que crea las factuas de compra o venta para luego poder asociar id de facturas al resto de documentos */
-    await createFacturas({ documentos: facturas, moneda, uid: req.uid, tipo, clienteId: clienteOwn._id, clienteOwn, sucursal })
+    await createFacturas({
+      documentos: facturas,
+      moneda,
+      uid: req.uid,
+      tipo,
+      clienteId: clienteOwn._id,
+      clienteOwn,
+      sucursal,
+      filtros,
+      tieneContabilidad,
+      fechaActual
+    })
     /** Luego de crear las facturas crearemos las notas de debito y de credito */
-    await createNotasDebitoCredito({ documentos: debitoCredito, moneda, uid: req.uid, tipo, clienteId: clienteOwn._id, clienteOwn, sucursal })
+    await createNotasDebitoCredito({
+      documentos: debitoCredito,
+      moneda,
+      uid: req.uid,
+      tipo,
+      clienteId: clienteOwn._id,
+      clienteOwn,
+      sucursal,
+      filtros,
+      tieneContabilidad,
+      fechaActual
+    })
     /** Luego creamos las ret Iva */
-    await createRetencionesIva({ documentos: retIva, moneda, uid: req.uid, tipo, clienteId: clienteOwn._id, clienteOwn, sucursal })
+    await createRetencionesIva({
+      documentos: retIva,
+      moneda,
+      uid: req.uid,
+      tipo,
+      clienteId: clienteOwn._id,
+      clienteOwn,
+      sucursal,
+      filtros,
+      tieneContabilidad,
+      fechaActual
+    })
     return res.status(200).json({ status: 'Documentos fiscales guardados correctamente' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar los documentos fiscales ' + e.message })
   }
 }
-const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal }) => {
+const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal, filtros, tieneContabilidad, fechaActual }) => {
   const documentosFacturas = []
+  const asientosContables = []
+  let cuentaIva = null
+  let cuentaCosto = null
+  let cuentaPago = null
+  let periodo = null
+  let comprobante = null
+  if (tieneContabilidad) {
+    cuentaIva = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaIva?._id) } })
+    cuentaCosto = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaCosto?._id) } })
+    cuentaPago = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaPago?._id) } })
+    if (!cuentaIva) throw new Error('La cuenta de IVA no existe')
+    if (!cuentaCosto) throw new Error('La cuenta de gasto o costo  no existe')
+    if (!cuentaPago) throw new Error('La cuenta de pago no existe')
+    periodo = await getItemSD({
+      nameCollection: 'periodos',
+      enviromentClienteId: clienteId,
+      filters: { fechaInicio: { $lte: moment(fechaActual).toDate() }, fechaFin: { $gte: moment(fechaActual).toDate() } }
+    })
+    // console.log({ periodo })
+    if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
+    const mesPeriodo = moment(fechaActual).format('YYYY/MM')
+    comprobante = await getItemSD({
+      nameCollection: 'comprobantes',
+      enviromentClienteId: clienteId,
+      filters: { codigo: filtros.codigoComprobante, periodoId: periodo._id, mesPeriodo }
+    })
+    if (!comprobante) {
+      comprobante = await upsertItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: filtros.codigoComprobante, periodoId: periodo._id, mesPeriodo },
+        update: {
+          $set: {
+            nombre: 'Movimientos de compras',
+            isBloqueado: false,
+            fechaCreacion: moment().toDate()
+          }
+        }
+      })
+    }
+  }
   for (const documento of documentos) {
-    let proveedor
-    let cliente
+    let proveedor = null
+    let cliente = null
     if (tipo === 'compra') {
       proveedor = await getItemSD({
         nameCollection: 'proveedores',
@@ -2730,6 +2805,60 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         isImportacion: documento.isImportacion || false
       }
       documentosFacturas.push(compra)
+      if (tieneContabilidad) {
+        const asientos = [
+          {
+            cuentaId: new ObjectId(cuentaCosto._id),
+            cuentaCodigo: cuentaCosto.codigo,
+            cuentaNombre: cuentaCosto.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            fecha: moment(fechaActual).toDate(),
+            debe: Number(Number(compra.baseImponible.toFixed(2)) + Number(compra.totalExento.toFixed(2))),
+            haber: 0,
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            documento: {
+              docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              docFecha: moment(fechaActual).toDate()
+            }
+          }, {
+            cuentaId: new ObjectId(cuentaIva._id),
+            cuentaCodigo: cuentaIva.codigo,
+            cuentaNombre: cuentaIva.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            fecha: moment(fechaActual).toDate(),
+            debe: compra.iva,
+            haber: 0,
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            documento: {
+              docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              docFecha: moment(fechaActual).toDate()
+            }
+          }, {
+            cuentaId: new ObjectId(cuentaPago._id),
+            cuentaCodigo: cuentaPago.codigo,
+            cuentaNombre: cuentaPago.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            fecha: moment(fechaActual).toDate(),
+            debe: 0,
+            haber: Number(Number(compra.total.toFixed(2))),
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            documento: {
+              docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              docFecha: moment(fechaActual).toDate()
+            }
+          }
+        ]
+        asientosContables.push(...asientos)
+      }
     }
     if (tipo === 'venta') {
       cliente = await getItemSD({
@@ -2777,6 +2906,10 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
         iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
         total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        baseImponibleSecundaria: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
+        monedaSecundaria: moneda,
+        ivaSecundaria: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
+        totalSecundaria: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
         exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
         totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
@@ -2796,9 +2929,57 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
       items: documentosFacturas
     })
   }
+  if (asientosContables[0]) {
+    createManyItemsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      items: asientosContables
+    })
+  }
 }
-const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal }) => {
+const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal, filtros, fechaActual, tieneContabilidad }) => {
   const documentosFiscales = []
+  const asientosContables = []
+  let cuentaIva = null
+  let cuentaCosto = null
+  let cuentaPago = null
+  let periodo = null
+  let comprobante = null
+  if (tieneContabilidad) {
+    cuentaIva = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaIva?._id) } })
+    cuentaCosto = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaCosto?._id) } })
+    cuentaPago = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaPago?._id) } })
+    if (!cuentaIva) throw new Error('La cuenta de IVA no existe')
+    if (!cuentaCosto) throw new Error('La cuenta de gasto o costo  no existe')
+    if (!cuentaPago) throw new Error('La cuenta de pago no existe')
+    periodo = await getItemSD({
+      nameCollection: 'periodos',
+      enviromentClienteId: clienteId,
+      filters: { fechaInicio: { $lte: moment(fechaActual).toDate() }, fechaFin: { $gte: moment(fechaActual).toDate() } }
+    })
+    // console.log({ periodo })
+    if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
+    const mesPeriodo = moment(fechaActual).format('YYYY/MM')
+    comprobante = await getItemSD({
+      nameCollection: 'comprobantes',
+      enviromentClienteId: clienteId,
+      filters: { codigo: filtros.codigoComprobante, periodoId: periodo._id, mesPeriodo }
+    })
+    if (!comprobante) {
+      comprobante = await upsertItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: filtros.codigoComprobante, periodoId: periodo._id, mesPeriodo },
+        update: {
+          $set: {
+            nombre: 'Movimientos de compras',
+            isBloqueado: false,
+            fechaCreacion: moment().toDate()
+          }
+        }
+      })
+    }
+  }
   const tiposDocumentos = {
     nd: 'Nota de débito',
     nc: 'Nota de crédito'
@@ -2835,7 +3016,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
       const facturaAfectada = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFacturaAfectada }
+        filters: { numeroFactura: documento.numeroFacturaAfectada, proveedorId: proveedor._id }
       })
       if (!facturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
       const compra = {
@@ -2853,6 +3034,9 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
         iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
         total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        monedaSecundaria: moneda,
+        ivaSecundaria: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
+        totalSecundaria: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
         sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
         noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
@@ -2867,6 +3051,118 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         compra.proveedorId = null
       }
       documentosFiscales.push(compra)
+      if (tieneContabilidad && compra.estado !== 'anulado') {
+        if (compra.tipoDocumento === tiposDocumentosFiscales.notaDebito) {
+          const asientos = [
+            {
+              cuentaId: new ObjectId(cuentaCosto._id),
+              cuentaCodigo: cuentaCosto.codigo,
+              cuentaNombre: cuentaCosto.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              fecha: moment(fechaActual).toDate(),
+              debe: Number(Number(compra.baseImponible.toFixed(2)) + Number(compra.totalExento.toFixed(2))),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              documento: {
+                docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+                docFecha: moment(fechaActual).toDate()
+              }
+            }, {
+              cuentaId: new ObjectId(cuentaIva._id),
+              cuentaCodigo: cuentaIva.codigo,
+              cuentaNombre: cuentaIva.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              fecha: moment(fechaActual).toDate(),
+              debe: compra.iva,
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              documento: {
+                docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+                docFecha: moment(fechaActual).toDate()
+              }
+            }, {
+              cuentaId: new ObjectId(cuentaPago._id),
+              cuentaCodigo: cuentaPago.codigo,
+              cuentaNombre: cuentaPago.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              fecha: moment(fechaActual).toDate(),
+              debe: 0,
+              haber: Number(Number(compra.total.toFixed(2))),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              documento: {
+                docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+                docFecha: moment(fechaActual).toDate()
+              }
+            }
+          ]
+          asientosContables.push(...asientos)
+        }
+        if (compra.tipoDocumento === tiposDocumentosFiscales.notaCredito) {
+          const asientos = [
+            {
+            cuentaId: new ObjectId(cuentaPago._id),
+            cuentaCodigo: cuentaPago.codigo,
+            cuentaNombre: cuentaPago.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            fecha: moment(fechaActual).toDate(),
+            debe: Number(Number(compra.total.toFixed(2))),
+            haber: 0,
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            documento: {
+              docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              docFecha: moment(fechaActual).toDate()
+            }
+            },
+            {
+              cuentaId: new ObjectId(cuentaCosto._id),
+              cuentaCodigo: cuentaCosto.codigo,
+              cuentaNombre: cuentaCosto.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              fecha: moment(fechaActual).toDate(),
+              debe: 0,
+              haber: Number(Number(compra.baseImponible.toFixed(2)) + Number(compra.totalExento.toFixed(2))),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              documento: {
+                docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+                docFecha: moment(fechaActual).toDate()
+              }
+            }, 
+            {
+              cuentaId: new ObjectId(cuentaIva._id),
+              cuentaCodigo: cuentaIva.codigo,
+              cuentaNombre: cuentaIva.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              fecha: moment(fechaActual).toDate(),
+              debe: 0,
+              haber: compra.iva,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              documento: {
+                docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+                docFecha: moment(fechaActual).toDate()
+              }
+            }
+          ]
+          asientosContables.push(...asientos)
+        }
+      }
     }
     if (tipo === 'venta') {
       cliente = await getItemSD({
@@ -2944,9 +3240,55 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
       items: documentosFiscales
     })
   }
+  if (asientosContables[0]) {
+    createManyItemsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      items: asientosContables
+    })
+  }
 }
-const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal }) => {
+const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal, filtros, fechaActual, tieneContabilidad }) => {
   const documentosFiscales = []
+  const bulkWriteFacturasPeriodos = []
+  const asientosContables = []
+  let cuentaRetIva = null
+  let cuentaPago = null
+  let periodo = null
+  let comprobante = null
+  if (tieneContabilidad) {
+    cuentaRetIva = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaRetIva?._id) } })
+    cuentaPago = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaPago?._id) } })
+    if (!cuentaRetIva) throw new Error('La cuenta de retención de IVA no existe')
+    if (!cuentaPago) throw new Error('La cuenta de pago no existe')
+    periodo = await getItemSD({
+      nameCollection: 'periodos',
+      enviromentClienteId: clienteId,
+      filters: { fechaInicio: { $lte: moment(fechaActual).toDate() }, fechaFin: { $gte: moment(fechaActual).toDate() } }
+    })
+    // console.log({ periodo })
+    if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
+    const mesPeriodo = moment(fechaActual).format('YYYY/MM')
+    comprobante = await getItemSD({
+      nameCollection: 'comprobantes',
+      enviromentClienteId: clienteId,
+      filters: { codigo: filtros.codigoComprobante, periodoId: periodo._id, mesPeriodo }
+    })
+    if (!comprobante) {
+      comprobante = await upsertItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: filtros.codigoComprobante, periodoId: periodo._id, mesPeriodo },
+        update: {
+          $set: {
+            nombre: 'Movimientos de compras',
+            isBloqueado: false,
+            fechaCreacion: moment().toDate()
+          }
+        }
+      })
+    }
+  }
   for (const documento of documentos) {
     let proveedor
     let cliente
@@ -2989,7 +3331,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
       const facturaAfectada = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFacturaAfectada }
+        filters: { numeroFactura: documento.numeroFacturaAfectada, proveedorId: proveedor?._id }
       })
       if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
       const compra = {
@@ -3004,6 +3346,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         numeroControl: documento.numeroControl || null,
         proveedorId: proveedor?._id ? new ObjectId(proveedor._id) : null,
         moneda,
+        monedaSecundaria: moneda,
         compraFiscal: true,
         baseImponible: facturaAfectada?.baseImponible ? Number(Number(facturaAfectada?.baseImponible).toFixed(2)) : 0,
         iva: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
@@ -3014,13 +3357,67 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : 0,
         exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
         totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
-        totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0
+        totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
+        totalRetenidoSecundario: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0
+      }
+      if (facturaAfectada) {
+        const updatePeriodoFactura = {
+          updateOne: {
+            filter: { _id: facturaAfectada._id },
+            update: {
+              $set: {
+                periodoIvaNombre: documento.periodoIvaNombre,
+                periodoIvaInit: moment(documento.periodoIvaInit).toDate(),
+                periodoIvaEnd: moment(documento.periodoIvaEnd).toDate()
+              }
+            }
+          }
+        }
+        bulkWriteFacturasPeriodos.push(updatePeriodoFactura)
       }
       if (!documento.documentoIdentidad && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado') {
         compra.estado = 'anulado'
         compra.proveedorId = null
       }
       documentosFiscales.push(compra)
+      if (tieneContabilidad && compra.estado !== 'anulado') {
+        const asientos = [
+          {
+            cuentaId: new ObjectId(cuentaPago._id),
+            cuentaCodigo: cuentaPago.codigo,
+            cuentaNombre: cuentaPago.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            fecha: moment(fechaActual).toDate(),
+            debe: Number(Number(compra.totalRetenido).toFixed(2)),
+            haber: 0,
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            documento: {
+              docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              docFecha: moment(fechaActual).toDate()
+            }
+          }, {
+            cuentaId: new ObjectId(cuentaRetIva._id),
+            cuentaCodigo: cuentaRetIva.codigo,
+            cuentaNombre: cuentaRetIva.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            fecha: moment(fechaActual).toDate(),
+            debe: 0,
+            haber: Number(Number(compra.totalRetenido).toFixed(2)),
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            documento: {
+              docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              docFecha: moment(fechaActual).toDate()
+            }
+          }
+        ]
+        asientosContables.push(...asientos)
+      }
     }
     if (tipo === 'venta') {
       cliente = await getItemSD({
@@ -3106,6 +3503,14 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       items: documentosFiscales
+    })
+  }
+  if (bulkWriteFacturasPeriodos[0]) await bulkWriteSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, bulkWrite: bulkWriteFacturasPeriodos })
+  if (asientosContables[0]) {
+    createManyItemsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      items: asientosContables
     })
   }
 }

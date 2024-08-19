@@ -1121,7 +1121,7 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, facturaId 
           DOC: {
             cuentaId: '$zonaData.cuentaId',
             cuentaCodigo: '$detalleCuenta.codigo',
-            cuentaNombre: '$detalleCuenta.descripcion',
+            cuentaNombre: '$detalleCuenta.descripcion'
           }
         }
       }

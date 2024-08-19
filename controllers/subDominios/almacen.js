@@ -901,8 +901,80 @@ export const getProductosPorAlmacen = async (req, res) => {
   try {
     const productoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    const productoPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
     const matchAlmacen = almacenOrigen ? { almacenId: new ObjectId(almacenOrigen) } : {}
-    const productosPorAlmacen = await agreggateCollectionsSD({
+    const productos = await agreggateCollectionsSD({
+      nameCollection: 'productos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $lookup: {
+            from: categoriasCollection,
+            localField: 'categoria',
+            foreignField: '_id',
+            as: 'detalleCategoria'
+          }
+        },
+        { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: productoPorAlmacenCollection,
+            localField: '_id',
+            foreignField: 'productoId',
+            pipeline: [
+              { $match: { ...matchAlmacen, activo: { $ne: false } } },
+              {
+                $group:
+                {
+                  _id: '$productoId',
+                  entrada: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                      }
+                    }
+                  },
+                  salida: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            as: 'productoPorAlmacen'
+          }
+        },
+        { $unwind: { path: '$productoPorAlmacen', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            codigo: '$codigo',
+            nombre: '$nombre',
+            descripcion: '$descripcion',
+            unidad: '$unidad',
+            categoriaId: '$categoria',
+            categoria: '$detalleCategoria.nombre',
+            descuento: '$detalleCategoria.descuento',
+            hasDescuento: '$detalleCategoria.hasDescuento',
+            utilidad: '$detalleCategoria.utilidad',
+            tipoDescuento: '$detalleCategoria.tipoDescuento',
+            observacion: '$observacion',
+            moneda: '$moneda',
+            isExento: '$isExento',
+            precioVenta: '$precioVenta',
+            ivaId: '$iva',
+            iva: '$detalleIva.iva',
+            cantidad: { $subtract: ['$productoPorAlmacen.entrada', '$productoPorAlmacen.salida'] },
+            entrada: '$productoPorAlmacen.entrada',
+            salida: '$productoPorAlmacen.salida'
+          }
+        }
+
+      ]
+    })
+    /* const productosPorAlmacen = await agreggateCollectionsSD({
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       pipeline: [
@@ -990,9 +1062,9 @@ export const getProductosPorAlmacen = async (req, res) => {
           }
         }
       ]
-    })
-    console.log({ productosPorAlmacen })
-    return res.status(200).json({ productosPorAlmacen })
+    }) */
+    console.log({ productosPorAlmacen: productos })
+    return res.status(200).json({ productosPorAlmacen: productos })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la lista de productos por almacen ' + e.message })

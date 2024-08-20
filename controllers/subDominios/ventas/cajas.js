@@ -15,12 +15,12 @@ export const getCajas = async (req, res) => {
         {
           $lookup: {
             from: sucursalNameCol,
-            localField: '_id',
-            foreignField: 'cajasId',
+            localField: 'sucursalId',
+            foreignField: '_id',
             pipeline: [
-              { $project: { codigo: '$codigo' } }
+              { $project: { codigo: '$codigo', nombre: '$nombre' } }
             ],
-            as: 'sucursalNames'
+            as: 'sucursal'
           }
         }
       ]

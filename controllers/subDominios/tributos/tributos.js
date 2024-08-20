@@ -1,5 +1,5 @@
 import moment from 'moment-timezone'
-import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, formatCollectionName, getCollection, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getCollection, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { formatearNumeroRetencionIslr, formatearNumeroRetencionIva, subDominioName, tiposDeclaracion, tiposDocumentosFiscales, tiposIVa } from '../../../constants.js'
 import { ObjectId } from 'mongodb'
 import { uploadImg } from '../../../utils/cloudImage.js'
@@ -2779,10 +2779,14 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         numeroControl: documento.numeroControl,
         proveedorId: new ObjectId(proveedor._id),
         moneda,
+        monedaSecundaria: moneda,
         compraFiscal: true,
         baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
         iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
         total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        baseImponibleSecundaria: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
+        ivaSecundaria: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
+        totalSecundaria: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
         sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
         noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
@@ -3546,6 +3550,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
         totalRetenidoSecundario: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0
       }
+      console.log(documento.periodoIvaNombre)
       if (facturaAfectada) {
         const updatePeriodoFactura = {
           updateOne: {
@@ -3566,6 +3571,45 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         compra.proveedorId = null
       }
       documentosFiscales.push(compra)
+      if (tieneContabilidad && compra.estado !== 'anulado') {
+        const asientos = [
+          {
+            cuentaId: new ObjectId(cuentaPago._id),
+            cuentaCodigo: cuentaPago.codigo,
+            cuentaNombre: cuentaPago.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            fecha: moment(fechaActual).toDate(),
+            debe: Number(Number(compra.totalRetenido).toFixed(2)),
+            haber: 0,
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            documento: {
+              docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              docFecha: moment(fechaActual).toDate()
+            }
+          },
+          {
+            cuentaId: new ObjectId(cuentaRetIva._id),
+            cuentaCodigo: cuentaRetIva.codigo,
+            cuentaNombre: cuentaRetIva.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            fecha: moment(fechaActual).toDate(),
+            debe: 0,
+            haber: Number(Number(compra.totalRetenido).toFixed(2)),
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            documento: {
+              docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              docFecha: moment(fechaActual).toDate()
+            }
+          }
+        ]
+        asientosContables.push(...asientos)
+      }
     }
     if (tipo === 'venta') {
       cliente = await getItemSD({
@@ -3692,7 +3736,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
       items: documentosFiscales
     })
   }
-  if (bulkWriteFacturasPeriodos[0]) await bulkWriteSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, bulkWrite: bulkWriteFacturasPeriodos })
+  if (bulkWriteFacturasPeriodos[0]) await bulkWriteSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, pipeline: bulkWriteFacturasPeriodos })
   if (asientosContables[0]) {
     createManyItemsSD({
       nameCollection: 'detallesComprobantes',
@@ -3714,6 +3758,15 @@ export const getSucursalesList = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
+  }
+}
+export const eliminarDocumentos = async (req, res) => {
+  const { clienteId, tipo } = req.body
+  try {
+    await deleteManyItemsSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, filters: { tipoMovimiento: tipo } })
+    return res.status(200).json({ status: 'Documentos fiscales elkiminados correctamente' })
+  } catch (e) {
+    console.log(e)
   }
 }
 /* export const getCajasSucursalList = async (req, res) => {

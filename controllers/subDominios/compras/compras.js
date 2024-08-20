@@ -837,6 +837,11 @@ export const aprobarPagosOrdenCompra = async (req, res) => {
 export const getDataOrdenesComprasPorPagar = async (req, res) => {
   const { clienteId, itemsPorPagina, pagina, fechaActual, timeZone, rangoFechaVencimiento, fechaTasa, monedaPrincipal } = req.body
   try {
+    const tiposMovimientosUsar = [
+      tiposDocumentosFiscales.factura,
+      tiposDocumentosFiscales.notaDebito,
+      'Nota de entrega'
+    ]
     const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const transaccionesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
     const rango1 = rangoFechaVencimiento
@@ -1230,7 +1235,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, fecha: { $lte: moment(fechaActual).endOf('day').toDate() } } },
+        { $match: { tipoMovimiento: 'compra', estado: { $ne: 'pagada' }, tipoDocumento: { $in: tiposMovimientosUsar }, fecha: { $lte: moment(fechaActual).endOf('day').toDate() } } },
         { $sort: { fechaVencimiento: 1 } },
         {
           $lookup: {

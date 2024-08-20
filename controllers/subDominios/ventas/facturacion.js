@@ -73,8 +73,8 @@ export const getData = async (req, res) => {
         {
           $lookup: {
             from: cajasNameCol,
-            localField: 'cajasId',
-            foreignField: '_id',
+            localField: '_id',
+            foreignField: 'sucursalId',
             pipeline: [
               {
                 $project: {
@@ -920,7 +920,7 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
         nameCollection: 'ventascajas',
         enviromentClienteId: clienteId,
         pipeline: [
-          { $match: { _id: new ObjectId(e.cajaId) } },
+          { $match: { _id: new ObjectId(ventaInfo.cajaId) } },
           {
             $lookup: {
               from: planCuentaCollection,
@@ -941,6 +941,10 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
             }
           }
         ]
+      })
+      console.log({
+        cuenta,
+        cajaId: e.cajaId
       })
       if (!cuenta) throw new Error('El pago de caja no tiene cuenta contable asociada')
     }
@@ -978,7 +982,7 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
     })
     if (!cuenta) throw new Error('No existe la cuenta contable de IGTF')
   }
-// valdiar cuentad e productos
+  // valdiar cuentad e productos
   for (const prod of ventaInfo.productos) {
     const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(prod._id) } })
     if (!producto) throw new Error(`el producto ${prod?.nombre || '-'} no existe`)
@@ -1419,6 +1423,39 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
         enviromentClienteId: clienteId,
         pipeline: [
           { $match: { _id: new ObjectId(e.banco) } },
+          {
+            $lookup: {
+              from: planCuentaCollection,
+              localField: 'cuentaId',
+              foreignField: '_id',
+              as: 'detalleCuenta'
+            }
+          },
+          { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: false } },
+          {
+            $project: {
+              nombre: '$nombre',
+              descripcion: '$descripcion',
+              tipo: '$tipo',
+              cuentaId: '$cuentaId',
+              cuentaCodigo: '$detalleCuenta.codigo',
+              cuentaNombre: '$detalleCuenta.descripcion'
+            }
+          }
+        ]
+      })
+      if (!cuenta) throw new Error('no hay cuenta')
+      datosDebe.cuentaId = cuenta.cuentaId
+      datosDebe.cuentaCodigo = cuenta.cuentaCodigo
+      datosDebe.cuentaNombre = cuenta.cuentaNombre
+      datosDebe.debe = Number((e.monto || 0).toFixed(2))
+    }
+    if (e.metodo === 'caja') {
+      const [cuenta] = await agreggateCollectionsSD({
+        nameCollection: 'ventascajas',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { _id: new ObjectId(ventaInfo.cajaId) } },
           {
             $lookup: {
               from: planCuentaCollection,

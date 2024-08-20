@@ -63,7 +63,7 @@ export const createSucursal = async (req, res) => {
     })
     if ((_id && verify && String(verify._id) !== _id) || (verify && !_id)) throw new Error('EL código de sucursal ya existe')
     const documentosAdjuntos = []
-    if (req.files && req.files.logo) {
+    if (file) {
       if (file && file[0]) {
         for (const documento of file) {
           const extension = documento.mimetype.split('/')[1]
@@ -105,14 +105,15 @@ export const createSucursal = async (req, res) => {
         ? [almacenes]
         : undefined
     if (_id) {
-      const logo = {}
-      console.log({
-        logoRef,
-        v: verify.logo
+      const verify = await getItemSD({
+        nameCollection: 'ventassucursales',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(_id) }
       })
+      const logo = {}
       if (!logoRef) logo.logo = null
       if (documentosAdjuntos[0]) logo.logo = documentosAdjuntos[0]
-      if (((!logoRef && verify.logo) || (logo.logo?.fileId && verify.logo.fileId !== logo.logo.fileId))) {
+      if (((!logoRef && verify?.logo) || (logo.logo?.fileId && verify.logo.fileId !== logo.logo.fileId))) {
         await deleteImg(verify.logo.fileId)
       }
       sucursal = await updateItemSD({

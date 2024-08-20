@@ -22,7 +22,8 @@ export const getCajas = async (req, res) => {
             ],
             as: 'sucursal'
           }
-        }
+        },
+        { $unwind: { path: '$sucursal', preserveNullAndEmptyArrays: true } },
       ]
     })
     return res.status(200).json({ cajas })
@@ -33,7 +34,7 @@ export const getCajas = async (req, res) => {
 }
 
 export const createCajas = async (req, res) => {
-  const { _id, nombre, descripcion, clienteId } = req.body
+  const { _id, nombre, descripcion, clienteId, sucursalId, cuentaId } = req.body
   if (!nombre) throw new Error('Debe un gresar un nombre y codigo valido')
   try {
     const verify = await getItemSD({
@@ -51,7 +52,9 @@ export const createCajas = async (req, res) => {
         update: {
           $set: {
             descripcion,
-            nombre
+            nombre,
+            sucursalId: (sucursalId && new ObjectId(sucursalId)) || null,
+            cuentaId: (cuentaId && new ObjectId(cuentaId)) || null
           }
         }
       })
@@ -61,7 +64,9 @@ export const createCajas = async (req, res) => {
         enviromentClienteId: clienteId,
         item: {
           descripcion,
-          nombre
+          nombre,
+          sucursalId: (sucursalId && new ObjectId(sucursalId)) || null,
+          cuentaId: (cuentaId && new ObjectId(cuentaId)) || null
         }
       })
       caja = await getItemSD({ nameCollection: 'ventascajas', enviromentClienteId: clienteId, filters: { _id: newCaja.insertedId } })

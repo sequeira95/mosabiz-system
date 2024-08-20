@@ -2706,9 +2706,9 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
   let periodo = null
   let comprobante = null
   if (tieneContabilidad) {
-    cuentaIva = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaIva?._id) } })
-    cuentaCosto = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaCosto?._id) } })
-    cuentaPago = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaPago?._id) } })
+    cuentaIva = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaIva?._id) } })
+    cuentaCosto = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaCosto?._id) } })
+    cuentaPago = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaPago?._id) } })
     if (!cuentaIva) throw new Error('La cuenta de IVA no existe')
     if (!cuentaCosto) throw new Error('La cuenta de gasto o costo  no existe')
     if (!cuentaPago) throw new Error('La cuenta de pago no existe')
@@ -3005,9 +3005,9 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
   let periodo = null
   let comprobante = null
   if (tieneContabilidad) {
-    cuentaIva = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaIva?._id) } })
-    cuentaCosto = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaCosto?._id) } })
-    cuentaPago = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaPago?._id) } })
+    cuentaIva = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaIva?._id) } })
+    cuentaCosto = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaCosto?._id) } })
+    cuentaPago = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaPago?._id) } })
     if (!cuentaIva) throw new Error('La cuenta de IVA no existe')
     if (!cuentaCosto) throw new Error('La cuenta de gasto o costo  no existe')
     if (!cuentaPago) throw new Error('La cuenta de pago no existe')
@@ -3443,8 +3443,8 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
   let periodo = null
   let comprobante = null
   if (tieneContabilidad) {
-    cuentaRetIva = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaRetIva?._id) } })
-    cuentaPago = await getItemSD({ nameCollection: 'planCuenta', filters: { _id: new ObjectId(filtros?.cuentaPago?._id) } })
+    cuentaRetIva = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaRetIva?._id) } })
+    cuentaPago = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaPago?._id) } })
     if (!cuentaRetIva) throw new Error('La cuenta de retención de IVA no existe')
     if (!cuentaPago) throw new Error('La cuenta de pago no existe')
     periodo = await getItemSD({

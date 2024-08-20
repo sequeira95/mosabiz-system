@@ -815,6 +815,7 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
         proveedorId: new ObjectId(comprobante.proveedorId),
         creadoPor: new ObjectId(req.uid),
         tasaDia: Number(comprobante.tasaDia),
+        monedaSecundaria: 'USD',
         totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2))
       })
       const factura = await getItemSD({
@@ -2407,6 +2408,7 @@ export const saveComprobanteRetIvaVentas = async (req, res) => {
         clienteId: new ObjectId(comprobante.clienteId),
         creadoPor: new ObjectId(req.uid),
         tasaDia: Number(comprobante.tasaDia),
+        monedaSecundaria: 'USD',
         totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2)),
         periodoIvaInit: moment(comprobante.periodoIvaInit).toDate(),
         periodoIvaEnd: moment(comprobante.periodoIvaEnd).toDate(),
@@ -2638,7 +2640,7 @@ export const deletePeriodoFactura = async (req, res) => {
   }
 }
 export const saveDocumentosfiscalesToArray = async (req, res) => {
-  const { clienteId, documentosFiscales, tipo, moneda, sucursal, filtros, fechaActual } = req.body
+  const { clienteId, documentosFiscales, tipo, moneda, filtros, fechaActual } = req.body
   try {
     const facturas = []
     const debitoCredito = []
@@ -2652,6 +2654,21 @@ export const saveDocumentosfiscalesToArray = async (req, res) => {
       if (tipoDocumento === 'fac') facturas.push(documento)
     }
     const clienteOwn = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(clienteId) } })
+    let cajasList = []
+    let cajas = null
+    if (filtros.sucursal) {
+      cajasList = await agreggateCollectionsSD({
+        nameCollection: 'ventascajas',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { sucursalId: { $eq: new ObjectId(filtros.sucursal._id) } } }
+        ]
+      })
+      cajas = cajasList.reduce((acc, caja) => {
+        acc[caja.numeroControl] = caja._id
+        return acc
+      }, {})
+    }
     /** funcion que crea las factuas de compra o venta para luego poder asociar id de facturas al resto de documentos */
     await createFacturas({
       documentos: facturas,
@@ -2660,10 +2677,10 @@ export const saveDocumentosfiscalesToArray = async (req, res) => {
       tipo,
       clienteId: clienteOwn._id,
       clienteOwn,
-      sucursal,
       filtros,
       tieneContabilidad,
-      fechaActual
+      fechaActual,
+      cajas
     })
     /** Luego de crear las facturas crearemos las notas de debito y de credito */
     await createNotasDebitoCredito({
@@ -2673,10 +2690,10 @@ export const saveDocumentosfiscalesToArray = async (req, res) => {
       tipo,
       clienteId: clienteOwn._id,
       clienteOwn,
-      sucursal,
       filtros,
       tieneContabilidad,
-      fechaActual
+      fechaActual,
+      cajas
     })
     /** Luego creamos las ret Iva */
     await createRetencionesIva({
@@ -2686,10 +2703,10 @@ export const saveDocumentosfiscalesToArray = async (req, res) => {
       tipo,
       clienteId: clienteOwn._id,
       clienteOwn,
-      sucursal,
       filtros,
       tieneContabilidad,
-      fechaActual
+      fechaActual,
+      cajas
     })
     return res.status(200).json({ status: 'Documentos fiscales guardados correctamente' })
   } catch (e) {
@@ -2697,7 +2714,7 @@ export const saveDocumentosfiscalesToArray = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de guardar los documentos fiscales ' + e.message })
   }
 }
-const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal, filtros, tieneContabilidad, fechaActual }) => {
+const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, filtros, tieneContabilidad, fechaActual, cajas }) => {
   const documentosFacturas = []
   const asientosContables = []
   let cuentaIva = null
@@ -2732,7 +2749,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         filters: { codigo: filtros.codigoComprobante, periodoId: periodo._id, mesPeriodo },
         update: {
           $set: {
-            nombre: 'Movimientos de compras',
+            nombre: `Movimientos de ${tipo}s`,
             isBloqueado: false,
             fechaCreacion: moment().toDate()
           }
@@ -2798,6 +2815,27 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
       }
       documentosFacturas.push(compra)
       if (tieneContabilidad) {
+        let tercero = null
+        if (filtros.terceros) {
+          tercero = await getItemSD({
+            nameCollection: 'terceros',
+            enviromentClienteId: clienteId,
+            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() }
+          })
+          if (!tercero) {
+            tercero = await upsertItemSD({
+              nameCollection: 'terceros',
+              enviromentClienteId: clienteId,
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() },
+              update: {
+                $set: {
+                  nombre: proveedor?.razonSocial.toUpperCase(),
+                  cuentaId: new ObjectId(cuentaPago._id)
+                }
+              }
+            })
+          }
+        }
         const asientos = [
           {
             cuentaId: new ObjectId(cuentaCosto._id),
@@ -2810,6 +2848,8 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             debe: Number(Number(compra.baseImponible.toFixed(2)) + Number(compra.totalExento.toFixed(2))),
             haber: 0,
             fechaCreacion: moment().toDate(),
+            terceroId: tercero ? new ObjectId(tercero._id) : null,
+            terceroNombre: tercero ? tercero.nombre : null,
             docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
             documento: {
               docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
@@ -2890,6 +2930,17 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         })
         if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} ya se encuentra registrada`)
       }
+      let caja = null
+      let sucursal = null
+      if (filtros.sucursal) {
+        sucursal = new ObjectId(filtros.sucursal._id)
+        if (documento.numeroReporteZ) {
+          if (!cajas[documento.numeroControl]) throw new Error(`La caja con el N° control ${documento.numeroControl} no se encuentra registrada`)
+          caja = new ObjectId(cajas[documento.numeroControl])
+        } else {
+          caja = new ObjectId(filtros.caja._id)
+        }
+      }
       const venta = {
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
@@ -2900,7 +2951,8 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         numeroControl: documento.numeroControl,
         numeroReporteZ: documento.numeroReporteZ,
         activo: false,
-        sucursalId: sucursal ? new ObjectId(sucursal._id) : null,
+        sucursalId: sucursal,
+        cajaId: caja,
         clienteId: new ObjectId(cliente._id),
         clienteNombre: cliente.razonSocial,
         clienteDocumentoIdentidad: `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}`,
@@ -2926,6 +2978,27 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
       }
       documentosFacturas.push(venta)
       if (tieneContabilidad) {
+        let tercero = null
+        if (filtros.terceros) {
+          tercero = await getItemSD({
+            nameCollection: 'terceros',
+            enviromentClienteId: clienteId,
+            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() }
+          })
+          if (!tercero) {
+            tercero = await upsertItemSD({
+              nameCollection: 'terceros',
+              enviromentClienteId: clienteId,
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() },
+              update: {
+                $set: {
+                  nombre: cliente?.razonSocial.toUpperCase(),
+                  cuentaId: new ObjectId(cuentaPago._id)
+                }
+              }
+            })
+          }
+        }
         const asientos = [
           {
             cuentaId: new ObjectId(cuentaPago._id),
@@ -2938,6 +3011,8 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             debe: Number(Number(venta.total.toFixed(2))),
             haber: 0,
             fechaCreacion: moment().toDate(),
+            terceroId: tercero ? new ObjectId(tercero._id) : null,
+            terceroNombre: tercero ? tercero.nombre : null,
             docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
             documento: {
               docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
@@ -3000,7 +3075,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
     })
   }
 }
-const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal, filtros, fechaActual, tieneContabilidad }) => {
+const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal, filtros, fechaActual, tieneContabilidad, cajas }) => {
   const documentosFiscales = []
   const asientosContables = []
   let cuentaIva = null
@@ -3035,7 +3110,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         filters: { codigo: filtros.codigoComprobante, periodoId: periodo._id, mesPeriodo },
         update: {
           $set: {
-            nombre: 'Movimientos de compras',
+            nombre: `Movimientos de ${tipo}s`,
             isBloqueado: false,
             fechaCreacion: moment().toDate()
           }
@@ -3115,6 +3190,27 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
       }
       documentosFiscales.push(compra)
       if (tieneContabilidad && compra.estado !== 'anulado') {
+        let tercero = null
+        if (filtros.terceros) {
+          tercero = await getItemSD({
+            nameCollection: 'terceros',
+            enviromentClienteId: clienteId,
+            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() }
+          })
+          if (!tercero) {
+            tercero = await upsertItemSD({
+              nameCollection: 'terceros',
+              enviromentClienteId: clienteId,
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() },
+              update: {
+                $set: {
+                  nombre: proveedor?.razonSocial.toUpperCase(),
+                  cuentaId: new ObjectId(cuentaPago._id)
+                }
+              }
+            })
+          }
+        }
         if (compra.tipoDocumento === tiposDocumentosFiscales.notaDebito) {
           const asientos = [
             {
@@ -3144,6 +3240,8 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               debe: 0,
               haber: Number(Number(compra.total.toFixed(2))),
               fechaCreacion: moment().toDate(),
+              terceroId: tercero ? new ObjectId(tercero._id) : null,
+              terceroNombre: tercero ? tercero.nombre : null,
               docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
               documento: {
                 docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
@@ -3185,6 +3283,8 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               debe: Number(Number(compra.total.toFixed(2))),
               haber: 0,
               fechaCreacion: moment().toDate(),
+              terceroId: tercero ? new ObjectId(tercero._id) : null,
+              terceroNombre: tercero ? tercero.nombre : null,
               docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
               documento: {
                 docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
@@ -3267,6 +3367,17 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         filters: { numeroFactura: documento.numeroFacturaAfectada }
       })
       if (!facturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
+      let caja = null
+      let sucursal = null
+      if (filtros.sucursal) {
+        sucursal = new ObjectId(filtros.sucursal._id)
+        if (documento.numeroReporteZ) {
+          if (!cajas[documento.numeroControl]) throw new Error(`La caja con el N° control ${documento.numeroControl} no se encuentra registrada`)
+          caja = new ObjectId(cajas[documento.numeroControl])
+        } else {
+          caja = new ObjectId(filtros.caja._id)
+        }
+      }
       const venta = {
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
@@ -3278,7 +3389,8 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         numeroReporteZ: documento.numeroReporteZ,
         numeroControl: documento.numeroControl,
         activo: false,
-        sucursalId: sucursal ? new ObjectId(sucursal._id) : null,
+        sucursalId: sucursal,
+        cajaId: caja,
         clienteId: new ObjectId(cliente._id),
         clienteNombre: cliente.razonSocial,
         clienteDocumentoIdentidad: `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}`,
@@ -3303,6 +3415,27 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
       }
       documentosFiscales.push(venta)
       if (tieneContabilidad && venta.estado !== 'anulado') {
+        let tercero = null
+        if (filtros.terceros) {
+          tercero = await getItemSD({
+            nameCollection: 'terceros',
+            enviromentClienteId: clienteId,
+            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() }
+          })
+          if (!tercero) {
+            tercero = await upsertItemSD({
+              nameCollection: 'terceros',
+              enviromentClienteId: clienteId,
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() },
+              update: {
+                $set: {
+                  nombre: cliente?.razonSocial.toUpperCase(),
+                  cuentaId: new ObjectId(cuentaPago._id)
+                }
+              }
+            })
+          }
+        }
         if (venta.tipoDocumento === tiposDocumentosFiscales.notaDebito) {
           const asientos = [
             {
@@ -3316,6 +3449,8 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               debe: Number(Number(venta.total.toFixed(2))),
               haber: 0,
               fechaCreacion: moment().toDate(),
+              terceroId: tercero ? new ObjectId(tercero._id) : null,
+              terceroNombre: tercero ? tercero.nombre : null,
               docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
               documento: {
                 docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
@@ -3374,6 +3509,8 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               debe: Number(Number(venta.baseImponible.toFixed(2)) + Number(venta.totalExento.toFixed(2))),
               haber: 0,
               fechaCreacion: moment().toDate(),
+              terceroId: tercero ? new ObjectId(tercero._id) : null,
+              terceroNombre: tercero ? tercero.nombre : null,
               docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
               documento: {
                 docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
@@ -3438,7 +3575,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
     })
   }
 }
-const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal, filtros, fechaActual, tieneContabilidad }) => {
+const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, clienteOwn, sucursal, filtros, fechaActual, tieneContabilidad, cajas }) => {
   const documentosFiscales = []
   const bulkWriteFacturasPeriodos = []
   const asientosContables = []
@@ -3471,7 +3608,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         filters: { codigo: filtros.codigoComprobante, periodoId: periodo._id, mesPeriodo },
         update: {
           $set: {
-            nombre: 'Movimientos de compras',
+            nombre: `Movimientos de ${tipo}s`,
             isBloqueado: false,
             fechaCreacion: moment().toDate()
           }
@@ -3572,6 +3709,27 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
       }
       documentosFiscales.push(compra)
       if (tieneContabilidad && compra.estado !== 'anulado') {
+        let tercero = null
+        if (filtros.terceros) {
+          tercero = await getItemSD({
+            nameCollection: 'terceros',
+            enviromentClienteId: clienteId,
+            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() }
+          })
+          if (!tercero) {
+            tercero = await upsertItemSD({
+              nameCollection: 'terceros',
+              enviromentClienteId: clienteId,
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() },
+              update: {
+                $set: {
+                  nombre: proveedor?.razonSocial.toUpperCase(),
+                  cuentaId: new ObjectId(cuentaPago._id)
+                }
+              }
+            })
+          }
+        }
         const asientos = [
           {
             cuentaId: new ObjectId(cuentaPago._id),
@@ -3584,6 +3742,8 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             debe: Number(Number(compra.totalRetenido).toFixed(2)),
             haber: 0,
             fechaCreacion: moment().toDate(),
+            terceroId: tercero ? new ObjectId(tercero._id) : null,
+            terceroNombre: tercero ? tercero.nombre : null,
             docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
             documento: {
               docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
@@ -3664,7 +3824,8 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         tipoDocumentoAfectado: facturaAfectada?.tipoDocumento || null,
         numeroControl: documento.numeroControl || null,
         activo: false,
-        sucursalId: sucursal ? new ObjectId(sucursal._id) : null,
+        // sucursalId: sucursal,
+        // cajaId: caja,
         clienteId: new ObjectId(cliente._id),
         clienteNombre: cliente.razonSocial,
         clienteDocumentoIdentidad: `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}`,
@@ -3689,6 +3850,27 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
       }
       documentosFiscales.push(venta)
       if (tieneContabilidad && venta.estado !== 'anulado') {
+        let tercero = null
+        if (filtros.terceros) {
+          tercero = await getItemSD({
+            nameCollection: 'terceros',
+            enviromentClienteId: clienteId,
+            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() }
+          })
+          if (!tercero) {
+            tercero = await upsertItemSD({
+              nameCollection: 'terceros',
+              enviromentClienteId: clienteId,
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() },
+              update: {
+                $set: {
+                  nombre: cliente?.razonSocial.toUpperCase(),
+                  cuentaId: new ObjectId(cuentaPago._id)
+                }
+              }
+            })
+          }
+        }
         const asientos = [
           {
             cuentaId: new ObjectId(cuentaRetIva._id),
@@ -3718,6 +3900,8 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             debe: 0,
             haber: Number(Number(venta.totalRetenido).toFixed(2)),
             fechaCreacion: moment().toDate(),
+            terceroId: tercero ? new ObjectId(tercero._id) : null,
+            terceroNombre: tercero ? tercero.nombre : null,
             docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
             documento: {
               docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
@@ -3769,30 +3953,20 @@ export const eliminarDocumentos = async (req, res) => {
     console.log(e)
   }
 }
-/* export const getCajasSucursalList = async (req, res) => {
+export const getCajasSucursalList = async (req, res) => {
   const { clienteId, sucursalId } = req.body
+  console.log({ sucursalId })
   try {
-    const sucursalNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventassucursales' })
     const cajas = await agreggateCollectionsSD({
       nameCollection: 'ventascajas',
       enviromentClienteId: clienteId,
       pipeline: [
-        {
-          $lookup: {
-            from: sucursalNameCol,
-            localField: '_id',
-            foreignField: 'cajasId',
-            pipeline: [
-              { $match: { _id: new ObjectId(sucursalId) } }
-            ],
-            as: 'sucursalNames'
-          }
-        }
+        { $match: { sucursalId: { $eq: new ObjectId(sucursalId) } } }
       ]
     })
-    return res.status(200).json({ sucursales })
+    return res.status(200).json({ cajas })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
   }
-} */
+}

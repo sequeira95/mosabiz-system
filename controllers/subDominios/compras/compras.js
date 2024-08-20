@@ -864,7 +864,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipoMovimiento: 'compra', estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, fecha: { $lte: moment(fechaActual).endOf('day').toDate() } } },
+        { $match: { tipoMovimiento: 'compra', estado: { $ne: 'pagada' }, tipoDocumento: { $in: tiposMovimientosUsar }, fecha: { $lte: moment(fechaActual).endOf('day').toDate() } } },
         {
           $addFields: {
             tasa: { $objectToArray: tasa }
@@ -915,7 +915,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaDebito, tiposDocumentosFiscales.notaCredito] } } },
+              { $match: { tipoDocumento: { $in: [/* tiposDocumentosFiscales.notaDebito, */tiposDocumentosFiscales.notaCredito] } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -931,7 +931,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
               {
                 $group: {
                   _id: 0,
-                  totalNotaDebito: {
+                  /* totalNotaDebito: {
                     $sum: {
                       $cond: {
                         if: { $eq: ['$tipoDocumento', 'Nota de débito'] },
@@ -957,7 +957,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
                         else: 0
                       }
                     }
-                  }, // { $sum: '$totalSecundaria' }
+                  }, // { $sum: '$totalSecundaria' } */
                   totalNotaCredito: {
                     $sum: {
                       $cond: {
@@ -1005,7 +1005,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
                 }
               },
               { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
-              { $match: { $expr: { $eq: ['$tasa.k', 'USD'] } } },
+              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
               {
                 $addFields: {
                   valor: { $multiply: ['$tasa.v', '$totalRetenidoSecundario'] }
@@ -1306,7 +1306,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] } } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito/* , tiposDocumentosFiscales.notaDebito */] } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -1322,7 +1322,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
               {
                 $group: {
                   _id: 0,
-                  totalNotaDebito: {
+                  /* totalNotaDebito: {
                     $sum: {
                       $cond: {
                         if: { $eq: ['$tipoDocumento', 'Nota de débito'] },
@@ -1348,7 +1348,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
                         else: 0
                       }
                     }
-                  }, // { $sum: '$totalSecundaria' }
+                  }, // { $sum: '$totalSecundaria' } */
                   totalNotaCredito: {
                     $sum: {
                       $cond: {
@@ -1396,7 +1396,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
                 }
               },
               { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
-              { $match: { $expr: { $eq: ['$tasa.k', 'USD'] } } },
+              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
               {
                 $addFields: {
                   valor: { $multiply: ['$tasa.v', '$totalRetenidoSecundario'] }
@@ -1509,7 +1509,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $in: ['Factura', 'Nota de entrega'] }, fecha: { $lte: moment(fechaActual).toDate() } } },
+        { $match: { tipoMovimiento: 'compra', estado: { $ne: 'pagada' }, tipoDocumento: { $in: tiposMovimientosUsar }, fecha: { $lte: moment(fechaActual).endOf('day').toDate() } } },
         {
           $group: {
             _id: '$proveedorId'
@@ -1528,6 +1528,11 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
 export const getDetalleProveedor = async (req, res) => {
   const { clienteId, proveedorId, itemsPorPagina, pagina, fechaActual, timeZone, fechaTasa } = req.body
   try {
+    const tiposMovimientosUsar = [
+      tiposDocumentosFiscales.factura,
+      tiposDocumentosFiscales.notaDebito,
+      'Nota de entrega'
+    ]
     // console.log(moment(fechaActual).endOf('day').toDate())
     let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa } })
     if (!tasa) {
@@ -1560,7 +1565,7 @@ export const getDetalleProveedor = async (req, res) => {
           $match:
           {
             estado: { $ne: 'pagada' },
-            tipoDocumento: { $in: ['Factura', 'Nota de entrega'] },
+            tipoDocumento: { $in: tiposMovimientosUsar },
             proveedorId: new ObjectId(proveedorId),
             fecha: { $lte: moment(fechaActual).endOf('day').toDate() }
           }
@@ -1617,7 +1622,7 @@ export const getDetalleProveedor = async (req, res) => {
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] } } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito/* tiposDocumentosFiscales.notaDebito */] } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -1707,7 +1712,7 @@ export const getDetalleProveedor = async (req, res) => {
                 }
               },
               { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
-              { $match: { $expr: { $eq: ['$tasa.k', 'USD'] } } },
+              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
               {
                 $addFields: {
                   valor: { $multiply: ['$tasa.v', '$totalRetenidoSecundario'] }
@@ -1876,7 +1881,7 @@ export const getDetalleProveedor = async (req, res) => {
           $match:
           {
             estado: { $ne: 'pagada' },
-            tipoDocumento: { $in: ['Factura', 'Nota de entrega'] },
+            tipoDocumento: { $in: tiposMovimientosUsar },
             proveedorId: new ObjectId(proveedorId),
             fecha: { $lte: moment(fechaActual).endOf('day').toDate() }
           }
@@ -3267,9 +3272,10 @@ export const getFacturas = async (req, res) => {
       ]
     })
     const count = await agreggateCollectionsSD({
-      nameCollection: 'facturas',
+      nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
+        { $match: { tipoMovimiento: 'compra', estado: { $nin: ['pagada', 'anulado'] } } },
         { $count: 'total' }
       ]
     })

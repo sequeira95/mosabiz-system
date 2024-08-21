@@ -68,19 +68,7 @@ export const getUsuariosYAlmacenesClientes = async (req, res) => {
         }
       ]
     })
-    const cajas = await agreggateCollectionsSD({
-      nameCollection: 'ventascajas',
-      enviromentClienteId: req.body._id,
-      pipeline: [
-        {
-          $project: {
-            _id: 1,
-            nombre: 1
-          }
-        }
-      ]
-    })
-    return res.status(200).json({ usuarios, almacenes, zonas, cajas })
+    return res.status(200).json({ usuarios, almacenes, zonas })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener usuarios del clientes' })

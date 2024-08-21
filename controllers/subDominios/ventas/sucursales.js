@@ -44,19 +44,7 @@ export const getSucursales = async (req, res) => {
         }
       ]
     })
-    const cajas = await agreggateCollectionsSD({
-      nameCollection: 'ventascajas',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        {
-          $project: {
-            _id: 1,
-            nombre: '$nombre'
-          }
-        }
-      ]
-    })
-    return res.status(200).json({ sucursales, usuarios, almacenes, cajas })
+    return res.status(200).json({ sucursales, usuarios, almacenes })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
@@ -64,7 +52,7 @@ export const getSucursales = async (req, res) => {
 }
 
 export const createSucursal = async (req, res) => {
-  const { _id, zonaId, cajasId, codigo, nombre, rif, logo: logoRef, direccion, usuarios, almacenes, clienteId } = req.body
+  const { _id, zonaId, codigo, nombre, rif, logo: logoRef, direccion, usuarios, almacenes, clienteId } = req.body
   const file = req.files?.logo
   if (!codigo || !nombre) throw new Error('Debe un gresar un nombre y codigo valido')
   try {
@@ -75,7 +63,7 @@ export const createSucursal = async (req, res) => {
     })
     if ((_id && verify && String(verify._id) !== _id) || (verify && !_id)) throw new Error('EL código de sucursal ya existe')
     const documentosAdjuntos = []
-    if (req.files && req.files.logo) {
+    if (file) {
       if (file && file[0]) {
         for (const documento of file) {
           const extension = documento.mimetype.split('/')[1]
@@ -116,20 +104,16 @@ export const createSucursal = async (req, res) => {
       : almacenes
         ? [almacenes]
         : undefined
-    const cajasArray = Array.isArray(cajasId)
-      ? cajasId
-      : cajasId
-        ? [cajasId]
-        : undefined
     if (_id) {
-      const logo = {}
-      console.log({
-        logoRef,
-        v: verify.logo
+      const verify = await getItemSD({
+        nameCollection: 'ventassucursales',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(_id) }
       })
+      const logo = {}
       if (!logoRef) logo.logo = null
       if (documentosAdjuntos[0]) logo.logo = documentosAdjuntos[0]
-      if (((!logoRef && verify.logo) || (logo.logo?.fileId && verify.logo.fileId !== logo.logo.fileId))) {
+      if (((!logoRef && verify?.logo) || (logo.logo?.fileId && verify.logo.fileId !== logo.logo.fileId))) {
         await deleteImg(verify.logo.fileId)
       }
       sucursal = await updateItemSD({
@@ -145,7 +129,6 @@ export const createSucursal = async (req, res) => {
             usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
             almacenes: (almacenesArray || []).map(e => new ObjectId(e)),
             zonaId: new ObjectId(zonaId),
-            cajasId: (cajasArray || []).length > 0 ? cajasArray.map(cajaId => new ObjectId(cajaId)) : [],
             ...logo
           }
         }
@@ -162,7 +145,6 @@ export const createSucursal = async (req, res) => {
           direccion,
           usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
           almacenes: (almacenesArray || []).map(e => new ObjectId(e)),
-          cajasId: (cajasArray || []).length > 0 ? cajasArray.map(cajaId => new ObjectId(cajaId)) : [],
           zonaId: new ObjectId(zonaId)
         }
       })

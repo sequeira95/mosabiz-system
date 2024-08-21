@@ -5388,7 +5388,6 @@ export const deleteImgMovimiento = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la imagen del almacen ' + e.message })
   }
 }
-
 export const addImagenMovimiento = async (req, res) => {
   const { clienteId, movimientoId } = req.body
   console.log({ body: req.body, file: req.files.documentos })
@@ -5442,5 +5441,82 @@ export const addImagenMovimiento = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar las imagenes del almacen ' + e.message })
+  }
+}
+export const getDespachosVentas = async (req, res) => {
+  const { clienteId, pagina, itemsPorPagina, filters = {} } = req.body
+  try {
+    const pagination = []
+    if (itemsPorPagina > 0 && pagina) {
+      pagination.push(
+        { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+        { $limit: Number(itemsPorPagina) }
+      )
+    }
+    const detalleMovimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleMovimientos' })
+    const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const documentosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
+    const movimientos = await agreggateCollectionsSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo: 'despacho-ventas', estado: filters.estado || 'Pendiente' } },
+        {
+          $lookup: {
+            from: documentosCollection,
+            localField: 'documentoId',
+            foreignField: '_id',
+            as: 'dataDocumento'
+          }
+        },
+        { $unwind: { path: '$dataDocumento', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: detalleMovimientosCollection,
+            localField: '_id',
+            foreignField: 'movimientoId',
+            as: 'detalleMovimientos'
+          }
+        },
+        {
+          $lookup: {
+            from: almacenCollection,
+            localField: 'almacenOrigen',
+            foreignField: '_id',
+            as: 'dataAlmacenOrigen'
+          }
+        },
+        { $unwind: { path: '$dataAlmacenOrigen', preserveNullAndEmptyArrays: true } },
+        ...pagination,
+        {
+          $project: {
+            _id: 1,
+            tipo: 1,
+            documentoId: 1,
+            numeroMovimiento: 1,
+            tipoDocumento: 1,
+            numeroDocumento: '$dataDocumento.numeroFactura',
+            fecha: '$dataDocumento.fecha',
+            cliente: { $concat: ['$dataDocumento.clienteDocumentoIdentidad', ' - ', '$dataDocumento.clienteNombre'] },
+            status: 1,
+            almacenNombre: { $concat: ['$dataAlmacenOrigen.codigo', ' - ', '$dataAlmacenOrigen.nombre'] },
+          }
+        }
+        /* { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+        { $limit: Number(itemsPorPagina) } */
+      ]
+    })
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo: 'recepcion' } },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ movimientos, count: count[0]?.total || 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes por recibir ' + e.message })
   }
 }

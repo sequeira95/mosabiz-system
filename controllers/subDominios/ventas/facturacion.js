@@ -941,10 +941,6 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
           }
         ]
       })
-      console.log({
-        cuenta,
-        cajaId: e.cajaId
-      })
       if (!cuenta) throw new Error('El pago de caja no tiene cuenta contable asociada')
     }
   }

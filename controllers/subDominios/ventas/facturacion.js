@@ -64,13 +64,6 @@ export const getData = async (req, res) => {
           }
         },
         {
-          $match: {
-            $expr: {
-              $gt: [{ $size: '$almacenData' }, 0]
-            }
-          }
-        },
-        {
           $lookup: {
             from: cajasNameCol,
             localField: '_id',
@@ -79,7 +72,10 @@ export const getData = async (req, res) => {
               {
                 $project: {
                   _id: 1,
-                  nombre: '$nombre'
+                  nombre: '$nombre',
+                  numeroControl: '$numeroControl',
+                  useImpresoraFiscal: '$useImpresoraFiscal',
+                  modeloImpresoraFiscal: '$modeloImpresoraFiscal'
                 }
               }
             ],
@@ -797,11 +793,14 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
   if (!ventaInfo.pagos[0]) return false
   if (!ventaInfo.sucursalId) return false
   if (!ventaInfo.zonaId) return false
+  const infoDoc = documentosVentas.find(e => e.value === ventaInfo.documento)
+  if (!infoDoc) throw new Error(`No existe el tipo de documento: ${ventaInfo.documento}`)
+  if (infoDoc.isFiscal && ventaInfo.useImpresoraFiscal && !ventaInfo.numeroControl) throw new Error('No existe el Numero de Control de la impresora')
   const tieneInventario = await hasInventario({ clienteId })
   if (tieneInventario && !ventaInfo.almacenId) return false
 
   const tieneContabilidad = await hasContabilidad({ clienteId })
-  if (!tieneContabilidad) return false
+  if (!tieneContabilidad) return true
   const { status: existePeriodo } = await checkPeriodo({
     clienteId,
     fecha: moment(ventaInfo.fecha).toDate(),
@@ -1056,9 +1055,9 @@ const handleVentasFactuas = async ({ clienteId, ventaInfo, creadoPor }) => {
 const handleVentasND = async ({ clienteId, ventaInfo, creadoPor }) => {
   const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
   ventaInfo.productos = ventaInfo.productos.filter(e => {
-    return e.precioUnitarioNDEditable > e.precioVenta
+    return e.precioUnitarioNDEditable > 0
   }).map(e => {
-    const valorAjustado = Number(e.precioUnitarioNDEditable) - Number(e.precioVenta)
+    const valorAjustado = Number(e.precioUnitarioNDEditable) /* - Number(e.precioVenta) */
     return {
       ...e,
       tipoAjuste: 'precio',
@@ -1071,6 +1070,7 @@ const handleVentasND = async ({ clienteId, ventaInfo, creadoPor }) => {
       precioTotal: Number((valorAjustado * e.cantidad).toFixed(2)),
     }
   })
+  if (!ventaInfo.productos?.[0]) throw new Error('Los productos ingresados no son validos')
   await createDetalleDocumento({ clienteId, ventaInfo, documentoId: newFactura.insertedId })
   await createPagosDocumento({ clienteId, ventaInfo, documentoId: newFactura.insertedId, creadoPor })
   try {
@@ -1156,6 +1156,8 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
   let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: `venta-${ventaInfo.documento}` } }))?.contador
   if (contador) ++contador
   if (!contador) contador = 1
+  const infoDoc = documentosVentas.find(e => e.value === ventaInfo.documento)
+  if (!infoDoc) throw new Error(`No existe el tipo de documento: ${ventaInfo.documento}`)
   // crea doc fiscal
   const newFactura = await createItemSD({
     nameCollection: 'documentosFiscales',
@@ -1171,7 +1173,8 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       activo,
       isExportacion: ventaInfo.isExportacion,
       isDespacho: ventaInfo.isDespacho,
-      // numeroControl: ventaInfo.numeroControl,
+      numeroControl: infoDoc.isFiscal && ventaInfo.useImpresoraFiscal ? ventaInfo.numeroControl : '',
+      useImpresoraFiscal: infoDoc.isFiscal ? ventaInfo.useImpresoraFiscal : false,
       sucursalId: new ObjectId(ventaInfo.sucursalId),
       almacenId: new ObjectId(ventaInfo.almacenId),
       cajaId: new ObjectId(ventaInfo.cajaId),
@@ -1196,6 +1199,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       totalPagado: Number(Number(ventaInfo.totalPagado.total).toFixed(2)),
       // total establecido a credito
       totalCredito: Number(Number(ventaInfo.totalPagado.totalCredito || 0).toFixed(2)),
+      totalCreditoSecundario: Number(Number(ventaInfo.totalPagado.totalCreditoSecundario || 0).toFixed(2)),
       diasCredito: ventaInfo.totalPagado.diasCredito,
       fechaVencimiento: (ventaInfo.totalPagado.diasCredito
         ? moment(ventaInfo.fecha).add(ventaInfo.totalPagado.diasCredito, 'days').toDate()

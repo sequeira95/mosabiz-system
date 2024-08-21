@@ -34,7 +34,17 @@ export const getCajas = async (req, res) => {
 }
 
 export const createCajas = async (req, res) => {
-  const { _id, nombre, descripcion, clienteId, sucursalId, cuentaId, numeroControl } = req.body
+  const {
+    _id,
+    nombre,
+    descripcion,
+    clienteId,
+    sucursalId,
+    cuentaId,
+    numeroControl,
+    useImpresoraFiscal,
+    modeloImpresoraFiscal
+  } = req.body;
   if (!nombre) throw new Error('Debe un gresar un nombre y codigo valido')
   try {
     const verify = await getItemSD({
@@ -54,6 +64,8 @@ export const createCajas = async (req, res) => {
             descripcion,
             nombre,
             numeroControl,
+            useImpresoraFiscal,
+            modeloImpresoraFiscal,
             sucursalId: (sucursalId && new ObjectId(sucursalId)) || null,
             cuentaId: (cuentaId && new ObjectId(cuentaId)) || null
           }
@@ -68,7 +80,9 @@ export const createCajas = async (req, res) => {
           nombre,
           sucursalId: (sucursalId && new ObjectId(sucursalId)) || null,
           cuentaId: (cuentaId && new ObjectId(cuentaId)) || null,
-          numeroControl
+          numeroControl,
+          useImpresoraFiscal,
+          modeloImpresoraFiscal
         }
       })
       caja = await getItemSD({ nameCollection: 'ventascajas', enviromentClienteId: clienteId, filters: { _id: newCaja.insertedId } })

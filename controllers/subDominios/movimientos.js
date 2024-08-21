@@ -5388,7 +5388,6 @@ export const deleteImgMovimiento = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la imagen del almacen ' + e.message })
   }
 }
-
 export const addImagenMovimiento = async (req, res) => {
   const { clienteId, movimientoId } = req.body
   console.log({ body: req.body, file: req.files.documentos })
@@ -5444,7 +5443,6 @@ export const addImagenMovimiento = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de guardar las imagenes del almacen ' + e.message })
   }
 }
-
 export const getDespachosVentas = async (req, res) => {
   const { clienteId, pagina, itemsPorPagina, filters = {} } = req.body
   try {

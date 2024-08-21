@@ -2976,6 +2976,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         ownDireccion: sucursal.direccion || clienteOwn.direccion,
         ownDocumentoIdentidad: sucursal.rif || `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
       }
+      console.log({ venta })
       documentosFacturas.push(venta)
       if (tieneContabilidad) {
         let tercero = null
@@ -3687,7 +3688,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
         totalRetenidoSecundario: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0
       }
-      console.log(documento.periodoIvaNombre)
+      // console.log(documento.periodoIvaNombre)
       if (facturaAfectada) {
         const updatePeriodoFactura = {
           updateOne: {
@@ -3843,6 +3844,21 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         ownRazonSocial: sucursal.nombre || clienteOwn.razonSocial,
         ownDireccion: sucursal.direccion || clienteOwn.direccion,
         ownDocumentoIdentidad: sucursal.rif || `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
+      }
+      if (facturaAfectada) {
+        const updatePeriodoFactura = {
+          updateOne: {
+            filter: { _id: facturaAfectada._id },
+            update: {
+              $set: {
+                periodoIvaNombre: documento.periodoIvaNombre,
+                periodoIvaInit: moment(documento.periodoIvaInit).toDate(),
+                periodoIvaEnd: moment(documento.periodoIvaEnd).toDate()
+              }
+            }
+          }
+        }
+        bulkWriteFacturasPeriodos.push(updatePeriodoFactura)
       }
       if (!documento.documentoIdentidad && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado') {
         venta.estado = 'anulado'

@@ -2435,7 +2435,12 @@ export const getOrdenesComprasForFacturas = async (req, res) => {
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
         pipeline: [
-          { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $eq: 'Factura' }, ...regex } },
+          { $match: { tipoMovimiento: 'compra', estado: { $ne: 'pagada' }, tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaDebito] }, ...regex } },
+          {
+            $addFields: {
+              nombreMostrar: { $concat: [{ $cond: [{ $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }, 'FAC', 'ND'] }, ' - ', '$numeroFactura'] }
+            }
+          },
           {
             $lookup: {
               from: proveedoresCollection,

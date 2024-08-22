@@ -144,7 +144,8 @@ export const documentosVentas = [
     value: 'Presupuesto',
     sigla: 'PT',
     isFiscal: false
-  }
+  },
+  { text: 'Devolución', value: 'Devolución', sigla: 'DEV', isFiscal: false }
 ]
 
 export const tiposDocumentosFiscales = {

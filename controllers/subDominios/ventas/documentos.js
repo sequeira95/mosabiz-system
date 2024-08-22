@@ -8,6 +8,48 @@ export const getDocumentosByTipo = async (req, res) => {
   const { clienteId, itemsPorPagina, pagina } = req.body
   const { tipo } = req.params
   try {
+    const documentosFiscalesNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
+    const extraStages = []
+    if (['Nota de crédito','Nota de débito'].includes(tipo)) {
+      extraStages.push({
+        $lookup: {
+          from: documentosFiscalesNameCol,
+          localField: 'facturaAsociada',
+          foreignField: '_id',
+          as: 'factura'
+        }
+      },
+      {
+        $unwind: { path: '$factura', preserveNullAndEmptyArrays: true }
+      },
+      {
+        $addFields: {
+          documentoAsociado: {
+            $concat: ['FAC - ', '$factura.numeroFactura']
+          }
+        }
+      })
+    }
+    if (['Devolución'].includes(tipo)) {
+      extraStages.push({
+        $lookup: {
+          from: documentosFiscalesNameCol,
+          localField: 'notaEntregaAsociada',
+          foreignField: '_id',
+          as: 'factura'
+        }
+      },
+      {
+        $unwind: { path: '$factura', preserveNullAndEmptyArrays: true }
+      },
+      {
+        $addFields: {
+          documentoAsociado: {
+            $concat: ['NE - ', '$factura.numeroFactura']
+          }
+        }
+      })
+    }
     const documentos = await agreggateCollectionsSD({
       enviromentClienteId: clienteId,
       nameCollection: 'documentosFiscales',
@@ -20,7 +62,8 @@ export const getDocumentosByTipo = async (req, res) => {
         },
         { $sort: { fechaCreacion: -1 } },
         { $skip: ((pagina || 1) - 1) * (itemsPorPagina || 10) },
-        { $limit: itemsPorPagina || 10 }
+        { $limit: itemsPorPagina || 10 },
+        ...extraStages
       ]
     })
     const cantidad = await agreggateCollectionsSD({

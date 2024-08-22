@@ -31,7 +31,8 @@ const datosRangoFechas = async ({ rangoFechaVencimiento, clienteId, tasa, fechaA
   try {
     const tiposMovimientosUsar = [
       tiposDocumentosFiscales.factura,
-      tiposDocumentosFiscales.notaDebito
+      tiposDocumentosFiscales.notaDebito,
+      tiposDocumentosFiscales.notaEntrega
     ]
     const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const transaccionesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
@@ -294,7 +295,8 @@ const datosGrupoClientes = async ({ clienteId, tasa, fechaActual, timeZone, item
   try {
     const tiposMovimientosUsar = [
       tiposDocumentosFiscales.factura,
-      tiposDocumentosFiscales.notaDebito
+      tiposDocumentosFiscales.notaDebito,
+      tiposDocumentosFiscales.notaEntrega
     ]
     const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const transaccionesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
@@ -538,7 +540,8 @@ export const getDetalleVentas = async (req, res) => {
   try {
     const tiposMovimientosUsar = [
       tiposDocumentosFiscales.factura,
-      tiposDocumentosFiscales.notaDebito
+      tiposDocumentosFiscales.notaDebito,
+      tiposDocumentosFiscales.notaEntrega
     ]
     // console.log(moment(fechaActual).endOf('day').toDate())
     let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa } })

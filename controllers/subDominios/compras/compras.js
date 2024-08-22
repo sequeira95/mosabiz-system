@@ -2171,7 +2171,8 @@ export const createPagoOrdenes = async (req, res) => {
           pago: Number(abono.abono.toFixed(2)),
           fechaPago: moment(abono.fechaPago).toDate(),
           referencia: abono.referencia,
-          banco: new ObjectId(abono.banco._id),
+          banco: abono.banco?._id ? new ObjectId(abono.banco._id) : null,
+          caja: abono.caja?._id ? new ObjectId(abono.caja._id) : null,
           porcentajeIgtf: Number(abono?.porcentajeIgtf || 0),
           igtfPorPagar: abono?.igtfPorPagar ? Number(abono?.igtfPorPagar.toFixed(2)) : null,
           // pagoIgtf: Number(abono?.pagoIgtf.toFixed(2)),
@@ -2241,15 +2242,25 @@ export const createPagoOrdenes = async (req, res) => {
               }
             })
           }
-          const cuentaBanco = await getItemSD({
-            nameCollection: 'planCuenta',
-            enviromentClienteId: clienteId,
-            filters: { _id: new ObjectId(abono.banco.cuentaId) }
-          })
+          let cuenta = null
+          if (abono.banco) {
+            cuenta = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(abono.banco.cuentaId) }
+            })
+          }
+          if (abono.caja) {
+            cuenta = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(abono.caja.cuentaId) }
+            })
+          }
           asientosContables.push({
-            cuentaId: new ObjectId(cuentaBanco._id),
-            cuentaCodigo: cuentaBanco.codigo,
-            cuentaNombre: cuentaBanco.descripcion,
+            cuentaId: new ObjectId(cuenta._id),
+            cuentaCodigo: cuenta.codigo,
+            cuentaNombre: cuenta.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: `ABONO ${documento.tipoDocumento}-${documento.numeroFactura}`,

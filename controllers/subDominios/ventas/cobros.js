@@ -1,7 +1,8 @@
 import moment from 'moment-timezone'
 import { subDominioName, tiposDocumentosFiscales } from '../../../constants.js'
-import { agreggateCollections, agreggateCollectionsSD, formatCollectionName, getItem } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, formatCollectionName, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
+import { hasContabilidad } from '../../../utils/hasContabilidad.js'
 
 export const getVentasCobros = async (req, res) => {
   const { clienteId, itemsPorPagina, pagina, fechaActual, timeZone, rangoFechaVencimiento, fechaTasa, monedaPrincipal } = req.body
@@ -148,6 +149,37 @@ const datosRangoFechas = async ({ rangoFechaVencimiento, clienteId, tasa, fechaA
           $lookup: {
             from: documentosFiscalesCollection,
             localField: '_id',
+            foreignField: 'notaEntregaAsociada',
+            pipeline: [
+              {
+                $addFields: {
+                  tasa: { $objectToArray: tasa }
+                }
+              },
+              { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+              {
+                $addFields: {
+                  valor: { $multiply: ['$tasa.v', '$totalSecundaria'] }
+                }
+              },
+              {
+                $group: {
+                  _id: 0,
+                  totalDevolucion: {
+                    $sum: '$valor'
+                  }
+                }
+              }
+            ],
+            as: 'devoluciones'
+          }
+        },
+        { $unwind: { path: '$devoluciones', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
               { $match: { tipoDocumento: { $eq: tiposDocumentosFiscales.retIva } } },
@@ -210,7 +242,7 @@ const datosRangoFechas = async ({ rangoFechaVencimiento, clienteId, tasa, fechaA
                   $add: [
                     { $ifNull: ['$detalleTransacciones.totalAbono', 0] },
                     { $ifNull: ['$creditoDebito.totalNotaCredito', 0] },
-                    { $ifNull: ['$totalRetenciones.totalRetIslr', 0] },
+                    { $ifNull: ['$devoluciones.totalDevolucion', 0] },
                     { $ifNull: ['$totalRetenciones.totalRetIva', 0] }
                   ]
                 }
@@ -443,6 +475,37 @@ const datosGrupoClientes = async ({ clienteId, tasa, fechaActual, timeZone, item
         },
         { $unwind: { path: '$totalRetenciones', preserveNullAndEmptyArrays: true } },
         {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: '_id',
+            foreignField: 'notaEntregaAsociada',
+            pipeline: [
+              {
+                $addFields: {
+                  tasa: { $objectToArray: tasa }
+                }
+              },
+              { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+              {
+                $addFields: {
+                  valor: { $multiply: ['$tasa.v', '$totalSecundaria'] }
+                }
+              },
+              {
+                $group: {
+                  _id: 0,
+                  totalDevolucion: {
+                    $sum: '$valor'
+                  }
+                }
+              }
+            ],
+            as: 'devoluciones'
+          }
+        },
+        { $unwind: { path: '$devoluciones', preserveNullAndEmptyArrays: true } },
+        {
           $addFields: {
             tasa: { $objectToArray: tasa }
           }
@@ -470,7 +533,8 @@ const datosGrupoClientes = async ({ clienteId, tasa, fechaActual, timeZone, item
             totalNotaCredito: { $sum: '$creditoDebito.totalNotaCredito' },
             totalNotaCreditoPrincipal: { $sum: '$creditoDebito.totalNotaCreditoPrincipal' },
             totalNotaCreditoSecundario: { $sum: '$creditoDebito.totalNotaCreditoSecundario' },
-            totalRetIva: { $sum: '$totalRetenciones.totalRetIva' }
+            totalRetIva: { $sum: '$totalRetenciones.totalRetIva' },
+            totalDevolucion: { $sum: '$devoluciones.totalDevolucion' }
           }
         },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
@@ -491,7 +555,7 @@ const datosGrupoClientes = async ({ clienteId, tasa, fechaActual, timeZone, item
             documentoIdentidad: { $concat: ['$cliente.tipoDocumento', '-', '$cliente.documentoIdentidad'] },
             costoTotal2: '$costoTotal',
             totalAbono: '$totalAbono',
-            porCobrar: { $subtract: [{ $add: ['$costoTotal', { $ifNull: ['$totalNotaDebito', 0] }] }, { $add: ['$totalAbono', '$totalNotaCredito', '$totalRetIva'] }] },
+            porCobrar: { $subtract: [{ $add: ['$costoTotal', { $ifNull: ['$totalNotaDebito', 0] }] }, { $add: ['$totalAbono', '$totalNotaCredito', '$totalRetIva', '$totalDevolucion'] }] },
             totalAbonoPrincipal: 'totalAbonoPrincipal',
             totalAbonoSecundario: 'totalAbonoSecundario',
             fechaVencimiento: '$fechaVencimiento',
@@ -501,7 +565,7 @@ const datosGrupoClientes = async ({ clienteId, tasa, fechaActual, timeZone, item
             creditoTotal: {
               $subtract: [
                 { $add: ['$costoTotal', { $ifNull: ['$totalNotaDebito', 0] }] },
-                { $add: ['$totalNotaCredito', '$totalRetIva'] }
+                { $add: ['$totalNotaCredito', '$totalRetIva', '$totalDevolucion'] }
               ]
             },
             diffFechaVencimiento:
@@ -722,6 +786,37 @@ export const getDetalleVentas = async (req, res) => {
         {
           $lookup: {
             from: documentosFiscalesCollection,
+            localField: '_id',
+            foreignField: 'notaEntregaAsociada',
+            pipeline: [
+              {
+                $addFields: {
+                  tasa: { $objectToArray: tasa }
+                }
+              },
+              { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+              {
+                $addFields: {
+                  valor: { $multiply: ['$tasa.v', '$totalSecundaria'] }
+                }
+              },
+              {
+                $group: {
+                  _id: 0,
+                  totalDevolucion: {
+                    $sum: '$valor'
+                  }
+                }
+              }
+            ],
+            as: 'devoluciones'
+          }
+        },
+        { $unwind: { path: '$devoluciones', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
             localField: 'facturaAsociada',
             foreignField: '_id',
             as: 'facturaDetalle'
@@ -758,11 +853,12 @@ export const getDetalleVentas = async (req, res) => {
                     { $add: ['$valor', { $ifNull: ['$creditoDebito.totalNotaDebito', 0] }] },
                     {
                       $add: [{ $ifNull: ['$detalleTransacciones.totalAbono', 0] }, { $ifNull: ['$creditoDebito.totalNotaCredito', 0] },
-                        { $ifNull: ['$totalRetenciones.totalRetIva', 0] }]
+                        { $ifNull: ['$totalRetenciones.totalRetIva', 0] }, { $ifNull: ['$devoluciones.totalDevolucion', 0] }]
                     }
                   ]
                 }, 2]
             },
+            totalDevolucion: '$devoluciones.totalDevolucion',
             totalNotaDebito: '$creditoDebito.totalNotaDebito',
             totalNotaDebitoPrincipal: '$creditoDebito.totalNotaDebitoPrincipal',
             totalNotaDebitoSecundario: '$creditoDebito.totalNotaDebitoSecundario',
@@ -789,7 +885,7 @@ export const getDetalleVentas = async (req, res) => {
                   },
                   {
                     $add: [{ $ifNull: ['$detalleTransacciones.totalAbono', 0] }, { $ifNull: ['$creditoDebito.totalNotaCredito', 0] },
-                      { $ifNull: ['$totalRetenciones.totalRetIva', 0] }]
+                      { $ifNull: ['$totalRetenciones.totalRetIva', 0] }, { $ifNull: ['$devoluciones.totalDevolucion', 0] }]
                   }
                 ]
               }, 2]
@@ -853,5 +949,431 @@ export const getDetalleVentas = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar el listados de compras del proveedor ' + e.message })
+  }
+}
+export const getCajasSucursalListCobros = async (req, res) => {
+  const { clienteId, sucursalId } = req.body
+  console.log({ sucursalId })
+  try {
+    const cajas = await agreggateCollectionsSD({
+      nameCollection: 'ventascajas',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { sucursalId: { $eq: new ObjectId(sucursalId) } } }
+      ]
+    })
+    return res.status(200).json({ cajas })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
+  }
+}
+export const createPagoOrdenes = async (req, res) => {
+  const { clienteId, clienteIdVenta, abonos, tasaDia, fechaPago } = req.body
+  console.log(req.body)
+  // console.log({ tasaDia })
+  try {
+    const datosAbonos = []
+    const updateCompraPagada = []
+    const createHistorial = []
+    const asientosContables = []
+    const tieneContabilidad = await hasContabilidad({ clienteId })
+    const ajusteVenta = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'ventas' } })
+    const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+    let periodo = null
+    let comprobante = null
+    let cuentaPorCobrar = null
+    let terceroCuenta = null
+    let cuentaIGTF = null
+    if (tieneContabilidad) {
+      /* const validContabilidad = await validPagoFacturas({ clienteId, abonos })
+      if (validContabilidad && validContabilidad.message) {
+        return res.status(500).json({ error: 'Error al momento de validar información contable: ' + validContabilidad.message })
+      } */
+      periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaPago).toDate() }, fechaFin: { $gte: moment(fechaPago).toDate() } } })
+      // console.log({ periodo })
+      if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
+      const mesPeriodo = moment(fechaPago).format('YYYY/MM')
+      comprobante = await getItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: ajusteVenta.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
+      })
+      if (!comprobante) {
+        comprobante = await upsertItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: ajusteVenta.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
+          update: {
+            $set: {
+              nombre: 'Ventas',
+              isBloqueado: false,
+              fechaCreacion: moment().toDate()
+            }
+          }
+        })
+      }
+      const cliente = await getItemSD({ nameCollection: 'clientes', enviromentClienteId: clienteId, filters: { _id: new ObjectId(clienteIdVenta) } })
+      cuentaPorCobrar = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { codigo: ajusteVenta.cuentaPorCobrarClienteId } })
+      terceroCuenta = await getItemSD({
+        nameCollection: 'terceros',
+        enviromentClienteId: clienteId,
+        filters: { cuentaId: new ObjectId(cuentaPorCobrar._id), nombre: cliente?.razonSocial.toUpperCase() }
+      })
+      if (!terceroCuenta) {
+        terceroCuenta = await upsertItemSD({
+          nameCollection: 'terceros',
+          enviromentClienteId: clienteId,
+          filters: { cuentaId: new ObjectId(cuentaPorCobrar._id), nombre: cliente?.razonSocial.toUpperCase() },
+          update: {
+            $set: {
+              nombre: cliente?.razonSocial.toUpperCase(),
+              cuentaId: new ObjectId(cuentaPorCobrar._id)
+            }
+          }
+        })
+      }
+      cuentaIGTF = await getItemSD({
+        nameCollection: 'planCuenta',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(ajusteVenta.cuentaIGTFPorPagarId) }
+      })
+    }
+    if (abonos[0]) {
+      for (const abono of abonos) {
+        // const asientosVariacionCambiaria = []
+        const documento = (await agreggateCollectionsSD({
+          nameCollection: 'documentosFiscales',
+          enviromentClienteId: clienteId,
+          pipeline: [
+            { $match: { _id: new ObjectId(abono.documentoId) } }
+          ]
+        }))[0]
+        console.log({ documento })
+        console.log({ documento, abono })
+        const tasaVerify = documento.tasaAux ? documento.tasaAux : documento.tasaDia
+        const totalSecundarioAux = documento.totalSecundarioAux ? documento.totalSecundarioAux : documento.totalSecundaria
+        const totalPrincipalAux = documento.totalAux ? documento.totalAux : documento.total
+        const totalDivisa = totalSecundarioAux * tasaDia[documento.monedaSecundaria]
+        const diferenciaTotal = Number((Number(totalDivisa.toFixed(2)) - Number(totalPrincipalAux.toFixed(2))).toFixed(2))
+        console.log({ totalDivisa, totalPrincipalAux, diferenciaTotal, totalSecundarioAux, tasaVerify })
+        if (tasaVerify !== tasaDia[documento.monedaSecundaria]) {
+          /* if (tieneContabilidad) {
+            if (diferenciaTotal > 0) {
+              const cuentaVariacion = await getItemSD({
+                nameCollection: 'planCuenta',
+                enviromentClienteId: clienteId,
+                filters: { _id: new ObjectId(ajusteVenta.cuentaVariacionCambiariaGastos) }
+              })
+              console.log({ diferenciaTotal })
+              // Registrar la diferencia contable con la cuenta que se encuentra en ajustes por el debe y el por pagar en el haber
+              asientosVariacionCambiaria.push({
+                cuentaId: new ObjectId(cuentaVariacion._id),
+                cuentaCodigo: cuentaVariacion.codigo,
+                cuentaNombre: cuentaVariacion.descripcion,
+                comprobanteId: new ObjectId(comprobante._id),
+                periodoId: new ObjectId(periodo._id),
+                descripcion: `AJUSTE VARIACIÓN CAMBIARIA${documento.tipoDocumento}-${documento.numeroFactura}`,
+                fecha: moment(fechaPago).toDate(),
+                debe: Number(diferenciaTotal.toFixed(2)),
+                haber: 0,
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                documento: {
+                  docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                  docFecha: moment(fechaPago).toDate()
+                }
+                /* fechaDolar: documento.monedaSecundaria !== documento.moneda ? documento.fechaTasa : null,
+                cantidad: documento.monedaSecundaria !== documento.moneda ? documento.ivaSecundaria : null,
+                monedasUsar: documento.monedaSecundaria !== documento.moneda ? documento.monedaSecundaria : null,
+                tasa: documento.monedaSecundaria !== documento.moneda ? documento.tasaDia : null,
+                monedaPrincipal: documento.moneda *
+              }, {
+                cuentaId: new ObjectId(cuentaProveedor._id),
+                cuentaCodigo: cuentaProveedor.codigo,
+                cuentaNombre: cuentaProveedor.descripcion,
+                comprobanteId: new ObjectId(comprobante._id),
+                periodoId: new ObjectId(periodo._id),
+                descripcion: `AJUSTE VARIACIÓN CAMBIARIA${documento.tipoDocumento}-${documento.numeroFactura}`,
+                fecha: moment(fechaPago).toDate(),
+                debe: 0,
+                haber: Number(diferenciaTotal.toFixed(2)),
+                fechaCreacion: moment().toDate(),
+                terceroId: new ObjectId(terceroProveedor._id),
+                terceroNombre: terceroProveedor.nombre,
+                docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                documento: {
+                  docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                  docFecha: moment(fechaPago).toDate()
+                }
+              })
+              await createManyItemsSD({
+                nameCollection: 'detallesComprobantes',
+                enviromentClienteId: clienteId,
+                items: asientosVariacionCambiaria
+              })
+            }
+            if (diferenciaTotal < 0) {
+              const cuentaVariacion = await getItemSD({
+                nameCollection: 'planCuenta',
+                enviromentClienteId: clienteId,
+                filters: { _id: new ObjectId(ajusteVenta.cuentaVariacionCambiaria) }
+              })
+              // hacer lo contrario de arriba
+              asientosVariacionCambiaria.push({
+                cuentaId: new ObjectId(cuentaProveedor._id),
+                cuentaCodigo: cuentaProveedor.codigo,
+                cuentaNombre: cuentaProveedor.descripcion,
+                comprobanteId: new ObjectId(comprobante._id),
+                periodoId: new ObjectId(periodo._id),
+                descripcion: `AJUSTE VARIACIÓN CAMBIARIA${documento.tipoDocumento}-${documento.numeroFactura}`,
+                fecha: moment(fechaPago).toDate(),
+                debe: Number(diferenciaTotal.toFixed(2)),
+                haber: 0,
+                fechaCreacion: moment().toDate(),
+                terceroId: new ObjectId(terceroProveedor._id),
+                terceroNombre: terceroProveedor.nombre,
+                docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                documento: {
+                  docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                  docFecha: moment(fechaPago).toDate()
+                }
+              }, {
+                cuentaId: new ObjectId(cuentaVariacion._id),
+                cuentaCodigo: cuentaVariacion.codigo,
+                cuentaNombre: cuentaVariacion.descripcion,
+                comprobanteId: new ObjectId(comprobante._id),
+                periodoId: new ObjectId(periodo._id),
+                descripcion: `AJUSTE VARIACIÓN CAMBIARIA${documento.tipoDocumento}-${documento.numeroFactura}`,
+                fecha: moment(fechaPago).toDate(),
+                debe: 0,
+                haber: Number(diferenciaTotal.toFixed(2)),
+                fechaCreacion: moment().toDate(),
+                docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                documento: {
+                  docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                  docFecha: moment(fechaPago).toDate()
+                }
+                /* fechaDolar: documento.monedaSecundaria !== documento.moneda ? documento.fechaTasa : null,
+                cantidad: documento.monedaSecundaria !== documento.moneda ? documento.ivaSecundaria : null,
+                monedasUsar: documento.monedaSecundaria !== documento.moneda ? documento.monedaSecundaria : null,
+                tasa: documento.monedaSecundaria !== documento.moneda ? documento.tasaDia : null,
+                monedaPrincipal: documento.moneda *
+              })
+              await createManyItemsSD({
+                nameCollection: 'detallesComprobantes',
+                enviromentClienteId: clienteId,
+                items: asientosVariacionCambiaria
+              })
+            }
+          } */
+        }
+        await updateItemSD({
+          nameCollection: 'documentosFiscales',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(abono.compraId) },
+          update: {
+            $set: {
+              totalPrincipalAux: totalDivisa - abono.abono,
+              totalSecundarioAux: totalSecundarioAux - abono.abonoSecundario,
+              tasaAux: tasaDia[documento.monedaSecundaria]
+            }
+          }
+        })
+        if (Number(abono.porPagar.toFixed(2)) === Number(abono.abono.toFixed(2))) {
+          updateCompraPagada.push({
+            updateOne: {
+              filter: { _id: new ObjectId(abono.compraId) },
+              update: {
+                $set: {
+                  estado: 'pagada',
+                  fechaPago: moment(abono.fechaPago).toDate(),
+                  pagadoPor: new ObjectId(req.uid)
+                }
+              }
+            }
+          })
+        }
+        datosAbonos.push({
+          documentoId: new ObjectId(abono.documentoId),
+          clienteId: new ObjectId(clienteIdVenta),
+          pago: Number(abono.abono.toFixed(2)),
+          fechaPago: moment(abono.fechaPago).toDate(),
+          referencia: abono.referencia ? abono.referencia : null,
+          banco: abono.banco._id ? new ObjectId(abono.banco._id) : null,
+          caja: abono.caja._id ? new ObjectId(abono.caja._id) : null,
+          sucursal: abono.sucursal._id ? new ObjectId(abono.sucursal._id) : null,
+          porcentajeIgtf: Number(abono?.porcentajeIgtf || 0),
+          pagoIgtf: abono?.igtfPorPagar ? Number(abono?.igtfPorPagar.toFixed(2)) : null,
+          pagoSecundario: abono?.abonoSecundario ? Number(abono?.abonoSecundario.toFixed(2)) : null,
+          pagoIgtfSecundario: abono?.igtfPorPagarSecundario ? Number(abono?.igtfPorPagarSecundario.toFixed(2)) : null,
+          moneda: abono.moneda,
+          monedaSecundaria: abono.monedaSecundaria,
+          tasa: abono.tasa,
+          tipo: 'venta',
+          creadoPor: new ObjectId(req.uid)
+        })
+        createHistorial.push({
+          idMovimiento: new ObjectId(abono.compraId),
+          categoria: 'creado',
+          tipo: 'Pago',
+          fecha: moment().toDate(),
+          descripcion: abono.porPagar === abono.abono ? 'Factura pagada' : 'Abonó ' + abono.abono?.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          creadoPor: new ObjectId(req.uid)
+        })
+        if (tieneContabilidad) {
+          if (abono.banco) {
+            const cuentaBanco = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(abono.banco.cuentaId) }
+            })
+            asientosContables.push({
+              cuentaId: new ObjectId(cuentaBanco._id),
+              cuentaCodigo: cuentaBanco.codigo,
+              cuentaNombre: cuentaBanco.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `ABONO ${documento.tipoDocumento}-${documento.numeroFactura}`,
+              fecha: moment(fechaPago).toDate(),
+              debe: Number(abono.totalPagar.toFixed(2)),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${abono.referencia}`,
+              documento: {
+                docReferencia: `${abono.referencia}`,
+                docFecha: moment(fechaPago).toDate()
+              },
+              fechaDolar: abono.monedaSecundaria !== abono.moneda ? tasaDia.fechaUpdate : null,
+              cantidad: abono.monedaSecundaria !== abono.moneda ? Number(abono?.totalPagarSecundario.toFixed(2)) : null,
+              monedasUsar: abono.monedaSecundaria !== abono.moneda ? abono.monedaSecundaria : null,
+              tasa: abono.monedaSecundaria !== abono.moneda ? tasaDia[abono.monedaSecundaria] : null,
+              monedaPrincipal: abono.monedaSecundaria !== abono.moneda ? abono.moneda : null
+            })
+          }
+          if (abono.caja) {
+            const [cuentaCaja] = await agreggateCollectionsSD({
+              nameCollection: 'ventascajas',
+              enviromentClienteId: clienteId,
+              pipeline: [
+                { $match: { _id: new ObjectId(abono.caja._id) } },
+                {
+                  $lookup: {
+                    from: planCuentaCollection,
+                    localField: 'cuentaId',
+                    foreignField: '_id',
+                    as: 'detalleCuenta'
+                  }
+                },
+                { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: false } },
+                {
+                  $project: {
+                    nombre: '$nombre',
+                    descripcion: '$descripcion',
+                    tipo: '$tipo',
+                    cuentaId: '$cuentaId',
+                    cuentaCodigo: '$detalleCuenta.codigo',
+                    cuentaNombre: '$detalleCuenta.descripcion'
+                  }
+                }
+              ]
+            })
+            asientosContables.push({
+              cuentaId: new ObjectId(cuentaCaja._id),
+              cuentaCodigo: cuentaCaja.codigo,
+              cuentaNombre: cuentaCaja.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `ABONO ${documento.tipoDocumento}-${documento.numeroFactura}`,
+              fecha: moment(fechaPago).toDate(),
+              debe: Number(abono.totalPagar.toFixed(2)),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: 'EFECTIVO',
+              documento: {
+                docReferencia: 'EFECTIVO',
+                docFecha: moment(fechaPago).toDate()
+              },
+              fechaDolar: abono.monedaSecundaria !== abono.moneda ? tasaDia.fechaUpdate : null,
+              cantidad: abono.monedaSecundaria !== abono.moneda ? Number(abono?.totalPagarSecundario.toFixed(2)) : null,
+              monedasUsar: abono.monedaSecundaria !== abono.moneda ? abono.monedaSecundaria : null,
+              tasa: abono.monedaSecundaria !== abono.moneda ? tasaDia[abono.monedaSecundaria] : null,
+              monedaPrincipal: abono.monedaSecundaria !== abono.moneda ? abono.moneda : null
+            })
+          }
+          asientosContables.push({
+            cuentaId: new ObjectId(cuentaPorCobrar._id),
+            cuentaCodigo: cuentaPorCobrar.codigo,
+            cuentaNombre: cuentaPorCobrar.descripcion,
+            comprobanteId: new ObjectId(comprobante._id),
+            periodoId: new ObjectId(periodo._id),
+            descripcion: `ABONO ${documento.tipoDocumento}-${documento.numeroFactura}`,
+            fecha: moment(fechaPago).toDate(),
+            debe: 0,
+            haber: Number(abono.abono.toFixed(2)),
+            fechaCreacion: moment().toDate(),
+            terceroId: new ObjectId(terceroCuenta._id),
+            terceroNombre: terceroCuenta.nombre,
+            docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+            documento: {
+              docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+              docFecha: moment(fechaPago).toDate()
+            },
+            fechaDolar: abono.monedaSecundaria !== abono.moneda ? tasaDia.fechaUpdate : null,
+            cantidad: abono.monedaSecundaria !== abono.moneda ? Number(abono?.abonoSecundario.toFixed(2)) : null,
+            monedasUsar: abono.monedaSecundaria !== abono.moneda ? abono.monedaSecundaria : null,
+            tasa: abono.monedaSecundaria !== abono.moneda ? tasaDia[abono.monedaSecundaria] : null,
+            monedaPrincipal: abono.moneda
+          })
+          if (abono.igtfPorPagar) {
+            asientosContables.push({
+              cuentaId: new ObjectId(cuentaIGTF._id),
+              cuentaCodigo: cuentaIGTF.codigo,
+              cuentaNombre: cuentaIGTF.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `ABONO ${documento.tipoDocumento}-${documento.numeroFactura}`,
+              fecha: moment(fechaPago).toDate(),
+              debe: 0,
+              haber: Number(abono.igtfPorPagar.toFixed(2)),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+              documento: {
+                docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                docFecha: moment(fechaPago).toDate()
+              }
+            })
+          }
+        }
+      }
+    }
+    if (updateCompraPagada[0]) {
+      await bulkWriteSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, pipeline: updateCompraPagada })
+    }
+    if (asientosContables[0]) {
+      createManyItemsSD({
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        items: asientosContables
+      })
+    }
+    if (createHistorial[0]) {
+      createManyItemsSD({
+        nameCollection: 'historial',
+        enviromentClienteId: clienteId,
+        items: createHistorial
+      })
+    }
+    if (datosAbonos[0]) {
+      createManyItemsSD({
+        nameCollection: 'transacciones',
+        enviromentClienteId: clienteId,
+        items: datosAbonos
+      })
+    }
+    return res.status(200).json({ status: 'Pago de ordenes de compra creados exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de realizar el pago de compras ' + e.message })
   }
 }

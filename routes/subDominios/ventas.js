@@ -39,7 +39,7 @@ import {
   getDocumentosByTipo,
   getDocumentoByTipo
 } from '../../controllers/subDominios/ventas/documentos.js'
-import { getDetalleVentas, getVentasCobros } from '../../controllers/subDominios/ventas/cobros.js'
+import { createPagoOrdenes, getCajasSucursalListCobros, getDetalleVentas, getVentasCobros } from '../../controllers/subDominios/ventas/cobros.js'
 
 const router = express.Router()
 
@@ -75,5 +75,7 @@ router.post('/documentos/:tipo/detalle', requireSubDominioToken, getDocumentoByT
 
 router.post('/get/ventas/porCobrar', requireSubDominioToken, getVentasCobros)
 router.post('/getDetalleVentas', requireSubDominioToken, getDetalleVentas)
+router.post('/cobros/cajas/sucursal', requireSubDominioToken, getCajasSucursalListCobros)
+router.post('/create/pagosOrdenes', requireSubDominioToken, createPagoOrdenes)
 
 export default router

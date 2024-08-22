@@ -4,7 +4,7 @@ import { momentDate } from '../../../utils/momentDate.js'
 import { subDominioName, documentosVentas } from '../../../constants.js'
 import moment from 'moment-timezone'
 import { getOrCreateComprobante, createMovimientos, checkPeriodo } from '../../../utils/contabilidad.js'
-import { hasContabilidad, } from '../../../utils/hasContabilidad.js'
+import { hasContabilidad } from '../../../utils/hasContabilidad.js'
 import { hasInventario } from '../../../utils/validModulos.js'
 
 export const getData = async (req, res) => {
@@ -610,6 +610,250 @@ export const getDetalleFacturas = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de las facturas: ' + e.message })
   }
 }
+export const getNotasEntrega = async (req, res) => {
+  const { clienteId, search } = req.body
+  try {
+    const query = {
+      tipoMovimiento: 'venta',
+      tipoDocumento: 'Nota de entrega'
+    }
+    if (search) {
+      query.numeroFactura = { $regex: `^${search}` }
+    }
+    const documentos = await agreggateCollectionsSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      pipeline: [
+        { $match: query },
+        { $limit: 10 },
+        {
+          $project: {
+            _id: 1,
+            numeroFactura: 1
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ documentos })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de los pedidos de venta: ' + e.message })
+  }
+}
+export const getDetalleNotasEntrega = async (req, res) => {
+  const { clienteId, notaEntregaId } = req.body
+  try {
+    const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+    const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventaszonas' })
+    const clientesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'clientes' })
+
+    const [cliente] = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: new ObjectId(notaEntregaId) } },
+        {
+          $lookup: {
+            from: clientesCollection,
+            localField: 'clienteId',
+            foreignField: '_id',
+            as: 'cliente'
+          }
+        },
+        { $unwind: { path: '$cliente' } },
+        {
+          $lookup: {
+            from: zonasCollection,
+            localField: 'cliente.zona',
+            foreignField: '_id',
+            as: 'detalleZona'
+          }
+        },
+        { $unwind: { path: '$detalleZona', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: categoriaCollection,
+            localField: 'cliente.categoria',
+            foreignField: '_id',
+            as: 'detalleCategoria'
+          }
+        },
+        { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: '$cliente._id',
+            zonaId: '$detalleZona._id',
+            zona: '$detalleZona.nombre',
+            categoriaId: '$detalleCategoria._id',
+            categoria: '$detalleCategoria.nombre',
+            tipoDocumento: '$cliente.tipoDocumento',
+            documentoIdentidad: '$cliente.documentoIdentidad',
+            email: '$cliente.email',
+            razonSocial: '$cliente.razonSocial',
+            telefono: '$cliente.telefono',
+            isContribuyenteEspecial: '$cliente.isContribuyenteEspecial',
+            direccion: '$cliente.direccion',
+            direccionEnvio: '$cliente.direccionEnvio',
+            observacion: '$cliente.observacion'
+          }
+        }
+      ]
+    })
+    const documentosIdNCyND = await agreggateCollectionsSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      pipeline: [
+        { $match: { notaEntregaAsociada: new ObjectId(notaEntregaId) } },
+        {
+          $group: {
+            _id: 0,
+            documentosId: {
+              $addToSet: '$_id'
+            }
+          }
+        }
+      ]
+    })
+    const documentosId = documentosIdNCyND[0]?.documentosId || []
+    const detalles = await agreggateCollectionsSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'detalleDocumentosFiscales',
+      pipeline: [
+        { $match: { documentoId: { $in: [...documentosId, new ObjectId(notaEntregaId)] } } },
+        { $sort: { fechaCreacion: -1 } },
+        {
+          $group: {
+            _id: '$productoId',
+            codigo: {
+              $last: '$codigo'
+            },
+            descripcion: {
+              $last: '$descripcion'
+            },
+            nombre: {
+              $last: '$nombre'
+            },
+            observacion: {
+              $last: '$observacion'
+            },
+            unidad: {
+              $last: '$unidad'
+            },
+            tipo: {
+              $last: '$tipo'
+            },
+            descuento: {
+              $last: '$descuento'
+            },
+            ivaId: {
+              $last: '$ivaId'
+            },
+            iva: {
+              $last: '$iva'
+            },
+            costoPromedio: {
+              $last: '$costoPromedio'
+            },
+            cantidad: {
+              $sum: {
+                $cond: {
+                  if: { $and: [
+                    { $eq: ['$tipoDocumento', 'Devolución'] },
+                    { $eq: ['$tipoAjuste', 'cantidad'] }
+                  ] },
+                  then: { $multiply: ['$cantidad', -1] },
+                  else: {
+                    $cond: {
+                      if: { $eq: ['$tipoDocumento', 'Nota de entrega'] },
+                      then: '$cantidad',
+                      else: 0
+                    }
+                  }
+                }
+              }
+            },
+            precioVenta: {
+              $sum: {
+                $cond: {
+                  if: { $and: [
+                    { $eq: ['$tipoDocumento', 'Devolución'] },
+                    { $eq: ['$tipoAjuste', 'precio'] }
+                  ] },
+                  then: { $multiply: ['$precioVenta', -1] },
+                  else: {
+                    $cond: {
+                      if: { $ne: ['$tipoDocumento', 'Devolución'] },
+                      then: '$precioVenta',
+                      else: 0
+                    }
+                  }
+                }
+              }
+            },
+            precioSinDescuento: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Devolución'] },
+                  then: { $multiply: ['$precioSinDescuento', -1] },
+                  else: '$precioSinDescuento'
+                }
+              }
+            },
+            descuentoTotal: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Devolución'] },
+                  then: { $multiply: ['$descuentoTotal', -1] },
+                  else: '$descuentoTotal'
+                }
+              }
+            },
+            precioConDescuento: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Devolución'] },
+                  then: { $multiply: ['$precioConDescuento', -1] },
+                  else: '$precioConDescuento'
+                }
+              }
+            },
+            baseImponible: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Devolución'] },
+                  then: { $multiply: ['$baseImponible', -1] },
+                  else: '$baseImponible'
+                }
+              }
+            },
+            montoIva: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Devolución'] },
+                  then: { $multiply: ['$montoIva', -1] },
+                  else: '$montoIva'
+                }
+              }
+            },
+            precioTotal: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$tipoDocumento', 'Devolución'] },
+                  then: { $multiply: ['$precioTotal', -1] },
+                  else: '$precioTotal'
+                }
+              }
+            }
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ productos: detalles, cliente })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de las facturas: ' + e.message })
+  }
+}
 export const getProductos = async (req, res) => {
   const { clienteId, almacenId, itemsPorPagina, pagina } = req.body
   try {
@@ -771,6 +1015,11 @@ export const handleVenta = async (req, res) => {
       }
       case 'Presupuesto': {
         const data = await handleVentasPresupuestos({ clienteId, ventaInfo, req, creadoPor: req.uid })
+        documentoId = data.documentoId
+        break
+      }
+      case 'Devolución': {
+        const data = await handleVentasDevolucion({ clienteId, ventaInfo, req, creadoPor: req.uid })
         documentoId = data.documentoId
         break
       }
@@ -1041,7 +1290,6 @@ const handleVentasFactuas = async ({ clienteId, ventaInfo, creadoPor }) => {
       clienteId,
       ventaInfo,
       documentoId: newFactura.insertedId,
-      facturaAsociada: ventaInfo.facturaId ? new ObjectId(ventaInfo.facturaId) : '',
       creadoPor
     })
   }
@@ -1128,7 +1376,6 @@ const handleVentasNotasEntrega = async ({ clienteId, ventaInfo, creadoPor }) => 
       clienteId,
       ventaInfo,
       documentoId: newFactura.insertedId,
-      facturaAsociada: ventaInfo.facturaId ? new ObjectId(ventaInfo.facturaId) : '',
       creadoPor
     })
   }
@@ -1138,6 +1385,36 @@ const handleVentasNotasEntrega = async ({ clienteId, ventaInfo, creadoPor }) => 
 const handleVentasPresupuestos = async ({ clienteId, ventaInfo, creadoPor }) => {
   const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
   await createDetalleDocumento({ clienteId, ventaInfo, documentoId: newFactura.insertedId })
+  return { documentoId: newFactura.insertedId }
+}
+
+const handleVentasDevolucion = async ({ clienteId, ventaInfo, creadoPor }) => {
+  const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
+  ventaInfo.productos = ventaInfo.productos.filter(e => {
+    return !!e.cantidadNC
+  }).map(e => {
+    const valorAjustado = Number((e.precioVenta || 0).toFixed(2))
+    const cantidad = Number(e.cantidadNC || e.cantidad || 0)
+    return {
+      ...e,
+      tipoAjuste: e.precioUnitarioNCEditable ? 'precio' : 'cantidad',
+      nombre: e.nombre,
+      precioVenta: valorAjustado,
+      precioSinDescuento: valorAjustado * cantidad,
+      descuento: 0,
+      descuentoTotal: 0,
+      cantidad,
+      precioConDescuento: valorAjustado * cantidad,
+      precioTotal: valorAjustado * cantidad
+    }
+  })
+  await createDetalleDocumento({ clienteId, ventaInfo, documentoId: newFactura.insertedId })
+  await createPagosDocumento({ clienteId, ventaInfo, documentoId: newFactura.insertedId, creadoPor })
+  try {
+    await crearMovimientosContablesPagos({ clienteId, ventaInfo, documentoId: newFactura.insertedId })
+  } catch (e) {
+    console.log(`${moment().format('YYYY-MM-DD')} -- ${e.message}`, e)
+  }
   return { documentoId: newFactura.insertedId }
 }
 
@@ -1175,6 +1452,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       almacenId: new ObjectId(ventaInfo.almacenId),
       cajaId: new ObjectId(ventaInfo.cajaId),
       facturaAsociada: ventaInfo.facturaId ? new ObjectId(ventaInfo.facturaId) : '',
+      notaEntregaAsociada: ventaInfo.notaEntregaId ? new ObjectId(ventaInfo.notaEntregaId) : '',
       // datos de monedas
       tasaDia: Number(ventaInfo.tasa) || 0,
       moneda: ventaInfo.moneda,
@@ -1287,13 +1565,14 @@ const createPagosDocumento = async ({ clienteId, ventaInfo, documentoId, creadoP
     documentoId,
     clienteId: new ObjectId(ventaInfo.clienteId),
     metodo: e.metodo, // caja, banco
-    pago: Number((e.monto || 0).toFixed(2)),
+    pago: Number(((e.monto || 0) * (e.tasa || 1)).toFixed(2)),
+    pagoSecundario: Number((e.monto || 0).toFixed(2)),
     fechaPago: moment(ventaInfo.fecha).toDate(),
     referencia: e.referencia,
     banco: (e.banco && new ObjectId(e.banco)) || '',
     caja: (ventaInfo.cajaId && new ObjectId(ventaInfo.cajaId)) || '',
     porcentajeIgtf: Number(e.porcentajeIgtf || 0),
-    pagoIgtf: e?.igtfPorPagar ? Number((e.monto || 0).toFixed(2)) * Number((e.monto || 0).toFixed(2)) / 100 : 0,
+    pagoIgtf: e?.igtfPorPagar ? Number((e.monto || 0).toFixed(2)) * Number((e.porcentajeIgtf || 0).toFixed(2)) / 100 : 0,
     moneda: ventaInfo.moneda,
     monedaSecundaria: e.moneda,
     tasa: e.tasa,
@@ -1622,7 +1901,7 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
   })
 }
 
-const crearDespachos = async ({ clienteId, ventaInfo, documentoId, facturaAsociada, creadoPor }) => {
+const crearDespachos = async ({ clienteId, ventaInfo, documentoId, facturaAsociada = '', notaEntregaAsociada = '', creadoPor }) => {
   const estado = ventaInfo.isDespacho ? 'Pendiente' : 'Despachado'
   const existeProducto = ventaInfo.productos.some(e => e.tipo === 'producto')
   if (!existeProducto) return
@@ -1639,6 +1918,7 @@ const crearDespachos = async ({ clienteId, ventaInfo, documentoId, facturaAsocia
       tipo: 'despacho-ventas',
       documentoId,
       facturaAsociada,
+      notaEntregaAsociada,
       tipoDocumento: ventaInfo.documento,
       almacenOrigen: ventaInfo.almacenId ? new ObjectId(ventaInfo.almacenId) : null,
       almacenDestino: null,

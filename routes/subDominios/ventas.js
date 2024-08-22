@@ -30,7 +30,9 @@ import {
   getFacturas,
   getDetalleFacturas,
   getProductos,
-  handleVenta
+  handleVenta,
+  getNotasEntrega,
+  getDetalleNotasEntrega
 } from '../../controllers/subDominios/ventas/facturacion.js'
 
 import {
@@ -63,6 +65,8 @@ router.post('/facturacion/pedidos-venta', requireSubDominioToken, getPedidosVent
 router.post('/facturacion/pedidos-venta/detalle', requireSubDominioToken, getDetallePedidoVenta)
 router.post('/facturacion/facturas', requireSubDominioToken, getFacturas)
 router.post('/facturacion/facturas/detalle', requireSubDominioToken, getDetalleFacturas)
+router.post('/facturacion/notas-entrega', requireSubDominioToken, getNotasEntrega)
+router.post('/facturacion/notas-entrega/detalle', requireSubDominioToken, getDetalleNotasEntrega)
 router.post('/facturacion/productos', requireSubDominioToken, getProductos)
 router.post('/facturacion/pago-venta', requireSubDominioToken, handleVenta)
 

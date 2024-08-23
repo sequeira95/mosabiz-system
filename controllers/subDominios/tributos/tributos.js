@@ -3791,7 +3791,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
           }
         })
       }
-      if (cliente?._id) {
+      /* if (cliente?._id) {
         const validarNumeroFactura = await getItemSD({
           nameCollection: 'documentosFiscales',
           enviromentClienteId: clienteId,
@@ -3806,7 +3806,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
           filters: { numeroFactura: documento.numeroFactura, estado: 'anulado' }
         })
         if (validarNumeroFactura) throw new Error(`La retención N° ${documento.numeroFactura} ya se encuentra registrada como anulada`)
-      }
+      } */
       const facturaAfectada = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,

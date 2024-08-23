@@ -1226,6 +1226,18 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
     })
     if (!cuenta) throw new Error('No existe la cuenta contable de IGTF')
   }
+
+  // valdiar cuenta de diferencias
+  {
+    const cuenta = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'planCuenta',
+      filters: {
+        _id: ajustesVentas.cuentaDiferenciaVentasId
+      }
+    })
+    if (!cuenta) throw new Error('No existe la cuenta contable de IGTF')
+  }
   // valdiar cuentad e productos
   for (const prod of ventaInfo.productos) {
     const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(prod._id) } })
@@ -1353,6 +1365,14 @@ const handleVentasNC = async ({ clienteId, ventaInfo, creadoPor }) => {
   } catch (e) {
     console.log(`${moment().format('YYYY-MM-DD')} -- ${e.message}`, e)
   }
+  if (await hasInventario({ clienteId })) {
+    await crearDespachosDevolucion({
+      clienteId,
+      ventaInfo,
+      documentoId: newFactura.insertedId,
+      creadoPor
+    })
+  }
   return { documentoId: newFactura.insertedId }
 }
 
@@ -1415,6 +1435,14 @@ const handleVentasDevolucion = async ({ clienteId, ventaInfo, creadoPor }) => {
   } catch (e) {
     console.log(`${moment().format('YYYY-MM-DD')} -- ${e.message}`, e)
   }
+  if (await hasInventario({ clienteId })) {
+    await crearDespachosDevolucion({
+      clienteId,
+      ventaInfo,
+      documentoId: newFactura.insertedId,
+      creadoPor
+    })
+  }
   return { documentoId: newFactura.insertedId }
 }
 
@@ -1471,6 +1499,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       totalIgtf: Number(Number(ventaInfo.totalPagado.igtf).toFixed(2)),
       // total pagado
       totalPagado: Number(Number(ventaInfo.totalPagado.total).toFixed(2)),
+      diferenciaVenta: ventaInfo.totalDiferencia,
       // total establecido a credito
       totalCredito: Number(Number(ventaInfo.totalPagado.totalCredito || 0).toFixed(2)),
       totalCreditoSecundario: Number(Number(ventaInfo.totalPagado.totalCreditoSecundario || 0).toFixed(2)),
@@ -1675,15 +1704,17 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
     console.log('error al crear comprobante en movimientos de ventas', e)
   }
   if (!comprobante) return
+  const fechaCreacion = moment()
+  let addSeconds = 1
   // create movimientos de pagos (debe)
-  const movimientos = await Promise.all(ventaInfo.pagos.map(async (e) => {
+  let movimientos = await Promise.all(ventaInfo.pagos.map(async (e) => {
     const referencia = e.referencia || `${infoDoc.sigla} ${documento.numeroFactura}`
     const movimiento = {
       descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
       comprobanteId: comprobante._id,
       periodoId: comprobante.periodoId,
       fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
-      fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
+      fechaCreacion: moment(fechaCreacion).add(addSeconds, 'milliseconds').toDate(),
       docReferenciaAux: referencia,
       documento: {
         docReferencia: referencia
@@ -1727,7 +1758,7 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
       datosDebe.cuentaId = cuenta.cuentaId
       datosDebe.cuentaCodigo = cuenta.cuentaCodigo
       datosDebe.cuentaNombre = cuenta.cuentaNombre
-      datosDebe.debe = Number((e.monto || 0).toFixed(2))
+      // datosDebe.debe = Number((e.monto || 0).toFixed(2))
     }
     if (e.metodo === 'caja') {
       const [cuenta] = await agreggateCollectionsSD({
@@ -1760,7 +1791,7 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
       datosDebe.cuentaId = cuenta.cuentaId
       datosDebe.cuentaCodigo = cuenta.cuentaCodigo
       datosDebe.cuentaNombre = cuenta.cuentaNombre
-      datosDebe.debe = Number((e.monto || 0).toFixed(2))
+      // datosDebe.debe = Number((e.monto || 0).toFixed(2))
     }
     if (e.metodo === 'credito') {
       const cuenta = await getItemSD({
@@ -1795,7 +1826,7 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
       comprobanteId: comprobante._id,
       periodoId: comprobante.periodoId,
       fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
-      fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
+      fechaCreacion: moment(fechaCreacion).add(addSeconds, 'milliseconds').toDate(),
       docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
       documento: {
         docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`
@@ -1823,7 +1854,7 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
         comprobanteId: comprobante._id,
         periodoId: comprobante.periodoId,
         fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
-        fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
+        fechaCreacion: moment(fechaCreacion).add(addSeconds, 'milliseconds').toDate(),
         docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
         documento: {
           docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`
@@ -1852,7 +1883,7 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
         comprobanteId: comprobante._id,
         periodoId: comprobante.periodoId,
         fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
-        fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
+        fechaCreacion: moment(fechaCreacion).add(addSeconds, 'milliseconds').toDate(),
         docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
         documento: {
           docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`
@@ -1866,7 +1897,7 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
       movimientos.push(movimiento)
     }
   }
-  // iva
+  // igtf
   if (documento.hasIgtf) {
     const cuenta = await getItemSD({
       enviromentClienteId: clienteId,
@@ -1881,7 +1912,7 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
         comprobanteId: comprobante._id,
         periodoId: comprobante.periodoId,
         fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
-        fechaCreacion: momentDate(ajustesSistema.timeZone).toDate(),
+        fechaCreacion: moment(fechaCreacion).add(addSeconds, 'milliseconds').toDate(),
         docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
         documento: {
           docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`
@@ -1895,6 +1926,49 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
       movimientos.push(movimiento)
     }
   }
+  // diferencia por venta
+  if (documento.diferenciaVenta > 0) {
+    const cuenta = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'planCuenta',
+      filters: {
+        _id: ajustesVentas.cuentaDiferenciaVentasId
+      }
+    })
+    if (cuenta) {
+      const movimiento = {
+        descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
+        comprobanteId: comprobante._id,
+        periodoId: comprobante.periodoId,
+        fecha: momentDate(ajustesSistema.timeZone, ventaInfo.fecha).toDate(),
+        fechaCreacion: moment(fechaCreacion).add(addSeconds, 'milliseconds').toDate(),
+        docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
+        documento: {
+          docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`
+        },
+        cuentaId: cuenta._id,
+        cuentaCodigo: cuenta.codigo,
+        cuentaNombre: cuenta.descripcion,
+        debe: 0,
+        haber: Math.abs(documento.diferenciaVenta)
+      }
+      movimientos.push(movimiento)
+    }
+  }
+  if (['Nota de crédito', 'Devolución'].includes(documento.tipoDocumento)) {
+    movimientos = movimientos.map(e => ({
+      ...e,
+      debe: e.haber,
+      haber: e.debe
+    }))
+  }
+  movimientos = movimientos.sort((a, b) => b.debe > 0 ? 1 : -1).map(e => {
+    addSeconds += 2
+    return {
+      ...e,
+      fechaCreacion: moment(fechaCreacion).add(addSeconds, 'milliseconds').toDate()
+    }
+  })
   await createMovimientos({
     clienteId,
     movimientos
@@ -1925,7 +1999,8 @@ const crearDespachos = async ({ clienteId, ventaInfo, documentoId, facturaAsocia
       zona: ventaInfo.zonaId ? new ObjectId(ventaInfo.zonaId) : null,
       estado,
       numeroMovimiento: contador,
-      creadoPor: new ObjectId(creadoPor)
+      creadoPor: new ObjectId(creadoPor),
+      fechaCreacion: moment().toDate()
     }
     const movimiento = await createItemSD({
       nameCollection: 'movimientos',
@@ -1946,7 +2021,8 @@ const crearDespachos = async ({ clienteId, ventaInfo, documentoId, facturaAsocia
         nombre: e.nombre,
         observacion: e.observacion,
         unidad: e.unidad,
-        cantidad: e.cantidad
+        cantidad: e.cantidad,
+        fechaCreacion: moment().toDate()
       }
     })
     if (detalles.length < 1) return
@@ -1956,15 +2032,117 @@ const crearDespachos = async ({ clienteId, ventaInfo, documentoId, facturaAsocia
       items: detalles
     })
     if (estado === 'Despachado') {
-      console.log('crearMovimientoInventario')
-      await crearMovimientoInventario({ clienteId, ventaInfo, documentoId, facturaAsociada, creadoPor, movimientoId: movimiento.insertedId })
+      await crearMovimientoInventario({
+        clienteId,
+        ventaInfo,
+        documentoId,
+        facturaAsociada,
+        notaEntregaAsociada,
+        creadoPor,
+        movimientoId: movimiento.insertedId,
+        almacenOrigenId: ventaInfo.almacenId ? new ObjectId(ventaInfo.almacenId) : null,
+        almacenDestinoId: null,
+        tipoMovimiento: 'salida',
+        fecha: ventaInfo.fecha
+      })
     }
   } catch (e) {
     console.log('error despacho de ventas: ', e)
   }
 }
 
-const crearMovimientoInventario = async ({ clienteId, documentoId, facturaAsociada, creadoPor, movimientoId }) => {
+const crearDespachosDevolucion = async ({ clienteId, ventaInfo, documentoId, facturaAsociada = '', notaEntregaAsociada = '', creadoPor }) => {
+  const estado = 'Pendiente'
+  const existeProducto = ventaInfo.productos.some(e => e.tipo === 'producto' && e.tipoAjuste === 'cantidad')
+  if (!existeProducto) return
+  try {
+    let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'devolucion-ventas' } }))?.contador
+    if (contador) ++contador
+    if (!contador) contador = 1
+    const almacenDevoluciones = await getItemSD({
+      nameCollection: 'almacenes',
+      enviromentClienteId: clienteId,
+      filters: { nombre: 'Devoluciones' }
+    })
+    if (!almacenDevoluciones) return
+    const movimientoDefault = {
+      fecha: moment(ventaInfo.fecha).toDate(),
+      fechaVencimiento: (ventaInfo.totalPagado.diasCredito
+        ? moment(ventaInfo.fecha).add(ventaInfo.totalPagado.diasCredito, 'days').toDate()
+        : null
+      ),
+      tipo: 'devolucion-ventas',
+      documentoId,
+      facturaAsociada,
+      notaEntregaAsociada,
+      tipoDocumento: ventaInfo.documento,
+      almacenOrigen: null,
+      almacenDestino: almacenDevoluciones._id,
+      zona: ventaInfo.zonaId ? new ObjectId(ventaInfo.zonaId) : null,
+      estado,
+      numeroMovimiento: contador,
+      creadoPor: new ObjectId(creadoPor),
+      fechaCreacion: moment().toDate()
+    }
+    const movimiento = await createItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      item: movimientoDefault
+    })
+    upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'devolucion-ventas' }, update: { $set: { contador } } })
+
+    const detalles = ventaInfo.productos.filter(e => e.tipo === 'producto' && e.tipoAjuste === 'cantidad').map(e => {
+      return {
+        movimientoId: movimiento.insertedId,
+        documentoId,
+        facturaAsociada,
+        tipoDocumento: ventaInfo.documento,
+        productoId: new ObjectId(e._id),
+        codigo: e.codigo,
+        descripcion: e.descripcion,
+        nombre: e.nombre,
+        observacion: e.observacion,
+        unidad: e.unidad,
+        cantidad: e.cantidad,
+        fechaCreacion: moment().toDate()
+      }
+    })
+    if (detalles.length < 1) return
+    await createManyItemsSD({
+      nameCollection: 'detalleMovimientos',
+      enviromentClienteId: clienteId,
+      items: detalles
+    })
+    await crearMovimientoInventario({
+      clienteId,
+      ventaInfo,
+      documentoId,
+      facturaAsociada,
+      notaEntregaAsociada,
+      creadoPor,
+      movimientoId: movimiento.insertedId,
+      almacenOrigenId: null,
+      almacenDestinoId: almacenDevoluciones._id,
+      tipoMovimiento: 'entrada',
+      fecha: ventaInfo.fecha
+    })
+  } catch (e) {
+    console.log('error despacho de ventas: ', e)
+  }
+}
+
+const crearMovimientoInventario = async ({
+  clienteId,
+  documentoId,
+  facturaAsociada = '',
+  notaEntregaAsociada = '',
+  creadoPor,
+  movimientoId,
+  almacenOrigenId,
+  almacenDestinoId,
+  tipoMovimiento,
+  fecha
+}) => {
   const tieneContabilidad = await hasContabilidad({ clienteId })
   const detalleMovimientos = await getCollectionSD({
     enviromentClienteId: clienteId,
@@ -1984,7 +2162,7 @@ const crearMovimientoInventario = async ({ clienteId, documentoId, facturaAsocia
   const zona = await getItemSD({ nameCollection: 'ventaszonas', enviromentClienteId: clienteId, filters: { _id: new ObjectId(documento.zonaId) } })
   let comprobante
 
-  const mesPeriodo = momentDate(ajustesSistema.timeZone, documento.fecha).format('YYYY/MM')
+  const mesPeriodo = momentDate(ajustesSistema.timeZone, fecha).format('YYYY/MM')
   try {
     comprobante = await getOrCreateComprobante(clienteId,
       {
@@ -2001,16 +2179,19 @@ const crearMovimientoInventario = async ({ clienteId, documentoId, facturaAsocia
   // if (!comprobante) return
 
   const detallesCrear = []
-  const asientosContables = []
+  let asientosContables = []
   // si la contabilidad falla, se quita todo lo de crear contabilidad para que no se cree mal
   // si la contabilidad falla igual debe hacerse la venta
   let doContabilidad = true
+  const movimientosDebePorCategoria = {}
+  const movimientosHaberPorCategoria = {}
   for (const detalle of detalleMovimientos) {
+    let categoriaIdProducto = ''
     const datosMovivientoPorProducto = await agreggateCollectionsSD({
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { productoId: new ObjectId(detalle.productoId), almacenId: new ObjectId(documento.almacenId) } },
+        { $match: { productoId: new ObjectId(detalle.productoId), almacenId: almacenOrigenId || almacenDestinoId } },
         {
           $group: {
             _id: {
@@ -2058,14 +2239,14 @@ const crearMovimientoInventario = async ({ clienteId, documentoId, facturaAsocia
     if (doContabilidad && tieneContabilidad && comprobante && ajustesVentas?.codigoComprobanteFacturacion) {
       try {
         const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(detalle.productoId) } })
+        categoriaIdProducto = producto.categoria
         const categoriaPorAlmacen = await getItemSD({
           nameCollection: 'categoriaPorAlmacen',
           enviromentClienteId: clienteId,
-          filters: { categoriaId: producto.categoria, almacenId: new ObjectId(documento.almacenId) }
+          filters: { categoriaId: producto.categoria, almacenId: almacenOrigenId || almacenDestinoId }
         })
         const cuentaInventario = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacen.cuentaId } })
         const cuentaCostoInventario = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacen.cuentaCostoVentaId } })
-
         asientoContableHaber = {
           cuentaId: new ObjectId(cuentaCostoInventario._id),
           cuentaCodigo: cuentaCostoInventario.codigo,
@@ -2073,13 +2254,15 @@ const crearMovimientoInventario = async ({ clienteId, documentoId, facturaAsocia
           comprobanteId: comprobante._id,
           periodoId: comprobante.periodoId,
           descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
-          fecha: moment(documento.fecha).toDate(),
+          fecha: moment(fecha).toDate(),
           fechaCreacion: moment().toDate(),
           docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
           documento: {
             docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`,
-            docFecha: moment(documento.fecha).toDate()
-          }
+            docFecha: moment(fecha).toDate()
+          },
+          debe: 0,
+          haber: 0
         }
         asientoContableDebe = {
           cuentaId: new ObjectId(cuentaInventario._id),
@@ -2088,13 +2271,15 @@ const crearMovimientoInventario = async ({ clienteId, documentoId, facturaAsocia
           comprobanteId: comprobante._id,
           periodoId: comprobante.periodoId,
           descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
-          fecha: moment(documento.fecha).toDate(),
+          fecha: moment(fecha).toDate(),
           fechaCreacion: moment().toDate(),
           docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
           documento: {
             docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`,
-            docFecha: moment(documento.fecha).toDate()
-          }
+            docFecha: moment(fecha).toDate()
+          },
+          debe: 0,
+          haber: 0
         }
       } catch (e) {
         console.log('error contabilidad ventas mov inventario', e.message)
@@ -2108,18 +2293,22 @@ const crearMovimientoInventario = async ({ clienteId, documentoId, facturaAsocia
         costoProductoTotal += movimientos.costoPromedio * Number(movimientos.cantidad)
         detallesCrear.push({
           // detalles de la venta
+          documentoId: documento._id,
+          tipoDocumento: documento.tipoDocumento,
+          facturaAsociada,
+          notaEntregaAsociada,
           productoId: new ObjectId(detalle.productoId),
           movimientoId: new ObjectId(detalle.movimientoId),
           cantidad: Number(movimientos.cantidad),
-          almacenId: new ObjectId(documento.almacenId),
-          almacenOrigen: new ObjectId(documento.almacenId),
-          almacenDestino: null,
+          almacenId: almacenOrigenId || almacenDestinoId,
+          almacenOrigen: almacenOrigenId,
+          almacenDestino: almacenDestinoId,
           tipo: 'movimiento',
-          tipoMovimiento: 'salida',
+          tipoMovimiento,
           lote: movimientos.lote,
           fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
           fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
-          fechaMovimiento: moment(documento.fecha).toDate(),
+          fechaMovimiento: moment(fecha).toDate(),
           costoUnitario: movimientos.costoUnitario,
           costoPromedio: movimientos.costoPromedio,
           creadoPor: new ObjectId(creadoPor)
@@ -2130,18 +2319,22 @@ const crearMovimientoInventario = async ({ clienteId, documentoId, facturaAsocia
       if (detalle.cantidad < movimientos.cantidad) {
         costoProductoTotal += movimientos.costoPromedio * detalle.cantidad
         detallesCrear.push({
+          documentoId: documento._id,
+          tipoDocumento: documento.tipoDocumento,
+          facturaAsociada,
+          notaEntregaAsociada,
           productoId: new ObjectId(detalle.productoId),
           movimientoId: new ObjectId(detalle.movimientoId),
           cantidad: Number(detalle.cantidad),
-          almacenId: new ObjectId(documento.almacenId),
-          almacenOrigen: new ObjectId(documento.almacenId),
-          almacenDestino: null,
+          almacenId: almacenOrigenId || almacenDestinoId,
+          almacenOrigen: almacenOrigenId,
+          almacenDestino: almacenDestinoId,
           tipo: 'movimiento',
-          tipoMovimiento: 'salida',
+          tipoMovimiento,
           lote: movimientos.lote,
           fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
           fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
-          fechaMovimiento: moment(documento.fecha).toDate(),
+          fechaMovimiento: moment(fecha).toDate(),
           costoUnitario: movimientos.costoUnitario,
           costoPromedio: movimientos.costoPromedio,
           creadoPor: new ObjectId(creadoPor)
@@ -2150,13 +2343,45 @@ const crearMovimientoInventario = async ({ clienteId, documentoId, facturaAsocia
         break
       }
     }
-    asientoContableHaber.debe = 0
+    if (tieneContabilidad && doContabilidad) {
+    // si exxiste debe, existe el haber tambien
+      let debeKey = 'debe'
+      let haberKey = 'haber'
+      if (['Nota de crédito', 'Devolución'].includes(documento.tipoDocumento)) {
+        debeKey = 'haber'
+        haberKey = 'debe'
+      }
+      if (movimientosDebePorCategoria[categoriaIdProducto]) {
+        movimientosDebePorCategoria[categoriaIdProducto][debeKey] += costoProductoTotal
+        movimientosHaberPorCategoria[categoriaIdProducto][haberKey] += costoProductoTotal
+      } else {
+        movimientosDebePorCategoria[categoriaIdProducto] = asientoContableDebe
+        movimientosDebePorCategoria[categoriaIdProducto][debeKey] = costoProductoTotal
+
+        movimientosHaberPorCategoria[categoriaIdProducto] = asientoContableHaber
+        movimientosHaberPorCategoria[categoriaIdProducto][haberKey] = costoProductoTotal
+      }
+    }
+    /* asientoContableHaber.debe = 0
     asientoContableHaber.haber = costoProductoTotal
     asientoContableDebe.debe = costoProductoTotal
     asientoContableDebe.haber = 0
-    asientosContables.push(asientoContableDebe, asientoContableHaber)
+    asientosContables.push(asientoContableDebe, asientoContableHaber) */
   }
   if (tieneContabilidad && doContabilidad) {
+    // si exxiste debe, existe el haber tambien
+    for (const categoriaId in movimientosDebePorCategoria) {
+      asientosContables.push(movimientosDebePorCategoria[categoriaId], movimientosHaberPorCategoria[categoriaId])
+    }
+    let addSeconds = 1
+    const fechaCreacion = moment()
+    asientosContables = asientosContables.sort((a, b) => b.debe > 0 ? 1 : -1).map(e => {
+      addSeconds += 2
+      return {
+        ...e,
+        fechaCreacion: moment(fechaCreacion).add(addSeconds, 'milliseconds').toDate()
+      }
+    })
     createManyItemsSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,

@@ -7,6 +7,7 @@ import { subDominioName } from '../../../constants.js'
 export const getCajas = async (req, res) => {
   const { clienteId } = req.body
   try {
+    const cuentasColName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
     const sucursalNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventassucursales' })
     const cajas = await agreggateCollectionsSD({
       nameCollection: 'ventascajas',
@@ -24,6 +25,20 @@ export const getCajas = async (req, res) => {
           }
         },
         { $unwind: { path: '$sucursal', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: cuentasColName,
+            localField: 'cuentaId',
+            foreignField: '_id',
+            as: 'cuentaData'
+          }
+        },
+        { $unwind: { path: '$cuentaData', preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            cuenta: '$cuentaData.codigo'
+          }
+        }
       ]
     })
     return res.status(200).json({ cajas })

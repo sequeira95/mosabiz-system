@@ -5461,6 +5461,7 @@ export const getDespachosVentas = async (req, res) => {
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: { tipo: 'despacho-ventas', estado: filters.estado || 'Pendiente' } },
+        { $sort: { fechaCreacion: -1 } },
         {
           $lookup: {
             from: documentosCollection,
@@ -5492,6 +5493,7 @@ export const getDespachosVentas = async (req, res) => {
           $project: {
             _id: 1,
             tipo: 1,
+            fechaCreacion: 1,
             documentoId: 1,
             numeroMovimiento: 1,
             tipoDocumento: 1,
@@ -5507,10 +5509,10 @@ export const getDespachosVentas = async (req, res) => {
       ]
     })
     const count = await agreggateCollectionsSD({
-      nameCollection: 'compras',
+      nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipo: 'recepcion' } },
+        { $match: { tipo: 'despacho-ventas', estado: filters.estado || 'Pendiente' } },
         { $count: 'total' }
       ]
     })

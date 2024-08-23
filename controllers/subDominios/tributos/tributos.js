@@ -2971,12 +2971,11 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
         totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
         isExportacion: documento.isExportacion || false,
-        ownLogo: sucursal.logo || clienteOwn.logo,
-        ownRazonSocial: sucursal.nombre || clienteOwn.razonSocial,
-        ownDireccion: sucursal.direccion || clienteOwn.direccion,
-        ownDocumentoIdentidad: sucursal.rif || `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
+        ownLogo: sucursal?.logo || clienteOwn?.logo,
+        ownRazonSocial: sucursal?.nombre || clienteOwn?.razonSocial,
+        ownDireccion: sucursal?.direccion || clienteOwn?.direccion,
+        ownDocumentoIdentidad: sucursal?.rif || `${clienteOwn?.tipoDocumento}-${clienteOwn?.documentoIdentidad}`
       }
-      console.log({ venta })
       documentosFacturas.push(venta)
       if (tieneContabilidad) {
         let tercero = null
@@ -3409,10 +3408,10 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
         totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
         isExportacion: documento.isExportacion || false,
-        ownLogo: sucursal.logo || clienteOwn.logo,
-        ownRazonSocial: sucursal.nombre || clienteOwn.razonSocial,
-        ownDireccion: sucursal.direccion || clienteOwn.direccion,
-        ownDocumentoIdentidad: sucursal.rif || `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
+        ownLogo: sucursal?.logo || clienteOwn?.logo,
+        ownRazonSocial: sucursal?.nombre || clienteOwn?.razonSocial,
+        ownDireccion: sucursal?.direccion || clienteOwn?.direccion,
+        ownDocumentoIdentidad: sucursal?.rif || `${clienteOwn?.tipoDocumento}-${clienteOwn?.documentoIdentidad}`
       }
       documentosFiscales.push(venta)
       if (tieneContabilidad && venta.estado !== 'anulado') {
@@ -3840,10 +3839,10 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
         totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
         totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
-        ownLogo: sucursal.logo || clienteOwn.logo,
-        ownRazonSocial: sucursal.nombre || clienteOwn.razonSocial,
-        ownDireccion: sucursal.direccion || clienteOwn.direccion,
-        ownDocumentoIdentidad: sucursal.rif || `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
+        ownLogo: sucursal?.logo || clienteOwn?.logo,
+        ownRazonSocial: sucursal?.nombre || clienteOwn?.razonSocial,
+        ownDireccion: sucursal?.direccion || clienteOwn?.direccion,
+        ownDocumentoIdentidad: sucursal?.rif || `${clienteOwn?.tipoDocumento}-${clienteOwn?.documentoIdentidad}`
       }
       if (facturaAfectada) {
         const updatePeriodoFactura = {

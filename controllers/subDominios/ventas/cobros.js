@@ -1041,7 +1041,7 @@ export const createPagoOrdenes = async (req, res) => {
     }
     if (abonos[0]) {
       for (const abono of abonos) {
-        // const asientosVariacionCambiaria = []
+        const asientosVariacionCambiaria = []
         const documento = (await agreggateCollectionsSD({
           nameCollection: 'documentosFiscales',
           enviromentClienteId: clienteId,
@@ -1058,19 +1058,19 @@ export const createPagoOrdenes = async (req, res) => {
         const diferenciaTotal = Number((Number(totalDivisa.toFixed(2)) - Number(totalPrincipalAux.toFixed(2))).toFixed(2))
         console.log({ totalDivisa, totalPrincipalAux, diferenciaTotal, totalSecundarioAux, tasaVerify })
         if (tasaVerify !== tasaDia[documento.monedaSecundaria]) {
-          /* if (tieneContabilidad) {
+          if (tieneContabilidad) {
             if (diferenciaTotal > 0) {
               const cuentaVariacion = await getItemSD({
                 nameCollection: 'planCuenta',
                 enviromentClienteId: clienteId,
-                filters: { _id: new ObjectId(ajusteVenta.cuentaVariacionCambiariaGastos) }
+                filters: { _id: new ObjectId(ajusteVenta.cuentaVariacionCambiaria) }
               })
               console.log({ diferenciaTotal })
               // Registrar la diferencia contable con la cuenta que se encuentra en ajustes por el debe y el por pagar en el haber
               asientosVariacionCambiaria.push({
-                cuentaId: new ObjectId(cuentaVariacion._id),
-                cuentaCodigo: cuentaVariacion.codigo,
-                cuentaNombre: cuentaVariacion.descripcion,
+                cuentaId: new ObjectId(cuentaPorCobrar._id),
+                cuentaCodigo: cuentaPorCobrar.codigo,
+                cuentaNombre: cuentaPorCobrar.descripcion,
                 comprobanteId: new ObjectId(comprobante._id),
                 periodoId: new ObjectId(periodo._id),
                 descripcion: `AJUSTE VARIACIÓN CAMBIARIA${documento.tipoDocumento}-${documento.numeroFactura}`,
@@ -1078,20 +1078,17 @@ export const createPagoOrdenes = async (req, res) => {
                 debe: Number(diferenciaTotal.toFixed(2)),
                 haber: 0,
                 fechaCreacion: moment().toDate(),
+                terceroId: new ObjectId(terceroCuenta._id),
+                terceroNombre: terceroCuenta.nombre,
                 docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
                 documento: {
                   docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
                   docFecha: moment(fechaPago).toDate()
                 }
-                /* fechaDolar: documento.monedaSecundaria !== documento.moneda ? documento.fechaTasa : null,
-                cantidad: documento.monedaSecundaria !== documento.moneda ? documento.ivaSecundaria : null,
-                monedasUsar: documento.monedaSecundaria !== documento.moneda ? documento.monedaSecundaria : null,
-                tasa: documento.monedaSecundaria !== documento.moneda ? documento.tasaDia : null,
-                monedaPrincipal: documento.moneda *
               }, {
-                cuentaId: new ObjectId(cuentaProveedor._id),
-                cuentaCodigo: cuentaProveedor.codigo,
-                cuentaNombre: cuentaProveedor.descripcion,
+                cuentaId: new ObjectId(cuentaVariacion._id),
+                cuentaCodigo: cuentaVariacion.codigo,
+                cuentaNombre: cuentaVariacion.descripcion,
                 comprobanteId: new ObjectId(comprobante._id),
                 periodoId: new ObjectId(periodo._id),
                 descripcion: `AJUSTE VARIACIÓN CAMBIARIA${documento.tipoDocumento}-${documento.numeroFactura}`,
@@ -1099,8 +1096,6 @@ export const createPagoOrdenes = async (req, res) => {
                 debe: 0,
                 haber: Number(diferenciaTotal.toFixed(2)),
                 fechaCreacion: moment().toDate(),
-                terceroId: new ObjectId(terceroProveedor._id),
-                terceroNombre: terceroProveedor.nombre,
                 docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
                 documento: {
                   docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
@@ -1117,28 +1112,10 @@ export const createPagoOrdenes = async (req, res) => {
               const cuentaVariacion = await getItemSD({
                 nameCollection: 'planCuenta',
                 enviromentClienteId: clienteId,
-                filters: { _id: new ObjectId(ajusteVenta.cuentaVariacionCambiaria) }
+                filters: { _id: new ObjectId(ajusteVenta.cuentaVariacionCambiariaGastos) }
               })
               // hacer lo contrario de arriba
               asientosVariacionCambiaria.push({
-                cuentaId: new ObjectId(cuentaProveedor._id),
-                cuentaCodigo: cuentaProveedor.codigo,
-                cuentaNombre: cuentaProveedor.descripcion,
-                comprobanteId: new ObjectId(comprobante._id),
-                periodoId: new ObjectId(periodo._id),
-                descripcion: `AJUSTE VARIACIÓN CAMBIARIA${documento.tipoDocumento}-${documento.numeroFactura}`,
-                fecha: moment(fechaPago).toDate(),
-                debe: Number(diferenciaTotal.toFixed(2)),
-                haber: 0,
-                fechaCreacion: moment().toDate(),
-                terceroId: new ObjectId(terceroProveedor._id),
-                terceroNombre: terceroProveedor.nombre,
-                docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
-                documento: {
-                  docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
-                  docFecha: moment(fechaPago).toDate()
-                }
-              }, {
                 cuentaId: new ObjectId(cuentaVariacion._id),
                 cuentaCodigo: cuentaVariacion.codigo,
                 cuentaNombre: cuentaVariacion.descripcion,
@@ -1146,19 +1123,32 @@ export const createPagoOrdenes = async (req, res) => {
                 periodoId: new ObjectId(periodo._id),
                 descripcion: `AJUSTE VARIACIÓN CAMBIARIA${documento.tipoDocumento}-${documento.numeroFactura}`,
                 fecha: moment(fechaPago).toDate(),
-                debe: 0,
-                haber: Number(diferenciaTotal.toFixed(2)),
+                debe: Number(diferenciaTotal.toFixed(2)),
+                haber: 0,
                 fechaCreacion: moment().toDate(),
                 docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
                 documento: {
                   docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
                   docFecha: moment(fechaPago).toDate()
                 }
-                /* fechaDolar: documento.monedaSecundaria !== documento.moneda ? documento.fechaTasa : null,
-                cantidad: documento.monedaSecundaria !== documento.moneda ? documento.ivaSecundaria : null,
-                monedasUsar: documento.monedaSecundaria !== documento.moneda ? documento.monedaSecundaria : null,
-                tasa: documento.monedaSecundaria !== documento.moneda ? documento.tasaDia : null,
-                monedaPrincipal: documento.moneda *
+              }, {
+                cuentaId: new ObjectId(cuentaPorCobrar._id),
+                cuentaCodigo: cuentaPorCobrar.codigo,
+                cuentaNombre: cuentaPorCobrar.descripcion,
+                comprobanteId: new ObjectId(comprobante._id),
+                periodoId: new ObjectId(periodo._id),
+                descripcion: `AJUSTE VARIACIÓN CAMBIARIA${documento.tipoDocumento}-${documento.numeroFactura}`,
+                fecha: moment(fechaPago).toDate(),
+                debe: 0,
+                haber: Number(diferenciaTotal.toFixed(2)),
+                fechaCreacion: moment().toDate(),
+                terceroId: new ObjectId(terceroCuenta._id),
+                terceroNombre: terceroCuenta.nombre,
+                docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                documento: {
+                  docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                  docFecha: moment(fechaPago).toDate()
+                }
               })
               await createManyItemsSD({
                 nameCollection: 'detallesComprobantes',
@@ -1166,12 +1156,12 @@ export const createPagoOrdenes = async (req, res) => {
                 items: asientosVariacionCambiaria
               })
             }
-          } */
+          }
         }
         await updateItemSD({
           nameCollection: 'documentosFiscales',
           enviromentClienteId: clienteId,
-          filters: { _id: new ObjectId(abono.compraId) },
+          filters: { _id: new ObjectId(abono.documentoId) },
           update: {
             $set: {
               totalPrincipalAux: totalDivisa - abono.abono,
@@ -1183,7 +1173,7 @@ export const createPagoOrdenes = async (req, res) => {
         if (Number(abono.porPagar.toFixed(2)) === Number(abono.abono.toFixed(2))) {
           updateCompraPagada.push({
             updateOne: {
-              filter: { _id: new ObjectId(abono.compraId) },
+              filter: { _id: new ObjectId(abono.documentoId) },
               update: {
                 $set: {
                   estado: 'pagada',
@@ -1214,7 +1204,7 @@ export const createPagoOrdenes = async (req, res) => {
           creadoPor: new ObjectId(req.uid)
         })
         createHistorial.push({
-          idMovimiento: new ObjectId(abono.compraId),
+          idMovimiento: new ObjectId(abono.documentoId),
           categoria: 'creado',
           tipo: 'Pago',
           fecha: moment().toDate(),

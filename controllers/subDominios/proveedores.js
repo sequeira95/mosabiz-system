@@ -165,7 +165,7 @@ export const saveProveedor = async (req, res) => {
 export const saveToArray = async (req, res) => {
   const { clienteId, dataProveedores } = req.body
   try {
-    if (!dataProveedores[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de proveedores' })
+    if (!dataProveedores[0]) throw new Error('Hubo un error al momento de procesar la lista de proveedores')
     const verifyProveedores = await agreggateCollectionsSD({
       nameCollection: 'proveedores',
       enviromentClienteId: clienteId,
@@ -181,7 +181,7 @@ export const saveToArray = async (req, res) => {
         { $match: { verifyDocumento: { $in: dataProveedores.map(e => `${e.tipoDocumento}-${e.documentoIdentidad}`) } } }
       ]
     })
-    if (verifyProveedores[0]) return res.status(400).json({ error: 'Existen proveedores que ya se encuentran registrados' })
+    if (verifyProveedores[0]) throw new Error('Existen proveedores que ya se encuentran registrados')
     const bulkWrite = dataProveedores.map(e => {
       return {
         ...e,

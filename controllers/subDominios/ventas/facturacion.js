@@ -179,7 +179,7 @@ export const getDetallePedidoVenta = async (req, res) => {
     const prodtuctosNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
-    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones'] } } })
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Transito', 'Auditoria', 'Devoluciones'] } } })
     const matchAlmacen = almacenId ? { almacenId: new ObjectId(almacenId) } : { almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } }
 
     const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
@@ -859,7 +859,7 @@ export const getProductos = async (req, res) => {
   try {
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
-    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones'] } } })
+    const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Transito', 'Auditoria', 'Devoluciones'] } } })
     const matchAlmacen = almacenId ? { almacenId: new ObjectId(almacenId) } : { almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } }
     const productos = await agreggateCollectionsSD({
       nameCollection: 'productos',
@@ -1338,7 +1338,6 @@ const handleVentasND = async ({ clienteId, ventaInfo, creadoPor }) => {
 }
 
 const handleVentasNC = async ({ clienteId, ventaInfo, creadoPor }) => {
-  const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
   ventaInfo.productos = ventaInfo.productos.filter(e => {
     return !!e.precioUnitarioNCEditable || !!e.cantidadNC
   }).map(e => {
@@ -1358,6 +1357,21 @@ const handleVentasNC = async ({ clienteId, ventaInfo, creadoPor }) => {
       precioTotal: valorAjustado * cantidad
     }
   })
+  // validar que existe algun movimiento de producto por almacen para el documento asociado
+  const existeProducto = ventaInfo.productos.some(e => e.tipo === 'producto' && e.tipoAjuste === 'cantidad')
+  if (existeProducto) {
+    const movimientoOriginal = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'productosPorAlmacen',
+      filters: {
+        documentoId: ventaInfo.facturaId ? new ObjectId(ventaInfo.facturaId) : 'null',
+        tipo: 'movimiento',
+        tipoMovimiento: 'salida'
+      }
+    })
+    if (!movimientoOriginal?._id) throw new Error('Los productos del documento asociado no ha sido despachado')
+  }
+  const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
   await createDetalleDocumento({ clienteId, ventaInfo, documentoId: newFactura.insertedId })
   await createPagosDocumento({ clienteId, ventaInfo, documentoId: newFactura.insertedId, creadoPor })
   try {
@@ -1370,7 +1384,8 @@ const handleVentasNC = async ({ clienteId, ventaInfo, creadoPor }) => {
       clienteId,
       ventaInfo,
       documentoId: newFactura.insertedId,
-      creadoPor
+      creadoPor,
+      facturaAsociada: ventaInfo.facturaId ? new ObjectId(ventaInfo.facturaId) : ''
     })
   }
   return { documentoId: newFactura.insertedId }
@@ -1409,7 +1424,6 @@ const handleVentasPresupuestos = async ({ clienteId, ventaInfo, creadoPor }) => 
 }
 
 const handleVentasDevolucion = async ({ clienteId, ventaInfo, creadoPor }) => {
-  const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
   ventaInfo.productos = ventaInfo.productos.filter(e => {
     return !!e.cantidadNC
   }).map(e => {
@@ -1428,6 +1442,21 @@ const handleVentasDevolucion = async ({ clienteId, ventaInfo, creadoPor }) => {
       precioTotal: valorAjustado * cantidad
     }
   })
+  // validar que existe algun movimiento de producto por almacen para el documento asociado
+  const existeProducto = ventaInfo.productos.some(e => e.tipo === 'producto' && e.tipoAjuste === 'cantidad')
+  if (existeProducto) {
+    const movimientoOriginal = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'productosPorAlmacen',
+      filters: {
+        documentoId: ventaInfo.notaEntregaId ? new ObjectId(ventaInfo.notaEntregaId) : 'null',
+        tipo: 'movimiento',
+        tipoMovimiento: 'salida'
+      }
+    })
+    if (!movimientoOriginal?._id) throw new Error('Los productos del documento asociado no ha sido despachado')
+  }
+  const newFactura = await createDocumento({ clienteId, ventaInfo, creadoPor })
   await createDetalleDocumento({ clienteId, ventaInfo, documentoId: newFactura.insertedId })
   await createPagosDocumento({ clienteId, ventaInfo, documentoId: newFactura.insertedId, creadoPor })
   try {
@@ -1440,7 +1469,8 @@ const handleVentasDevolucion = async ({ clienteId, ventaInfo, creadoPor }) => {
       clienteId,
       ventaInfo,
       documentoId: newFactura.insertedId,
-      creadoPor
+      creadoPor,
+      notaEntregaAsociada: ventaInfo.notaEntregaId ? new ObjectId(ventaInfo.notaEntregaId) : ''
     })
   }
   return { documentoId: newFactura.insertedId }
@@ -1955,6 +1985,71 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
       movimientos.push(movimiento)
     }
   }
+  /*
+    try {
+      const existeServicios = ventaInfo.productos.some(e => e.tipo === 'venta')
+      if (existeServicios) {
+        const zona = await getItemSD({ nameCollection: 'ventaszonas', enviromentClienteId: clienteId, filters: { _id: new ObjectId(documento.zonaId) } })
+        const servicios = ventaInfo.productos.filter(e => e.tipo === 'venta')
+        for (const servicio of servicios) {
+          const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(servicio._id) } })
+          const categoriaIdProducto = producto.categoria
+          const categoriaPorAlmacen = await getItemSD({
+            nameCollection: 'categorias',
+            enviromentClienteId: clienteId,
+            filters: { categoriaId: producto.categoria, tipo: 'servicios' }
+          })
+          const cuentaInventario = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacen.cuentaId } })
+          const asientoContableDebe = {
+            cuentaId: new ObjectId(cuentaCostoInventario._id),
+            cuentaCodigo: cuentaCostoInventario.codigo,
+            cuentaNombre: cuentaCostoInventario.descripcion,
+            comprobanteId: comprobante._id,
+            periodoId: comprobante.periodoId,
+            descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
+            fecha: moment(ventaInfo.fecha).toDate(),
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
+            documento: {
+              docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`,
+              docFecha: moment(ventaInfo.fecha).toDate()
+            },
+            debe: 0,
+            haber: 0
+          }
+          const asientoContableHaber = {
+            cuentaId: new ObjectId(cuentaInventario._id),
+            cuentaCodigo: cuentaInventario.codigo,
+            cuentaNombre: cuentaInventario.descripcion,
+            comprobanteId: comprobante._id,
+            periodoId: comprobante.periodoId,
+            descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
+            fecha: moment(ventaInfo.fecha).toDate(),
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
+            documento: {
+              docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`,
+              docFecha: moment(ventaInfo.fecha).toDate()
+            },
+            debe: 0,
+            haber: 0
+          }
+          if (movimientosDebePorCategoria[categoriaIdProducto]) {
+            movimientosDebePorCategoria[categoriaIdProducto].debe += costoProductoTotal
+            movimientosHaberPorCategoria[categoriaIdProducto].haber += costoProductoTotal
+          } else {
+            movimientosDebePorCategoria[categoriaIdProducto] = asientoContableDebe
+            movimientosDebePorCategoria[categoriaIdProducto].debe = costoProductoTotal
+
+            movimientosHaberPorCategoria[categoriaIdProducto] = asientoContableHaber
+            movimientosHaberPorCategoria[categoriaIdProducto].haber = costoProductoTotal
+          }
+        }
+      }
+    } catch (e) {
+      console.log(e)
+    }
+  */
   if (['Nota de crédito', 'Devolución'].includes(documento.tipoDocumento)) {
     movimientos = movimientos.map(e => ({
       ...e,
@@ -2113,7 +2208,7 @@ const crearDespachosDevolucion = async ({ clienteId, ventaInfo, documentoId, fac
       enviromentClienteId: clienteId,
       items: detalles
     })
-    await crearMovimientoInventario({
+    /* await crearMovimientoInventario({
       clienteId,
       ventaInfo,
       documentoId,
@@ -2125,6 +2220,159 @@ const crearDespachosDevolucion = async ({ clienteId, ventaInfo, documentoId, fac
       almacenDestinoId: almacenDevoluciones._id,
       tipoMovimiento: 'entrada',
       fecha: ventaInfo.fecha
+    }) */
+
+    const tieneContabilidad = await hasContabilidad({ clienteId })
+    const documento = await getItemSD({ enviromentClienteId: clienteId, nameCollection: 'documentosFiscales', filters: { _id: documentoId } })
+    if (!documento) return
+    const infoDoc = documentosVentas.find(e => e.value === documento.tipoDocumento)
+    if (!infoDoc) return
+    const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
+    const ajustesVentas = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'ventas' } })
+
+    // if (!ajustesVentas?.codigoComprobanteFacturacion) return
+    const zona = await getItemSD({ nameCollection: 'ventaszonas', enviromentClienteId: clienteId, filters: { _id: new ObjectId(documento.zonaId) } })
+    let comprobante
+    if (tieneContabilidad) {
+      const mesPeriodo = momentDate(ajustesSistema.timeZone, ventaInfo.fecha).format('YYYY/MM')
+      try {
+        comprobante = await getOrCreateComprobante(clienteId,
+          {
+            mesPeriodo,
+            codigo: ajustesVentas.codigoComprobanteFacturacion
+          }, {
+            nombre: 'Ventas'
+          },
+          true
+        )
+      } catch (e) {
+        console.log('error al crear comprobante en movimientos despachos de ventas', e)
+      }
+    }
+    const devoluciones = []
+    let asientosContables = []
+    const movimientosDebePorCategoria = {}
+    const movimientosHaberPorCategoria = {}
+    for (const e of ventaInfo.productos.filter(e => e.tipo === 'producto' && e.tipoAjuste === 'cantidad')) {
+      const movimientoOriginal = await getItemSD({
+        enviromentClienteId: clienteId,
+        nameCollection: 'productosPorAlmacen',
+        filters: {
+          documentoId: facturaAsociada || notaEntregaAsociada || 'null',
+          productoId: new ObjectId(e._id),
+          tipo: 'movimiento',
+          tipoMovimiento: 'salida'
+        }
+      })
+      devoluciones.push({
+        // detalles de la venta
+        documentoId,
+        tipoDocumento: ventaInfo.documento,
+        facturaAsociada,
+        notaEntregaAsociada,
+        productoId: new ObjectId(e._id),
+        movimientoId: movimiento.insertedId,
+        cantidad: Number(e.cantidad),
+        almacenId: almacenDevoluciones._id,
+        almacenOrigen: null,
+        almacenDestino: almacenDevoluciones._id,
+        tipo: 'devolucion',
+        tipoMovimiento: 'entrada',
+        fechaMovimiento: moment(ventaInfo.fecha).toDate(),
+        lote: movimientoOriginal.lote,
+        fechaVencimiento: moment(movimientoOriginal.fechaVencimiento).toDate(),
+        fechaIngreso: moment(movimientoOriginal.fechaIngreso).toDate(),
+        costoUnitario: movimientoOriginal.costoUnitario,
+        costoPromedio: movimientoOriginal.costoPromedio,
+        creadoPor: new ObjectId(creadoPor)
+      })
+      if (tieneContabilidad) {
+        try {
+          const costoProductoTotal = movimientoOriginal.costoPromedio * Number(e.cantidad)
+          const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(e._id) } })
+          const categoriaIdProducto = producto.categoria
+          const categoriaPorAlmacen = await getItemSD({
+            nameCollection: 'categoriaPorAlmacen',
+            enviromentClienteId: clienteId,
+            filters: { categoriaId: producto.categoria, almacenId: almacenDevoluciones._id }
+          })
+          const cuentaInventario = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacen.cuentaId } })
+          const cuentaCostoInventario = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacen.cuentaCostoVentaId } })
+          const asientoContableHaber = {
+            cuentaId: new ObjectId(cuentaCostoInventario._id),
+            cuentaCodigo: cuentaCostoInventario.codigo,
+            cuentaNombre: cuentaCostoInventario.descripcion,
+            comprobanteId: comprobante._id,
+            periodoId: comprobante.periodoId,
+            descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
+            fecha: moment(ventaInfo.fecha).toDate(),
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
+            documento: {
+              docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`,
+              docFecha: moment(ventaInfo.fecha).toDate()
+            },
+            debe: 0,
+            haber: 0
+          }
+          const asientoContableDebe = {
+            cuentaId: new ObjectId(cuentaInventario._id),
+            cuentaCodigo: cuentaInventario.codigo,
+            cuentaNombre: cuentaInventario.descripcion,
+            comprobanteId: comprobante._id,
+            periodoId: comprobante.periodoId,
+            descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
+            fecha: moment(ventaInfo.fecha).toDate(),
+            fechaCreacion: moment().toDate(),
+            docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
+            documento: {
+              docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`,
+              docFecha: moment(ventaInfo.fecha).toDate()
+            },
+            debe: 0,
+            haber: 0
+          }
+          if (movimientosDebePorCategoria[categoriaIdProducto]) {
+            movimientosDebePorCategoria[categoriaIdProducto].debe += costoProductoTotal
+            movimientosHaberPorCategoria[categoriaIdProducto].haber += costoProductoTotal
+          } else {
+            movimientosDebePorCategoria[categoriaIdProducto] = asientoContableDebe
+            movimientosDebePorCategoria[categoriaIdProducto].debe = costoProductoTotal
+
+            movimientosHaberPorCategoria[categoriaIdProducto] = asientoContableHaber
+            movimientosHaberPorCategoria[categoriaIdProducto].haber = costoProductoTotal
+          }
+        } catch (e) {
+          console.log(e)
+        }
+      }
+    }
+    try {
+      if (tieneContabilidad) {
+        for (const categoriaId in movimientosDebePorCategoria) {
+          asientosContables.push(movimientosDebePorCategoria[categoriaId], movimientosHaberPorCategoria[categoriaId])
+        }
+        let addSeconds = 1
+        asientosContables = asientosContables.sort((a, b) => b.debe > 0 ? 1 : -1).map(e => {
+          addSeconds += 2
+          return {
+            ...e,
+            fechaCreacion: moment(moment()).add(addSeconds, 'milliseconds').toDate()
+          }
+        })
+        createManyItemsSD({
+          nameCollection: 'detallesComprobantes',
+          enviromentClienteId: clienteId,
+          items: asientosContables
+        })
+      }
+    } catch (e) {
+      console.log('error despacho de ventas: ', e)
+    }
+    await createManyItemsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      items: devoluciones
     })
   } catch (e) {
     console.log('error despacho de ventas: ', e)
@@ -2247,7 +2495,7 @@ const crearMovimientoInventario = async ({
         })
         const cuentaInventario = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacen.cuentaId } })
         const cuentaCostoInventario = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacen.cuentaCostoVentaId } })
-        asientoContableHaber = {
+        asientoContableDebe = {
           cuentaId: new ObjectId(cuentaCostoInventario._id),
           cuentaCodigo: cuentaCostoInventario.codigo,
           cuentaNombre: cuentaCostoInventario.descripcion,
@@ -2264,7 +2512,7 @@ const crearMovimientoInventario = async ({
           debe: 0,
           haber: 0
         }
-        asientoContableDebe = {
+        asientoContableHaber = {
           cuentaId: new ObjectId(cuentaInventario._id),
           cuentaCodigo: cuentaInventario.codigo,
           cuentaNombre: cuentaInventario.descripcion,

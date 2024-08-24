@@ -46,7 +46,7 @@ export const getUsuariosYAlmacenesClientes = async (req, res) => {
       nameCollection: 'almacenes',
       enviromentClienteId: req.body._id,
       pipeline: [
-        { $match: { nombre: { $nin: ['Transito', 'Auditoria'] } } },
+        { $match: { nombre: { $nin: ['Transito', 'Auditoria', 'Devoluciones'] } } },
         {
           $project: {
             _id: 1,

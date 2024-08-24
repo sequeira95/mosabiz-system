@@ -35,7 +35,7 @@ export const getSucursales = async (req, res) => {
       nameCollection: 'almacenes',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { nombre: { $nin: ['Transito', 'Auditoria'] } } },
+        { $match: { nombre: { $nin: ['Transito', 'Auditoria', 'Devoluciones'] } } },
         {
           $project: {
             _id: 1,

@@ -7,22 +7,11 @@ export const getServicios = async (req, res) => {
   const { clienteId, tipo } = req.body
   try {
     const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
-    const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'zonas' })
-    const retencionCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'retencionISLR' })
     const servicios = await agreggateCollectionsSD({
       nameCollection: 'servicios',
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: { tipo } },
-        {
-          $lookup: {
-            from: zonasCollection,
-            localField: 'zona',
-            foreignField: '_id',
-            as: 'detalleZona'
-          }
-        },
-        { $unwind: { path: '$detalleZona', preserveNullAndEmptyArrays: true } },
         {
           $lookup: {
             from: categoriaCollection,
@@ -33,31 +22,19 @@ export const getServicios = async (req, res) => {
         },
         { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
         {
-          $lookup: {
-            from: retencionCollection,
-            localField: 'retencion',
-            foreignField: '_id',
-            as: 'detalleRetencion'
-          }
-        },
-        { $unwind: { path: '$detalleRetencion', preserveNullAndEmptyArrays: true } },
-        {
           $project: {
-            zonaId: '$detalleZona._id',
-            zona: '$detalleZona.nombre',
             categoriaId: '$detalleCategoria._id',
             categoria: '$detalleCategoria.nombre',
             descuento: '$detalleCategoria.descuento',
             tipoDescuento: '$detalleCategoria.tipoDescuento',
             hasDescuento: '$detalleCategoria.hasDescuento',
-            retencionId: '$detalleRetencion._id',
-            retencion: '$detalleRetencion.nombre',
             codigo: 1,
             nombre: 1,
             moneda: 1,
             precio: 1,
             observacion: 1,
-            fechaCreacion: 1
+            fechaCreacion: 1,
+            tipo: 1
           }
         }
       ]
@@ -69,7 +46,7 @@ export const getServicios = async (req, res) => {
   }
 }
 export const saveServicios = async (req, res) => {
-  const { _id, clienteId, categoria, zona, codigo, nombre, moneda, precio, retencion, observacion, tipo } = req.body
+  const { _id, clienteId, categoria, codigo, nombre, moneda, precio, observacion, tipo } = req.body
   try {
     if (!_id) {
       const verify = await getItemSD({
@@ -87,12 +64,10 @@ export const saveServicios = async (req, res) => {
         update: {
           $set: {
             categoria: categoria ? new ObjectId(categoria) : null,
-            zona: zona ? new ObjectId(zona) : null,
             codigo,
             nombre,
             moneda: moneda ? new ObjectId(moneda) : null,
             precio: Number(precio) || null,
-            retencion: retencion ? new ObjectId(retencion) : null,
             observacion,
             fechaCreacion: moment().toDate(),
             tipo
@@ -108,12 +83,10 @@ export const saveServicios = async (req, res) => {
       update: {
         $set: {
           categoria: categoria ? new ObjectId(categoria) : null,
-          zona: zona ? new ObjectId(zona) : null,
           codigo,
           nombre,
           moneda: moneda ? new ObjectId(moneda) : null,
           precio: Number(precio) || null,
-          retencion: retencion ? new ObjectId(retencion) : null,
           observacion,
           tipo
         }

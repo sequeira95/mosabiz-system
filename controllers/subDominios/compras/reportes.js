@@ -12,6 +12,7 @@ export const dataReportePorPagar = async (req, res) => {
         {
           $match:
           {
+            tipoMovimiento: 'compra',
             estado: { $ne: 'pagada' },
             tipoDocumento: { $in: ['Factura', 'Nota de entrega'] },
             fecha: { $lte: moment(fechaActual).endOf('day').toDate() }
@@ -42,6 +43,7 @@ export const dataReportePorPagar = async (req, res) => {
           {
             $match:
             {
+              tipoMovimiento: 'compra',
               estado: { $ne: 'pagada' },
               tipoDocumento: { $in: ['Factura', 'Nota de entrega'] },
               fecha: { $lte: moment(fechaActual).endOf('day').toDate() }

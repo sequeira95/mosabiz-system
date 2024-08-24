@@ -28,7 +28,8 @@ export const getListBancos = async (req, res) => {
             tipo: '$tipo',
             cuentaId: '$cuentaId',
             cuentaCodigo: '$detalleCuenta.codigo',
-            cuentaNombre: '$detalleCuenta.descripcion'
+            cuentaNombre: '$detalleCuenta.descripcion',
+            tipoBanco: '$tipoBanco'
           }
         }
       ]
@@ -62,7 +63,8 @@ export const getListBancosGeneral = async (req, res) => {
   }
 }
 export const saveBancos = async (req, res) => {
-  const { _id, clienteId, nombre, cuentaId, descripcion, tipo/*, cuentaCodigo */ } = req.body
+  const { _id, clienteId, nombre, cuentaId, descripcion, tipo, tipoBanco/*, cuentaCodigo */ } = req.body
+  console.log({ tipoBanco })
   try {
     if (!_id) {
       const verify = await getItemSD({
@@ -85,7 +87,8 @@ export const saveBancos = async (req, res) => {
             descripcion,
             tipo,
             cuentaId: cuentaId ? new ObjectId(cuentaId) : null,
-            fechaCreacion: moment().toDate()
+            fechaCreacion: moment().toDate(),
+            tipoBanco
           }
         }
       })
@@ -100,7 +103,8 @@ export const saveBancos = async (req, res) => {
           nombre,
           descripcion,
           tipo,
-          cuentaId: cuentaId ? new ObjectId(cuentaId) : null
+          cuentaId: cuentaId ? new ObjectId(cuentaId) : null,
+          tipoBanco
         }
       }
     })

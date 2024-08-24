@@ -2171,7 +2171,8 @@ export const createPagoOrdenes = async (req, res) => {
           pago: Number(abono.abono.toFixed(2)),
           fechaPago: moment(abono.fechaPago).toDate(),
           referencia: abono.referencia,
-          banco: new ObjectId(abono.banco._id),
+          banco: abono.banco?._id ? new ObjectId(abono.banco._id) : null,
+          caja: abono.caja?._id ? new ObjectId(abono.caja._id) : null,
           porcentajeIgtf: Number(abono?.porcentajeIgtf || 0),
           igtfPorPagar: abono?.igtfPorPagar ? Number(abono?.igtfPorPagar.toFixed(2)) : null,
           // pagoIgtf: Number(abono?.pagoIgtf.toFixed(2)),
@@ -2241,15 +2242,25 @@ export const createPagoOrdenes = async (req, res) => {
               }
             })
           }
-          const cuentaBanco = await getItemSD({
-            nameCollection: 'planCuenta',
-            enviromentClienteId: clienteId,
-            filters: { _id: new ObjectId(abono.banco.cuentaId) }
-          })
+          let cuenta = null
+          if (abono.banco) {
+            cuenta = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(abono.banco.cuentaId) }
+            })
+          }
+          if (abono.caja) {
+            cuenta = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(abono.caja.cuentaId) }
+            })
+          }
           asientosContables.push({
-            cuentaId: new ObjectId(cuentaBanco._id),
-            cuentaCodigo: cuentaBanco.codigo,
-            cuentaNombre: cuentaBanco.descripcion,
+            cuentaId: new ObjectId(cuenta._id),
+            cuentaCodigo: cuenta.codigo,
+            cuentaNombre: cuenta.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: `ABONO ${documento.tipoDocumento}-${documento.numeroFactura}`,
@@ -2319,7 +2330,16 @@ export const getListadoPagos = async (req, res) => {
             as: 'detalleBanco'
           }
         },
-        { $unwind: { path: '$detalleBanco', preserveNullAndEmptyArrays: true } }
+        { $unwind: { path: '$detalleBanco', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: bancosCollection,
+            localField: 'caja',
+            foreignField: '_id',
+            as: 'detalleCaja'
+          }
+        },
+        { $unwind: { path: '$detalleCaja', preserveNullAndEmptyArrays: true } }
       ]
     })
     return res.status(200).json({ pagosList })
@@ -2435,7 +2455,12 @@ export const getOrdenesComprasForFacturas = async (req, res) => {
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
         pipeline: [
-          { $match: { estado: { $ne: 'pagada' }, tipoDocumento: { $eq: 'Factura' }, ...regex } },
+          { $match: { tipoMovimiento: 'compra', estado: { $ne: 'pagada' }, tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaDebito] }, ...regex } },
+          {
+            $addFields: {
+              nombreMostrar: { $concat: [{ $cond: [{ $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }, 'FAC', 'ND'] }, ' - ', '$numeroFactura'] }
+            }
+          },
           {
             $lookup: {
               from: proveedoresCollection,

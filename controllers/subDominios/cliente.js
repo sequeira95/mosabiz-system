@@ -47,7 +47,8 @@ export const getClientes = async (req, res) => {
         tipoEmpresa: 1,
         cantPersonas: '$usuarios.usuariosLength'
       }
-    }
+    },
+    { $sort: { razonSocial: 1 } }
   ]
   if (clientesId && clientesId[0]) {
     clientesIdArray = [

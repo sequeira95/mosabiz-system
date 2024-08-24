@@ -144,7 +144,8 @@ export const documentosVentas = [
     value: 'Presupuesto',
     sigla: 'PT',
     isFiscal: false
-  }
+  },
+  { text: 'Devolución', value: 'Devolución', sigla: 'DEV', isFiscal: false }
 ]
 
 export const tiposDocumentosFiscales = {
@@ -154,7 +155,8 @@ export const tiposDocumentosFiscales = {
   retIslr: 'Retención ISLR',
   retIva: 'Retención IVA',
   'RET ISLR': 'Retención ISLR',
-  'RET IVA': 'Retención IVA'
+  'RET IVA': 'Retención IVA',
+  notaEntrega: 'Nota de entrega'
 }
 export const tiposDeclaracion = {
   islr: 'retIslr',

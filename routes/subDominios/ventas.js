@@ -30,13 +30,16 @@ import {
   getFacturas,
   getDetalleFacturas,
   getProductos,
-  handleVenta
+  handleVenta,
+  getNotasEntrega,
+  getDetalleNotasEntrega
 } from '../../controllers/subDominios/ventas/facturacion.js'
 
 import {
   getDocumentosByTipo,
   getDocumentoByTipo
 } from '../../controllers/subDominios/ventas/documentos.js'
+import { createPagoOrdenes, getCajasSucursalListCobros, getDetalleVentas, getVentasCobros } from '../../controllers/subDominios/ventas/cobros.js'
 
 const router = express.Router()
 
@@ -62,10 +65,17 @@ router.post('/facturacion/pedidos-venta', requireSubDominioToken, getPedidosVent
 router.post('/facturacion/pedidos-venta/detalle', requireSubDominioToken, getDetallePedidoVenta)
 router.post('/facturacion/facturas', requireSubDominioToken, getFacturas)
 router.post('/facturacion/facturas/detalle', requireSubDominioToken, getDetalleFacturas)
+router.post('/facturacion/notas-entrega', requireSubDominioToken, getNotasEntrega)
+router.post('/facturacion/notas-entrega/detalle', requireSubDominioToken, getDetalleNotasEntrega)
 router.post('/facturacion/productos', requireSubDominioToken, getProductos)
 router.post('/facturacion/pago-venta', requireSubDominioToken, handleVenta)
 
 router.post('/documentos/:tipo', requireSubDominioToken, getDocumentosByTipo)
 router.post('/documentos/:tipo/detalle', requireSubDominioToken, getDocumentoByTipo)
+
+router.post('/get/ventas/porCobrar', requireSubDominioToken, getVentasCobros)
+router.post('/getDetalleVentas', requireSubDominioToken, getDetalleVentas)
+router.post('/cobros/cajas/sucursal', requireSubDominioToken, getCajasSucursalListCobros)
+router.post('/create/pagosOrdenes', requireSubDominioToken, createPagoOrdenes)
 
 export default router

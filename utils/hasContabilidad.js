@@ -607,7 +607,7 @@ export async function validPagoFacturas ({ clienteId, abonos }) {
     if (ajusteCompra && !ajusteCompra.codigoComprobanteCompras) throw new Error('No existe en ajustes el codigo del comprobante para crear el pago')
     if (ajusteCompra && !ajusteCompra.cuentaIgtf) throw new Error('No existe en ajustes la cuenta para pagos de IGTF')
     if (ajusteCompra && !ajusteCompra.cuentaVariacionCambiaria) throw new Error('No existe en ajustes la cuenta para la variacion cambiaría')
-    const bancosId = abonos.map(e => new ObjectId(e.banco._id))
+    const bancosId = abonos.map(e => e?.banco?._id || e?.caja?._id)
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
     const listBancos = await agreggateCollectionsSD({
       nameCollection: 'bancos',

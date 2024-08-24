@@ -2568,6 +2568,32 @@ export const getFacturasPorDeclararIva = async (req, res) => {
         { $unwind: { path: '$cliente', preserveNullAndEmptyArrays: true } }
       ]
     })
+    const totales = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoMovimiento: tipo,
+            tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] },
+            declarado: { $ne: true },
+            fecha: { $lte: fechaFin },
+            $and: [
+              { periodoIvaNombre: { $exists: true } },
+              { periodoIvaNombre: { $nin: ['', null, undefined] } }
+            ]
+          }
+        },
+        {
+          $group: {
+            _id: 0,
+            baseImponible: { $sum: '$baseImponible' },
+            iva: { $sum: '$iva' },
+            totalExento: { $sum: '$totalExento' }
+          }
+        }
+      ]
+    })
     const count = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
@@ -2583,7 +2609,7 @@ export const getFacturasPorDeclararIva = async (req, res) => {
         { $count: 'total' }
       ]
     })
-    return res.status(200).json({ facturas, count: count.length ? count[0].total : 0 })
+    return res.status(200).json({ facturas, count: count.length ? count[0].total : 0, totales })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las facturas por declarar ' + e.message })

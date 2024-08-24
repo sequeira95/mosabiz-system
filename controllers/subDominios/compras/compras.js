@@ -2330,7 +2330,16 @@ export const getListadoPagos = async (req, res) => {
             as: 'detalleBanco'
           }
         },
-        { $unwind: { path: '$detalleBanco', preserveNullAndEmptyArrays: true } }
+        { $unwind: { path: '$detalleBanco', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: bancosCollection,
+            localField: 'caja',
+            foreignField: '_id',
+            as: 'detalleCaja'
+          }
+        },
+        { $unwind: { path: '$detalleCaja', preserveNullAndEmptyArrays: true } }
       ]
     })
     return res.status(200).json({ pagosList })

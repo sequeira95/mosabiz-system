@@ -2568,6 +2568,32 @@ export const getFacturasPorDeclararIva = async (req, res) => {
         { $unwind: { path: '$cliente', preserveNullAndEmptyArrays: true } }
       ]
     })
+    const totales = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoMovimiento: tipo,
+            tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] },
+            declarado: { $ne: true },
+            fecha: { $lte: fechaFin },
+            $and: [
+              { periodoIvaNombre: { $exists: true } },
+              { periodoIvaNombre: { $nin: ['', null, undefined] } }
+            ]
+          }
+        },
+        {
+          $group: {
+            _id: 0,
+            baseImponible: { $sum: '$baseImponible' },
+            iva: { $sum: '$iva' },
+            totalExento: { $sum: '$totalExento' }
+          }
+        }
+      ]
+    })
     const count = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
@@ -2583,7 +2609,7 @@ export const getFacturasPorDeclararIva = async (req, res) => {
         { $count: 'total' }
       ]
     })
-    return res.status(200).json({ facturas, count: count.length ? count[0].total : 0 })
+    return res.status(200).json({ facturas, count: count.length ? count[0].total : 0, totales })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las facturas por declarar ' + e.message })
@@ -3677,7 +3703,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         compraFiscal: true,
         baseImponible: facturaAfectada?.baseImponible ? Number(Number(facturaAfectada?.baseImponible).toFixed(2)) : 0,
         iva: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
-        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        totalCompra: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
         sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
         noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
@@ -3685,7 +3711,8 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
         totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
         totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
-        totalRetenidoSecundario: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0
+        totalRetenidoSecundario: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
+        porcentajeRetenido: documento.porcentajeRetencion ? Number(comprobante.documento.porcentajeRetencion.toFixed(2)) * 100 : 0
       }
       // console.log(documento.periodoIvaNombre)
       if (facturaAfectada) {
@@ -3791,7 +3818,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
           }
         })
       }
-      if (cliente?._id) {
+      /* if (cliente?._id) {
         const validarNumeroFactura = await getItemSD({
           nameCollection: 'documentosFiscales',
           enviromentClienteId: clienteId,
@@ -3806,7 +3833,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
           filters: { numeroFactura: documento.numeroFactura, estado: 'anulado' }
         })
         if (validarNumeroFactura) throw new Error(`La retención N° ${documento.numeroFactura} ya se encuentra registrada como anulada`)
-      }
+      } */
       const facturaAfectada = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
@@ -3834,7 +3861,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         moneda,
         baseImponible: facturaAfectada?.baseImponible ? Number(Number(facturaAfectada?.baseImponible).toFixed(2)) : 0,
         iva: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
-        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        totalCompra: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
         exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
         totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
@@ -3842,7 +3869,8 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         ownLogo: sucursal?.logo || clienteOwn?.logo,
         ownRazonSocial: sucursal?.nombre || clienteOwn?.razonSocial,
         ownDireccion: sucursal?.direccion || clienteOwn?.direccion,
-        ownDocumentoIdentidad: sucursal?.rif || `${clienteOwn?.tipoDocumento}-${clienteOwn?.documentoIdentidad}`
+        ownDocumentoIdentidad: sucursal?.rif || `${clienteOwn?.tipoDocumento}-${clienteOwn?.documentoIdentidad}`,
+        porcentajeRetenido: documento.porcentajeRetencion ? Number(comprobante.documento.porcentajeRetencion.toFixed(2)) * 100 : 0
       }
       if (facturaAfectada) {
         const updatePeriodoFactura = {

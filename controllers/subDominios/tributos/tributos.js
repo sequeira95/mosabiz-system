@@ -3609,6 +3609,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
   let cuentaPago = null
   let periodo = null
   let comprobante = null
+  console.log({ filtros })
   if (tieneContabilidad) {
     cuentaRetIva = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaRetIva?._id) } })
     cuentaPago = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaPago?._id) } })
@@ -3687,6 +3688,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         filters: { numeroFactura: documento.numeroFacturaAfectada, proveedorId: proveedor?._id }
       })
       if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
+        console.log({documento})
       const compra = {
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
@@ -3703,7 +3705,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         compraFiscal: true,
         baseImponible: facturaAfectada?.baseImponible ? Number(Number(facturaAfectada?.baseImponible).toFixed(2)) : 0,
         iva: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
-        totalCompra: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        totalCompra: facturaAfectada?.total ? Number(Number(facturaAfectada?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
         sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
         noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
@@ -3712,7 +3714,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
         totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
         totalRetenidoSecundario: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
-        porcentajeRetenido: documento.porcentajeRetencion ? Number(comprobante.documento.porcentajeRetencion.toFixed(2)) * 100 : 0
+        porcentajeRetenido: documento.porcentajeRetencion ? Number(documento.porcentajeRetencion.toFixed(2)) : 0
       }
       // console.log(documento.periodoIvaNombre)
       if (facturaAfectada) {
@@ -3861,7 +3863,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         moneda,
         baseImponible: facturaAfectada?.baseImponible ? Number(Number(facturaAfectada?.baseImponible).toFixed(2)) : 0,
         iva: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
-        totalCompra: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        totalCompra: facturaAfectada?.total ? Number(Number(facturaAfectada?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
         exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
         totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
@@ -3870,7 +3872,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         ownRazonSocial: sucursal?.nombre || clienteOwn?.razonSocial,
         ownDireccion: sucursal?.direccion || clienteOwn?.direccion,
         ownDocumentoIdentidad: sucursal?.rif || `${clienteOwn?.tipoDocumento}-${clienteOwn?.documentoIdentidad}`,
-        porcentajeRetenido: documento.porcentajeRetencion ? Number(comprobante.documento.porcentajeRetencion.toFixed(2)) * 100 : 0
+        porcentajeRetenido: documento.porcentajeRetencion ? Number(documento.porcentajeRetencion.toFixed(2)) : 0
       }
       if (facturaAfectada) {
         const updatePeriodoFactura = {

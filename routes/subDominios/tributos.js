@@ -1,6 +1,6 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { anularComprobante, deletePeriodoFactura, eliminarDocumentos, getCajasSucursalList, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIVA, getComprobantesRetencionIVAVenta, getDataIva, getFacturasPorDeclarar, getFacturasPorDeclararIva, getListClientes, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, getSucursalesList, saveComprobanteRetIslrCompras, saveComprobanteRetIvaCompras, saveDeclaracionIslr, saveDeclaracionIva, saveDocumentosfiscalesToArray, savePeriodoFactura, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
+import { anularComprobante, deletePeriodoFactura, eliminarDocumentos, getCajasSucursalList, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIVA, getComprobantesRetencionIVAVenta, getDataIva, getFacturasPorDeclarar, getFacturasPorDeclararIva, getListClientes, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, getSucursalesList, saveComprobanteRetIslrCompras, saveComprobanteRetIvaCompras, saveComprobanteRetIvaVentas, saveDeclaracionIslr, saveDeclaracionIva, saveDocumentosfiscalesToArray, savePeriodoFactura, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
 
 const router = express.Router()
 
@@ -19,6 +19,7 @@ router.post('/get/retIvaCompra', requireSubDominioToken, getComprobantesRetencio
 router.post('/save/declaracionIva', requireSubDominioToken, saveDeclaracionIva)
 router.post('/get/dataIva', requireSubDominioToken, getDataIva)
 router.post('/get/retIvaVenta', requireSubDominioToken, getComprobantesRetencionIVAVenta)
+router.post('/save/retIvaVenta', requireSubDominioToken, saveComprobanteRetIvaVentas)
 router.post('/get/clientesVentas', requireSubDominioToken, getListClientes)
 router.post('/get/facturas/porDeclarar/iva', requireSubDominioToken, getFacturasPorDeclararIva)
 router.post('/save/periodoFactura', requireSubDominioToken, savePeriodoFactura)

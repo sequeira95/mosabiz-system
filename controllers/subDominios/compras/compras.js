@@ -2151,7 +2151,7 @@ export const createPagoOrdenes = async (req, res) => {
             }
           }
         })
-        if (Number(abono.porPagar.toFixed(2)) === Number(abono.abono.toFixed(2))) {
+        if (Number(abono.porPagar.toFixed(2)) <= Number(abono.abono.toFixed(2))) {
           updateCompraPagada.push({
             updateOne: {
               filter: { _id: new ObjectId(abono.compraId) },
@@ -2233,6 +2233,31 @@ export const createPagoOrdenes = async (req, res) => {
               descripcion: `ABONO ${documento.tipoDocumento}-${documento.numeroFactura}`,
               fecha: moment(fechaPago).toDate(),
               debe: Number(abono.igtfPorPagar.toFixed(2)),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+              documento: {
+                docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                docFecha: moment(fechaPago).toDate()
+              }
+            })
+          }
+          const diferenciaPago = Number(abono.abono.toFixed(2)) - Number(abono.porPagar.toFixed(2))
+          if (diferenciaPago > 0) {
+            const cuentaDiferenciaPago = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(ajusteCompra.cuentaDiferenciaCompras) }
+            })
+            asientosContables.push({
+              cuentaId: new ObjectId(cuentaDiferenciaPago._id),
+              cuentaCodigo: cuentaDiferenciaPago.codigo,
+              cuentaNombre: cuentaDiferenciaPago.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `DIFERENCIA EN PAGO ${documento.tipoDocumento}-${documento.numeroFactura}`,
+              fecha: moment(fechaPago).toDate(),
+              debe: Number(diferenciaPago.toFixed(2)),
               haber: 0,
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,

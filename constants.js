@@ -180,7 +180,7 @@ export const formatearNumeroRetencionIslr = (numero) => {
 
 export const formatearNumeroRetencionIva = (numero, fecha) => {
   // Convertir el número a cadena y rellenar con ceros a la izquierda
-  const cadenaConCeros = numero.toString().padStart(8, '')
+  const cadenaConCeros = numero.toString().padStart(8, '0')
 
   // Cortar la cadena al tamaño máximo deseado
   const cadenaFormateada = `${fecha}${cadenaConCeros.slice(0, 8)}`

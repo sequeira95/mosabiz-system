@@ -64,7 +64,6 @@ export const getProveedores = async (req, res) => {
 }
 export const saveProveedor = async (req, res) => {
   const { clienteId, proveedor, metodosPago } = req.body
-  console.log(metodosPago)
   try {
     if (!proveedor._id) {
       const saveProveedor = await upsertItemSD({
@@ -91,26 +90,28 @@ export const saveProveedor = async (req, res) => {
           }
         }
       })
-      if (metodosPago.some(e => e.banco || e.numeroCuenta || e.identificacion || e.telefono)) {
-        const metodosPagoBulk = metodosPago.map(e => {
-          return {
-            updateOne: {
-              filter: { _id: new ObjectId(e._id) },
-              update: {
-                $set: {
-                  banco: e.banco,
-                  numeroCuenta: e.numeroCuenta,
-                  identificacion: e.identificacion,
-                  telefono: e.telefono,
-                  proveedorId: saveProveedor._id,
-                  tipo: e.tipo
-                }
-              },
-              upsert: true
+      if (metodosPago[0]) {
+        if (metodosPago.some(e => e.banco || e.numeroCuenta || e.identificacion || e.telefono)) {
+          const metodosPagoBulk = metodosPago.map(e => {
+            return {
+              updateOne: {
+                filter: { _id: new ObjectId(e._id) },
+                update: {
+                  $set: {
+                    banco: e.banco,
+                    numeroCuenta: e.numeroCuenta,
+                    identificacion: e.identificacion,
+                    telefono: e.telefono,
+                    proveedorId: saveProveedor._id,
+                    tipo: e.tipo
+                  }
+                },
+                upsert: true
+              }
             }
-          }
-        })
-        bulkWriteSD({ nameCollection: 'metodosPagos', enviromentClienteId: clienteId, pipeline: metodosPagoBulk })
+          })
+          bulkWriteSD({ nameCollection: 'metodosPagos', enviromentClienteId: clienteId, pipeline: metodosPagoBulk })
+        }
       }
       return res.status(200).json({ status: 'Proveedor guardado exitosamente', proveedor: saveProveedor })
     }
@@ -137,7 +138,7 @@ export const saveProveedor = async (req, res) => {
         }
       }
     })
-    const metodosPagoBulk = metodosPago.map(e => {
+    /* const metodosPagoBulk = metodosPago.map(e => {
       return {
         updateOne: {
           filter: { _id: new ObjectId(e._id) },
@@ -155,7 +156,7 @@ export const saveProveedor = async (req, res) => {
         }
       }
     })
-    bulkWriteSD({ nameCollection: 'metodosPagos', enviromentClienteId: clienteId, pipeline: metodosPagoBulk })
+    bulkWriteSD({ nameCollection: 'metodosPagos', enviromentClienteId: clienteId, pipeline: metodosPagoBulk }) */
     return res.status(200).json({ status: 'Proveedor guardado exitosamente', proveedor: saveProveedor })
   } catch (e) {
     console.log(e)

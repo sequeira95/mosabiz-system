@@ -970,7 +970,7 @@ export const getCajasSucursalListCobros = async (req, res) => {
 }
 export const createPagoOrdenes = async (req, res) => {
   const { clienteId, clienteIdVenta, abonos, tasaDia, fechaPago } = req.body
-  console.log(req.body)
+  // console.log(req.body)
   // console.log({ tasaDia })
   try {
     const datosAbonos = []
@@ -979,6 +979,7 @@ export const createPagoOrdenes = async (req, res) => {
     const asientosContables = []
     const tieneContabilidad = await hasContabilidad({ clienteId })
     const ajusteVenta = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'ventas' } })
+    console.log({ ajusteVenta })
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
     let periodo = null
     let comprobante = null
@@ -991,19 +992,19 @@ export const createPagoOrdenes = async (req, res) => {
         return res.status(500).json({ error: 'Error al momento de validar información contable: ' + validContabilidad.message })
       } */
       periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fechaPago).toDate() }, fechaFin: { $gte: moment(fechaPago).toDate() } } })
-      // console.log({ periodo })
+      console.log({ periodo })
       if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
       const mesPeriodo = moment(fechaPago).format('YYYY/MM')
       comprobante = await getItemSD({
         nameCollection: 'comprobantes',
         enviromentClienteId: clienteId,
-        filters: { codigo: ajusteVenta.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo }
+        filters: { codigo: ajusteVenta.codigoComprobanteFacturacion, periodoId: periodo._id, mesPeriodo }
       })
       if (!comprobante) {
         comprobante = await upsertItemSD({
           nameCollection: 'comprobantes',
           enviromentClienteId: clienteId,
-          filters: { codigo: ajusteVenta.codigoComprobanteCompras, periodoId: periodo._id, mesPeriodo },
+          filters: { codigo: ajusteVenta.codigoComprobanteFacturacion, periodoId: periodo._id, mesPeriodo },
           update: {
             $set: {
               nombre: 'Ventas',
@@ -1014,7 +1015,10 @@ export const createPagoOrdenes = async (req, res) => {
         })
       }
       const cliente = await getItemSD({ nameCollection: 'clientes', enviromentClienteId: clienteId, filters: { _id: new ObjectId(clienteIdVenta) } })
-      cuentaPorCobrar = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { codigo: ajusteVenta.cuentaPorCobrarClienteId } })
+      cuentaPorCobrar = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: ajusteVenta.cuentaPorCobrarClienteId } })
+      if (!cuentaPorCobrar) throw new Error('No se encontraron datos de la cuenta por cobrar en los ajustes')
+
+      // console.log({ cuentaPorCobrar })
       terceroCuenta = await getItemSD({
         nameCollection: 'terceros',
         enviromentClienteId: clienteId,
@@ -1038,6 +1042,8 @@ export const createPagoOrdenes = async (req, res) => {
         enviromentClienteId: clienteId,
         filters: { _id: new ObjectId(ajusteVenta.cuentaIGTFPorPagarId) }
       })
+      // console.log({ cuentaIGTF })
+      if (!cuentaIGTF) throw new Error('No se encontraron datos de la cuenta IGTF en los ajustes')
     }
     if (abonos[0]) {
       for (const abono of abonos) {
@@ -1049,14 +1055,13 @@ export const createPagoOrdenes = async (req, res) => {
             { $match: { _id: new ObjectId(abono.documentoId) } }
           ]
         }))[0]
-        console.log({ documento })
-        console.log({ documento, abono })
+        // console.log({ documento, abono })
         const tasaVerify = documento.tasaAux ? documento.tasaAux : documento.tasaDia
         const totalSecundarioAux = documento.totalSecundarioAux ? documento.totalSecundarioAux : documento.totalSecundaria
         const totalPrincipalAux = documento.totalAux ? documento.totalAux : documento.total
         const totalDivisa = totalSecundarioAux * tasaDia[documento.monedaSecundaria]
         const diferenciaTotal = Number((Number(totalDivisa.toFixed(2)) - Number(totalPrincipalAux.toFixed(2))).toFixed(2))
-        console.log({ totalDivisa, totalPrincipalAux, diferenciaTotal, totalSecundarioAux, tasaVerify })
+        // console.log({ totalDivisa, totalPrincipalAux, diferenciaTotal, totalSecundarioAux, tasaVerify })
         if (tasaVerify !== tasaDia[documento.monedaSecundaria]) {
           if (tieneContabilidad) {
             if (diferenciaTotal > 0) {
@@ -1170,7 +1175,7 @@ export const createPagoOrdenes = async (req, res) => {
             }
           }
         })
-        if (Number(abono.porPagar.toFixed(2)) === Number(abono.abono.toFixed(2))) {
+        if (Number(abono.porPagar.toFixed(2)) <= Number(abono.abono.toFixed(2))) {
           updateCompraPagada.push({
             updateOne: {
               filter: { _id: new ObjectId(abono.documentoId) },
@@ -1190,9 +1195,9 @@ export const createPagoOrdenes = async (req, res) => {
           pago: Number(abono.abono.toFixed(2)),
           fechaPago: moment(abono.fechaPago).toDate(),
           referencia: abono.referencia ? abono.referencia : null,
-          banco: abono.banco._id ? new ObjectId(abono.banco._id) : null,
-          caja: abono.caja._id ? new ObjectId(abono.caja._id) : null,
-          sucursal: abono.sucursal._id ? new ObjectId(abono.sucursal._id) : null,
+          banco: abono.banco?._id ? new ObjectId(abono.banco._id) : null,
+          caja: abono.caja?._id ? new ObjectId(abono.caja._id) : null,
+          sucursal: abono.sucursal?._id ? new ObjectId(abono.sucursal._id) : null,
           porcentajeIgtf: Number(abono?.porcentajeIgtf || 0),
           pagoIgtf: abono?.igtfPorPagar ? Number(abono?.igtfPorPagar.toFixed(2)) : null,
           pagoSecundario: abono?.abonoSecundario ? Number(abono?.abonoSecundario.toFixed(2)) : null,
@@ -1326,6 +1331,31 @@ export const createPagoOrdenes = async (req, res) => {
               fecha: moment(fechaPago).toDate(),
               debe: 0,
               haber: Number(abono.igtfPorPagar.toFixed(2)),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+              documento: {
+                docReferencia: `${documento.tipoDocumento}-${documento.numeroFactura}`,
+                docFecha: moment(fechaPago).toDate()
+              }
+            })
+          }
+          const diferenciaPago = Number(abono.abono.toFixed(2)) - Number(abono.porPagar.toFixed(2))
+          if (diferenciaPago > 0) {
+            const cuentaDiferenciaPago = await getItemSD({
+              nameCollection: 'planCuenta',
+              enviromentClienteId: clienteId,
+              filters: { _id: new ObjectId(ajusteVenta.cuentaDiferenciaVentasId) }
+            })
+            asientosContables.push({
+              cuentaId: new ObjectId(cuentaDiferenciaPago._id),
+              cuentaCodigo: cuentaDiferenciaPago.codigo,
+              cuentaNombre: cuentaDiferenciaPago.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: `DIFERENCIA EN PAGO ${documento.tipoDocumento}-${documento.numeroFactura}`,
+              fecha: moment(fechaPago).toDate(),
+              debe: 0,
+              haber: Number(diferenciaPago.toFixed(2)),
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `${documento.tipoDocumento}-${documento.numeroFactura}`,
               documento: {

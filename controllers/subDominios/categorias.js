@@ -96,7 +96,8 @@ export const getCategoriasForCompras = async (req, res) => {
             cuentaId: 1,
             cuentaCodigo: '$detalleCuenta.codigo',
             cuentaDescripcion: '$detalleCuenta.descripcion',
-            observacion: 1
+            observacion: 1,
+            tiposRetencion: 1
           }
         }
       ]
@@ -237,7 +238,7 @@ export const saveCategoriasForVentas = async (req, res) => {
   }
 }
 export const saveCategoriasForCompras = async (req, res) => {
-  const { _id, clienteId, nombre, cuentaId, observacion, tipo } = req.body
+  const { _id, clienteId, nombre, cuentaId, observacion, tipo, tiposRetencion } = req.body
   try {
     if (!_id) {
       const verifyCategoria = await getItemSD({
@@ -259,7 +260,8 @@ export const saveCategoriasForCompras = async (req, res) => {
             observacion,
             cuentaId: cuentaId ? new ObjectId(cuentaId) : null,
             tipo,
-            fechaCreacion: moment().toDate()
+            fechaCreacion: moment().toDate(),
+            tiposRetencion
           }
         }
       })
@@ -275,7 +277,8 @@ export const saveCategoriasForCompras = async (req, res) => {
           observacion,
           tipo,
           cuentaId: cuentaId ? new ObjectId(cuentaId) : null,
-          fechaCreacion: moment().toDate()
+          fechaCreacion: moment().toDate(),
+          tiposRetencion
         }
       }
     })

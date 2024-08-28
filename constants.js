@@ -187,3 +187,11 @@ export const formatearNumeroRetencionIva = (numero, fecha) => {
 
   return cadenaFormateada
 }
+
+export const constTiposResidenteISLR = {
+  pnr: 'Persona natural residente',
+  pnnr: 'Persona natural no residente',
+  pjd: 'Persona juridica domiciliada',
+  pjnd: 'Persona juridica no domiciliada'
+  // pjncd: 'PJNCD',
+}

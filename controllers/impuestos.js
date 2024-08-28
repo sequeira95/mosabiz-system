@@ -108,6 +108,7 @@ export const getIslr = async (req, res) => {
         { $count: 'total' }
       ]
     })
+    console.log({ body: req.body, countIslr, islr })
     return res.status(200).json({ islr, countIslr: countIslr.length ? countIslr[0].total : 0 })
   } catch (e) {
     console.log(e)

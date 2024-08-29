@@ -361,6 +361,15 @@ export const deletePlanCuenta = async (req, res) => {
   if (!clienteId) return res.status(400).json({ error: 'Seleccione un cliente' })
   try {
     const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+    const verficarDatosContables = await agreggateCollectionsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { periodoId: { $in: periodosActivos } } },
+        { $count: 'total' }
+      ]
+    })
+    if (verficarDatosContables[0] && verficarDatosContables[0].total > 0) throw new Error('No se puede eliminar el plan de cuenta porque existen registros contables')
     await deleteManyItemsSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId })
     await deleteManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { periodoId: { $in: periodosActivos } } })
     deleteManyItemsSD({ nameCollection: 'estadoBancarios', enviromentClienteId: clienteId })
@@ -375,6 +384,6 @@ export const deletePlanCuenta = async (req, res) => {
     return res.status(200).json({ status: 'Plan de cuenta eliminado  exitosamente' })
   } catch (e) {
     console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de eliminar el plan de cuentas' + e.message })
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar el plan de cuentas ' + e.message })
   }
 }

@@ -6,8 +6,8 @@ import { uploadImg } from '../../../utils/cloudImage.js'
 import { hasContabilidad } from '../../../utils/hasContabilidad.js'
 
 export const getCiclos = async (req, res) => {
-  const { fecha, tipoImpuesto, isSujetoPasivoEspecial } = req.body
-  const fechaPasivoEspecial = '2024-02-15'
+  const { fecha, tipoImpuesto, isSujetoPasivoEspecial, fechaInicioSujetoPasivo } = req.body
+  const fechaPasivoEspecial = fechaInicioSujetoPasivo
   const allCiclos = fechaPasivoEspecial && moment(fechaPasivoEspecial).year() === moment(fecha).year()
   const matchConfig = {}
   if (isSujetoPasivoEspecial && !allCiclos) {

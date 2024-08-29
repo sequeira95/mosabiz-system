@@ -7,9 +7,10 @@ import { hasContabilidad } from '../../../utils/hasContabilidad.js'
 
 export const getCiclos = async (req, res) => {
   const { fecha, tipoImpuesto, isSujetoPasivoEspecial } = req.body
-  console.log(fecha, tipoImpuesto, isSujetoPasivoEspecial)
+  const fechaPasivoEspecial = '2024-02-15'
+  const allCiclos = fechaPasivoEspecial && moment(fechaPasivoEspecial).year() === moment(fecha).year()
   const matchConfig = {}
-  if (isSujetoPasivoEspecial) {
+  if (isSujetoPasivoEspecial && !allCiclos) {
     matchConfig.isSujetoPasivoEspecial = { $eq: isSujetoPasivoEspecial }
   }
   try {
@@ -20,7 +21,12 @@ export const getCiclos = async (req, res) => {
           $match:
           {
             tipoImpuesto,
-            isSujetoPasivoEspecial
+            ...matchConfig,
+            $or: [
+              { fechaFin: { $gte: moment(fecha).toDate() } },
+              { fechaFin: { $eq: null } }
+            ]
+            // isSujetoPasivoEspecial
             // ...matchConfig
             /* $or: [
               {
@@ -35,6 +41,11 @@ export const getCiclos = async (req, res) => {
                 ]
               }
             ] */
+          }
+        },
+        {
+          $sort: {
+            fechaFin: -1
           }
         }
       ]

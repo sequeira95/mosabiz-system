@@ -3,7 +3,7 @@ import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD, formatCollectio
 import { nivelesCodigoByLength, subDominioName } from '../../constants.js'
 import { ObjectId } from 'mongodb'
 import { deleteCuentasForChangeLevel, updateManyDetalleComprobante } from '../../utils/updateComprobanteForChangeCuenta.js'
-import { createPlanCuenta, createPlanCuentaLight } from '../../utils/planCuentaDefecto.js'
+import { createPlanCuentaLight } from '../../utils/planCuentaDefecto.js'
 
 export const getPlanCuenta = async (req, res) => {
   const { clienteId } = req.body

@@ -9,9 +9,22 @@ export const getCiclos = async (req, res) => {
   const { fecha, tipoImpuesto, isSujetoPasivoEspecial, fechaInicioSujetoPasivo } = req.body
   const fechaPasivoEspecial = fechaInicioSujetoPasivo
   const allCiclos = fechaPasivoEspecial && moment(fechaPasivoEspecial).year() === moment(fecha).year()
+  const ciclosNormales = fechaPasivoEspecial && moment(fechaPasivoEspecial).year() > moment(fecha).year()
+  // const ciclosEspeciales = fechaPasivoEspecial && moment(fechaPasivoEspecial).year() <= moment(fecha).year()
   const matchConfig = {}
+  console.log({
+    allCiclos,
+    isSujetoPasivoEspecial
+  })
   if (isSujetoPasivoEspecial && !allCiclos) {
     matchConfig.isSujetoPasivoEspecial = { $eq: isSujetoPasivoEspecial }
+  } else if (allCiclos) {
+    // matchConfig.isSujetoPasivoEspecial = { $eq: isSujetoPasivoEspecial }
+  } else {
+    matchConfig.isSujetoPasivoEspecial = { $ne: true }
+  }
+  if (ciclosNormales) {
+    matchConfig.isSujetoPasivoEspecial = { $ne: true }
   }
   try {
     const ciclos = await agreggateCollections({
@@ -50,7 +63,6 @@ export const getCiclos = async (req, res) => {
         }
       ]
     })
-    console.log({ ciclos })
     return res.status(200).json({ ciclos })
   } catch (e) {
     console.log(e)

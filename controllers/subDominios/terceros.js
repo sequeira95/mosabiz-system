@@ -19,7 +19,7 @@ export const getTerceros = async (req, res) => {
 }
 export const saveTerceros = async (req, res) => {
   const { nombre, clienteId, _id, cuentaId } = req.body
-  const nombreUppercase = String(nombre).toUpperCase()
+  const nombreUppercase = String(nombre).trim().toUpperCase()
   try {
     const tercero = await upsertItemSD({
       nameCollection: 'terceros',
@@ -60,7 +60,7 @@ export const saveTercerosMany = async (req, res) => {
   if (!Array.isArray(terceros)) return res.status(500).json({ error: 'Error de servidor al momento de guardar los terceros: Formato invalido' })
   try {
     const pipeline = terceros.map(({ nombre, cuentaId }) => {
-      const nombreUppercase = String(nombre).toUpperCase()
+      const nombreUppercase = String(nombre).trim().toUpperCase()
       return {
         updateOne: {
           filter: { nombre: nombreUppercase },

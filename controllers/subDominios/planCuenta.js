@@ -7,6 +7,7 @@ import { createPlanCuentaLight } from '../../utils/planCuentaDefecto.js'
 
 export const getPlanCuenta = async (req, res) => {
   const { clienteId } = req.body
+  const tercerosCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'terceros' })
   const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
   try {
@@ -37,6 +38,15 @@ export const getPlanCuenta = async (req, res) => {
         },
         { $unwind: { path: '$detalle', preserveNullAndEmptyArrays: true } },
         {
+          $lookup:
+            {
+              from: `${tercerosCollectionName}`,
+              localField: '_id',
+              foreignField: 'cuentaId',
+              as: 'terceros'
+            }
+        },
+        {
           $project: {
             codigo: '$codigo',
             descripcion: '$descripcion',
@@ -44,7 +54,8 @@ export const getPlanCuenta = async (req, res) => {
             conciliacion: '$conciliacion',
             nivelCuenta: '$nivelCuenta',
             fechaCreacion: '$fechaCreacion',
-            hasComprobantes: '$detalle.hasDetalle'
+            hasComprobantes: '$detalle.hasDetalle',
+            terceros: '$terceros'
           }
         },
         { $sort: { codigo: 1 } }

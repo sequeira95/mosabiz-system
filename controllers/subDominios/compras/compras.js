@@ -1,5 +1,5 @@
 import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
-import { constTiposResidenteISLR, formatearNumeroRetencionIslr, subDominioName, tipoMovimientosShort, tiposDocumentosFiscales } from '../../../constants.js'
+import { constTiposResidenteISLR, formatearNumeroRetencionIslr, formatearNumeroRetencionIva, subDominioName, tipoMovimientosShort, tiposDocumentosFiscales } from '../../../constants.js'
 import moment from 'moment-timezone'
 import { ObjectId } from 'mongodb'
 import { hasInventario, hasTributos } from '../../../utils/validModulos.js'
@@ -2618,16 +2618,16 @@ export const createFacturas = async (req, res) => {
         nombreRetIslr: factura?.valorRetISLR?.nombre || null,
         porcenjateIslr: factura?.valorRetISLR?.valorRet ? Number(Number(factura?.valorRetISLR?.valorRet).toFixed(2)) : null,
         valorBaseImponibleIslr: factura?.valorRetISLR?.valorBaseImponible ? Number(Number(factura?.valorRetISLR?.valorBaseImponible).toFixed(2)) : null,
-        baseImponible: factura?.baseImponible ? Number(Number(factura?.baseImponible).toFixed(2)) : null,
-        iva: factura?.iva ? Number(Number(factura?.iva).toFixed(2)) : null,
+        baseImponible: factura?.baseImponible ? Number(Number(factura?.baseImponible).toFixed(2)) : 0,
+        iva: factura?.iva ? Number(Number(factura?.iva).toFixed(2)) : 0,
         retIva: factura?.retIva ? Number(Number(factura?.retIva).toFixed(2)) : null,
         retIslr: factura?.retIslr ? Number(Number(factura?.retIslr).toFixed(2)) : null,
-        total: factura?.total ? Number(Number(factura?.total).toFixed(2)) : null,
-        baseImponibleSecundaria: factura?.baseImponibleSecundaria ? Number(Number(factura?.baseImponibleSecundaria).toFixed(2)) : null,
-        ivaSecundaria: factura?.ivaSecundaria ? Number(Number(factura?.ivaSecundaria).toFixed(2)) : null,
+        total: factura?.total ? Number(Number(factura?.total).toFixed(2)) : 0,
+        baseImponibleSecundaria: factura?.baseImponibleSecundaria ? Number(Number(factura?.baseImponibleSecundaria).toFixed(2)) : 0,
+        ivaSecundaria: factura?.ivaSecundaria ? Number(Number(factura?.ivaSecundaria).toFixed(2)) : 0,
         retIvaSecundaria: factura?.retIvaSecundaria ? Number(Number(factura?.retIvaSecundaria).toFixed(2)) : null,
         retIslrSecundaria: factura?.retIslrSecundaria ? Number(Number(factura?.retIslrSecundaria).toFixed(2)) : null,
-        totalSecundaria: factura?.totalSecundaria ? Number(Number(factura?.totalSecundaria).toFixed(2)) : null,
+        totalSecundaria: factura?.totalSecundaria ? Number(Number(factura?.totalSecundaria).toFixed(2)) : 0,
         creadoPor: new ObjectId(req.uid),
         metodoPago: factura.proveedor.metodoPago,
         formaPago: factura.proveedor.formaPago,
@@ -2636,16 +2636,16 @@ export const createFacturas = async (req, res) => {
         tasaDia: factura.tasaDia ? Number(factura.tasaDia) : null,
         ordenCompraId: factura.ordenCompraId ? new ObjectId(factura.ordenCompraId) : null,
         facturaAsociada: factura.facturaAsociada ? new ObjectId(factura.facturaAsociada) : null,
-        sinDerechoCredito: factura.sinDerechoCredito ? Number(Number(factura.sinDerechoCredito).toFixed(2)) : null,
-        noSujeto: factura.noSujeto ? Number(Number(factura.noSujeto).toFixed(2)) : null,
-        exonerado: factura.exonerado ? Number(Number(factura.exonerado).toFixed(2)) : null,
-        exento: factura.exento ? Number(Number(factura.exento).toFixed(2)) : null,
-        totalExento: factura.totalExento ? Number(Number(factura.totalExento).toFixed(2)) : null,
-        sinDerechoCreditoSecundaria: factura.sinDerechoCreditoSecundaria ? Number(Number(factura.sinDerechoCreditoSecundaria).toFixed(2)) : null,
-        noSujetoSecundaria: factura.noSujetoSecundaria ? Number(Number(factura.noSujetoSecundaria).toFixed(2)) : null,
-        exoneradoSecundaria: factura.exoneradoSecundaria ? Number(Number(factura.exoneradoSecundaria).toFixed(2)) : null,
-        exentoSecundaria: factura.exentoSecundaria ? Number(Number(factura.exentoSecundaria).toFixed(2)) : null,
-        totalExentoSecundaria: factura.totalExentoSecundaria ? Number(Number(factura.totalExentoSecundaria).toFixed(2)) : null,
+        sinDerechoCredito: factura.sinDerechoCredito ? Number(Number(factura.sinDerechoCredito).toFixed(2)) : 0,
+        noSujeto: factura.noSujeto ? Number(Number(factura.noSujeto).toFixed(2)) : 0,
+        exonerado: factura.exonerado ? Number(Number(factura.exonerado).toFixed(2)) : 0,
+        exento: factura.exento ? Number(Number(factura.exento).toFixed(2)) : 0,
+        totalExento: factura.totalExento ? Number(Number(factura.totalExento).toFixed(2)) : 0,
+        sinDerechoCreditoSecundaria: factura.sinDerechoCreditoSecundaria ? Number(Number(factura.sinDerechoCreditoSecundaria).toFixed(2)) : 0,
+        noSujetoSecundaria: factura.noSujetoSecundaria ? Number(Number(factura.noSujetoSecundaria).toFixed(2)) : 0,
+        exoneradoSecundaria: factura.exoneradoSecundaria ? Number(Number(factura.exoneradoSecundaria).toFixed(2)) : 0,
+        exentoSecundaria: factura.exentoSecundaria ? Number(Number(factura.exentoSecundaria).toFixed(2)) : 0,
+        totalExentoSecundaria: factura.totalExentoSecundaria ? Number(Number(factura.totalExentoSecundaria).toFixed(2)) : 0,
         aplicaProrrateo: factura.aplicaProrrateo || false,
         isImportacion: factura.isImportacion || false,
         ivasTotales: factura.ivasTotales || null
@@ -3247,8 +3247,13 @@ export const createFacturas = async (req, res) => {
     }
     const isServicio = factura.productosServicios.some(e => e.tipo === 'servicio')
     if (tieneTributos && isServicio) {
+      const periodosAsignar = {
+        periodoIvaInit: moment(factura.periodoIvaInit).toDate(),
+        periodoIvaEnd: moment(factura.periodoIvaEnd).toDate(),
+        periodoIvaNombre: factura.periodoIvaNombre
+      }
       console.log('tiene tributos')
-      await createRetenciones({ documentoId: newFactura.insertedId, clienteId, uid: req.uid })
+      await createRetenciones({ documentoId: newFactura.insertedId, clienteId, uid: req.uid, periodosAsignar })
     }
     return res.status(200).json({ status: `Factura N° ${factura.numeroFactura} creada exitosamente` })
   } catch (e) {
@@ -4192,7 +4197,7 @@ export const getHistorialOrdenes = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras ' + e.message })
   }
 }
-const createRetenciones = async ({ documentoId, clienteId, uid }) => {
+const createRetenciones = async ({ documentoId, clienteId, uid, periodosAsignar }) => {
   // console.log({ documentoId })
   try {
     const detalleFacturaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
@@ -4269,10 +4274,13 @@ const createRetenciones = async ({ documentoId, clienteId, uid }) => {
         }
       }
     }
+    const asientosContables = []
     const tieneContabilidad = await hasContabilidad({ clienteId })
     const ajusteTributos = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'tributos' } })
     let periodo = null
     let comprobanteContable = null
+    let cuentaProveedor = null
+    let terceroProveedor = null
     if (tieneContabilidad) {
       periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(documento.fechaRecepcion).toDate() }, fechaFin: { $gte: moment(documento.fechaRecepcion).toDate() } } })
       // console.log({ periodo })
@@ -4297,11 +4305,54 @@ const createRetenciones = async ({ documentoId, clienteId, uid }) => {
           }
         })
       }
+      const detalleProveedor = await agreggateCollectionsSD({
+        nameCollection: 'proveedores',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { _id: new ObjectId(documento.proveedor._id) } },
+          {
+            $lookup: {
+              from: categoriasCollection,
+              localField: 'categoria',
+              foreignField: '_id',
+              as: 'detalleCategoria'
+            }
+          },
+          { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } }
+        ]
+      })
+      cuentaProveedor = await getItemSD({
+        nameCollection: 'planCuenta',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(detalleProveedor[0]?.detalleCategoria?.cuentaId) }
+      })
+      terceroProveedor = await getItemSD({
+        nameCollection: 'terceros',
+        enviromentClienteId: clienteId,
+        filters: { cuentaId: new ObjectId(cuentaProveedor._id), nombre: detalleProveedor[0]?.razonSocial.toUpperCase() }
+      })
+      if (!terceroProveedor) {
+        terceroProveedor = await upsertItemSD({
+          nameCollection: 'terceros',
+          enviromentClienteId: clienteId,
+          filters: { cuentaId: new ObjectId(cuentaProveedor._id), nombre: detalleProveedor[0]?.razonSocial.toUpperCase() },
+          update: {
+            $set: {
+              nombre: detalleProveedor[0]?.razonSocial.toUpperCase(),
+              cuentaId: new ObjectId(cuentaProveedor._id)
+            }
+          }
+        })
+      }
     }
     let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIslr' } }))?.contador || 0
+    let contadorIva = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIva' } }))?.contador || 0
     if (contador) ++contador
     if (!contador) contador = 1
-    const baseExtento = Number(documento.baseImponibleExento.toFixed(2)) + Number(documento.totalExento.toFixed(2))
+    if (contadorIva) ++contadorIva
+    if (!contadorIva) contadorIva = 1
+    console.log({ documento })
+    const baseExtento = Number(documento.baseImponible.toFixed(2)) + Number(documento.totalExento.toFixed(2))
     const baseRetencion = (baseExtento * (retMayor.valorBaseImponible || 0)) / 100
     const valorBaseRetenida = (baseRetencion * retMayor.valorRet) / 100
     let valorSustraendo = retMayor.sustraendo
@@ -4312,6 +4363,7 @@ const createRetenciones = async ({ documentoId, clienteId, uid }) => {
       valorSustraendo = retMayor.sustraendo * (retMayor.valorUT || 0)
     }
     const total = valorBaseRetenida - valorSustraendo
+    console.log({ retMayor, baseExtento, baseRetencion, valorBaseRetenida, valorSustraendo, total })
     createItemSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
@@ -4330,11 +4382,101 @@ const createRetenciones = async ({ documentoId, clienteId, uid }) => {
         tipoRetencion: retMayor,
         proveedorId: new ObjectId(documento.proveedor._id),
         creadoPor: new ObjectId(uid),
-        tipoRetencionAux: retMayor.tipoRetencion
-        // tasaDia: Number(comprobante.tasaDia),
-        // totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2))
+        tipoRetencionAux: retMayor.tipoRetencion,
+        tasaDia: Number(documento.tasaDia),
+        totalRetenidoSecundario: Number((total * documento.tasaDia).toFixed(2)),
+        moneda: documento.moneda,
+        monedaSecundaria: documento.monedaSecundaria
       }
     })
+    if (ajusteTributos?.isSujetoPasivoEspecial && documento.iva > 0) {
+      if (!documento.proveedor?.tipoRetiva) throw new Error('Error al momento de crear retención de IVA el proveedor no tiene configurado la retención de IVA')
+      const valorRetIva = documento.proveedor?.tipoRetiva?.retIva || 0
+      const retenidoIva = Number((documento.iva * (valorRetIva / 100)).toFixed(2))
+      console.log({ iva: documento.iva, retenidoIva, proveedor: documento.proveedor, valorRetIva })
+      createItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        item: {
+          tipoMovimiento: 'compra',
+          tipoDocumento: tiposDocumentosFiscales.retIva,
+          numeroFactura: formatearNumeroRetencionIva(contadorIva, moment(documento.fechaRecepcion).format('YYYYMM')),
+          numeroFacturaContador: contadorIva,
+          facturaAsociada: new ObjectId(documento._id),
+          tipoDocumentoAfectado: documento.tipoDocumento,
+          fecha: moment(documento.fechaRecepcion).toDate(),
+          baseImponible: Number(documento.baseImponible.toFixed(2)),
+          porcentajeRetenido: documento.proveedor?.tipoRetiva?.retIva ? Number(documento.proveedor?.tipoRetiva?.retIva.toFixed(2)) : 0,
+          totalCompra: Number(documento.total.toFixed(2)),
+          iva: Number(documento.iva.toFixed(2)),
+          sinDerechoCredito: documento?.sinDerechoCredito ? Number(documento.sinDerechoCredito.toFixed(2)) : 0,
+          totalRetenido: retenidoIva,
+          proveedorId: new ObjectId(documento.proveedor._id),
+          creadoPor: new ObjectId(uid),
+          tasaDia: Number(documento?.tasaDia),
+          totalRetenidoSecundario: Number((retenidoIva * documento?.tasaDia).toFixed(2)),
+          moneda: documento?.moneda,
+          monedaSecundaria: documento?.monedaSecundaria
+        }
+      })
+      if (tieneContabilidad) {
+        const cuentaRetIva = await getItemSD({
+          nameCollection: 'planCuenta',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(ajusteTributos.cuentaRetIva) }
+        })
+        asientosContables.push({
+          cuentaId: new ObjectId(cuentaProveedor._id),
+          cuentaCodigo: cuentaProveedor.codigo,
+          cuentaNombre: cuentaProveedor.descripcion,
+          comprobanteId: new ObjectId(comprobanteContable._id),
+          periodoId: new ObjectId(periodo._id),
+          descripcion: `COMPROBANTE RET IVA N°${formatearNumeroRetencionIva(contadorIva, moment(documento.fechaRecepcion).format('YYYYMM'))} DE ${documento.tipoDocumento}-${documento.numeroFactura}`,
+          fecha: moment(documento.fechaRecepcion).toDate(),
+          debe: Number(Number(retenidoIva).toFixed(2)),
+          haber: 0,
+          fechaCreacion: moment().toDate(),
+          terceroId: terceroProveedor ? new ObjectId(terceroProveedor._id) : null,
+          terceroNombre: terceroProveedor ? terceroProveedor.nombre : null,
+          docReferencia: `RET IVA N°${formatearNumeroRetencionIva(contadorIva, moment(documento.fechaRecepcion).format('YYYYMM'))}`,
+          documento: {
+            docReferencia: `RET IVA N°${formatearNumeroRetencionIva(contadorIva, moment(documento.fechaRecepcion).format('YYYYMM'))}`,
+            docFecha: moment(documento.fechaRecepcion).toDate()
+          }
+        },
+        {
+          cuentaId: new ObjectId(cuentaRetIva._id),
+          cuentaCodigo: cuentaRetIva.codigo,
+          cuentaNombre: cuentaRetIva.descripcion,
+          comprobanteId: new ObjectId(comprobanteContable._id),
+          periodoId: new ObjectId(periodo._id),
+          descripcion: `COMPROBANTE RET IVA N°${formatearNumeroRetencionIva(contadorIva, moment(documento.fechaRecepcion).format('YYYYMM'))} DE ${documento.tipoDocumento}-${documento.numeroFactura}`,
+          fecha: moment(documento.fechaRecepcion).toDate(),
+          debe: 0,
+          haber: Number(Number(retenidoIva).toFixed(2)),
+          fechaCreacion: moment().toDate(),
+          docReferencia: `RET IVA N°${formatearNumeroRetencionIva(contadorIva, moment(documento.fechaRecepcion).format('YYYYMM'))}`,
+          documento: {
+            docReferencia: `RET IVA N°${formatearNumeroRetencionIva(contadorIva, moment(documento.fechaRecepcion).format('YYYYMM'))}`,
+            docFecha: moment(documento.fechaRecepcion).toDate()
+          }
+        })
+      }
+    }
+    if (documento) {
+      updateItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(documento._id) },
+        update: {
+          $set: {
+            periodoIvaNombre: periodosAsignar.periodoIvaNombre,
+            periodoIvaInit: periodosAsignar.periodoIvaInit,
+            periodoIvaEnd: periodosAsignar.periodoIvaEnd
+          }
+        }
+      })
+    }
     if (tieneContabilidad) {
       console.log('entrando')
       const cuentaRetIslr = await getItemSD({
@@ -4342,7 +4484,7 @@ const createRetenciones = async ({ documentoId, clienteId, uid }) => {
         enviromentClienteId: clienteId,
         filters: { _id: new ObjectId(ajusteTributos.cuentaRetIslrCompra) }
       })
-      const detalleProveedor = await agreggateCollectionsSD({
+      /* const detalleProveedor = await agreggateCollectionsSD({
         nameCollection: 'proveedores',
         enviromentClienteId: clienteId,
         pipeline: [
@@ -4380,8 +4522,8 @@ const createRetenciones = async ({ documentoId, clienteId, uid }) => {
             }
           }
         })
-      }
-      const asientosContables = [
+      } */
+      asientosContables.push(
         {
           cuentaId: new ObjectId(cuentaProveedor._id),
           cuentaCodigo: cuentaProveedor.codigo,
@@ -4417,7 +4559,7 @@ const createRetenciones = async ({ documentoId, clienteId, uid }) => {
             docFecha: moment(documento.fechaRecepcion).toDate()
           }
         }
-      ]
+      )
       createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: [...asientosContables] })
     }
     upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIslr' }, update: { $set: { contador } } })

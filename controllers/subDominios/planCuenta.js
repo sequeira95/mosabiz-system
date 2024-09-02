@@ -3,10 +3,11 @@ import { agreggateCollectionsSD, bulkWriteSD, deleteManyItemsSD, formatCollectio
 import { nivelesCodigoByLength, subDominioName } from '../../constants.js'
 import { ObjectId } from 'mongodb'
 import { deleteCuentasForChangeLevel, updateManyDetalleComprobante } from '../../utils/updateComprobanteForChangeCuenta.js'
-import { createPlanCuenta, createPlanCuentaLight } from '../../utils/planCuentaDefecto.js'
+import { createPlanCuentaLight } from '../../utils/planCuentaDefecto.js'
 
 export const getPlanCuenta = async (req, res) => {
   const { clienteId } = req.body
+  const tercerosCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'terceros' })
   const detalleComprobantesCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
   try {
@@ -37,6 +38,15 @@ export const getPlanCuenta = async (req, res) => {
         },
         { $unwind: { path: '$detalle', preserveNullAndEmptyArrays: true } },
         {
+          $lookup:
+            {
+              from: `${tercerosCollectionName}`,
+              localField: '_id',
+              foreignField: 'cuentaId',
+              as: 'terceros'
+            }
+        },
+        {
           $project: {
             codigo: '$codigo',
             descripcion: '$descripcion',
@@ -44,7 +54,8 @@ export const getPlanCuenta = async (req, res) => {
             conciliacion: '$conciliacion',
             nivelCuenta: '$nivelCuenta',
             fechaCreacion: '$fechaCreacion',
-            hasComprobantes: '$detalle.hasDetalle'
+            hasComprobantes: '$detalle.hasDetalle',
+            terceros: '$terceros'
           }
         },
         { $sort: { codigo: 1 } }
@@ -361,6 +372,15 @@ export const deletePlanCuenta = async (req, res) => {
   if (!clienteId) return res.status(400).json({ error: 'Seleccione un cliente' })
   try {
     const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+    const verficarDatosContables = await agreggateCollectionsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { periodoId: { $in: periodosActivos } } },
+        { $count: 'total' }
+      ]
+    })
+    if (verficarDatosContables[0] && verficarDatosContables[0].total > 0) throw new Error('No se puede eliminar el plan de cuenta porque existen registros contables')
     await deleteManyItemsSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId })
     await deleteManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, filters: { periodoId: { $in: periodosActivos } } })
     deleteManyItemsSD({ nameCollection: 'estadoBancarios', enviromentClienteId: clienteId })
@@ -375,6 +395,6 @@ export const deletePlanCuenta = async (req, res) => {
     return res.status(200).json({ status: 'Plan de cuenta eliminado  exitosamente' })
   } catch (e) {
     console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de eliminar el plan de cuentas' + e.message })
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar el plan de cuentas ' + e.message })
   }
 }

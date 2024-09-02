@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { subDominioName } from '../../constants.js'
 
@@ -64,7 +64,6 @@ export const getProveedores = async (req, res) => {
 }
 export const saveProveedor = async (req, res) => {
   const { clienteId, proveedor, metodosPago } = req.body
-  console.log(metodosPago)
   try {
     if (!proveedor._id) {
       const saveProveedor = await upsertItemSD({
@@ -87,30 +86,34 @@ export const saveProveedor = async (req, res) => {
             fechaCreacion: moment().toDate(),
             utilidadFija: proveedor.utilidadFija || false,
             utilidaVariableDesde: proveedor.utilidaVariableDesde || false,
-            utilidaVariableHasta: proveedor.utilidaVariableHasta || false
+            utilidaVariableHasta: proveedor.utilidaVariableHasta || false,
+            tipoRetiva: proveedor.tipoRetiva,
+            tipoContribuyente: proveedor.tipoContribuyente
           }
         }
       })
-      if (metodosPago.some(e => e.banco || e.numeroCuenta || e.identificacion || e.telefono)) {
-        const metodosPagoBulk = metodosPago.map(e => {
-          return {
-            updateOne: {
-              filter: { _id: new ObjectId(e._id) },
-              update: {
-                $set: {
-                  banco: e.banco,
-                  numeroCuenta: e.numeroCuenta,
-                  identificacion: e.identificacion,
-                  telefono: e.telefono,
-                  proveedorId: saveProveedor._id,
-                  tipo: e.tipo
-                }
-              },
-              upsert: true
+      if (metodosPago[0]) {
+        if (metodosPago.some(e => e.banco || e.numeroCuenta || e.identificacion || e.telefono)) {
+          const metodosPagoBulk = metodosPago.map(e => {
+            return {
+              updateOne: {
+                filter: { _id: new ObjectId(e._id) },
+                update: {
+                  $set: {
+                    banco: e.banco,
+                    numeroCuenta: e.numeroCuenta,
+                    identificacion: e.identificacion,
+                    telefono: e.telefono,
+                    proveedorId: saveProveedor._id,
+                    tipo: e.tipo
+                  }
+                },
+                upsert: true
+              }
             }
-          }
-        })
-        bulkWriteSD({ nameCollection: 'metodosPagos', enviromentClienteId: clienteId, pipeline: metodosPagoBulk })
+          })
+          bulkWriteSD({ nameCollection: 'metodosPagos', enviromentClienteId: clienteId, pipeline: metodosPagoBulk })
+        }
       }
       return res.status(200).json({ status: 'Proveedor guardado exitosamente', proveedor: saveProveedor })
     }
@@ -133,11 +136,13 @@ export const saveProveedor = async (req, res) => {
           moneda: proveedor.moneda ? proveedor.moneda : null,
           utilidadFija: proveedor.utilidadFija || false,
           utilidaVariableDesde: proveedor.utilidaVariableDesde || false,
-          utilidaVariableHasta: proveedor.utilidaVariableHasta || false
+          utilidaVariableHasta: proveedor.utilidaVariableHasta || false,
+          tipoRetiva: proveedor.tipoRetiva,
+          tipoContribuyente: proveedor.tipoContribuyente
         }
       }
     })
-    const metodosPagoBulk = metodosPago.map(e => {
+    /* const metodosPagoBulk = metodosPago.map(e => {
       return {
         updateOne: {
           filter: { _id: new ObjectId(e._id) },
@@ -155,7 +160,7 @@ export const saveProveedor = async (req, res) => {
         }
       }
     })
-    bulkWriteSD({ nameCollection: 'metodosPagos', enviromentClienteId: clienteId, pipeline: metodosPagoBulk })
+    bulkWriteSD({ nameCollection: 'metodosPagos', enviromentClienteId: clienteId, pipeline: metodosPagoBulk }) */
     return res.status(200).json({ status: 'Proveedor guardado exitosamente', proveedor: saveProveedor })
   } catch (e) {
     console.log(e)
@@ -163,7 +168,7 @@ export const saveProveedor = async (req, res) => {
   }
 }
 export const saveToArray = async (req, res) => {
-  const { clienteId, dataProveedores } = req.body
+  const { clienteId, dataProveedores, pais } = req.body
   try {
     if (!dataProveedores[0]) throw new Error('Hubo un error al momento de procesar la lista de proveedores')
     const verifyProveedores = await agreggateCollectionsSD({
@@ -182,12 +187,23 @@ export const saveToArray = async (req, res) => {
       ]
     })
     if (verifyProveedores[0]) throw new Error('Existen proveedores que ya se encuentran registrados')
+    const retIva = await agreggateCollections({
+      nameCollection: 'retIva',
+      pipeline: [
+        { $match: { pais: { $eq: pais }, retIva: { $eq: 75 } } }
+      ]
+    })
+    console.log({ retIva })
     const bulkWrite = dataProveedores.map(e => {
+      const tipoDocumento = e.tipoDocumento?.toLowerCase()
+      const tipoContribuyente = tipoDocumento === 'j' || tipoDocumento === 'g' ? 'pjd' : 'pnr'
       return {
         ...e,
         moneda: new ObjectId(e.moneda),
         categoria: e.categoria ? new ObjectId(e.categoria) : null,
-        fechaCreacion: moment().toDate()
+        fechaCreacion: moment().toDate(),
+        tipoRetiva: retIva[0] ? retIva[0] : null,
+        tipoContribuyente
       }
     })
     createManyItemsSD({ nameCollection: 'proveedores', enviromentClienteId: clienteId, items: bulkWrite })

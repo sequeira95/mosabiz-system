@@ -6,11 +6,25 @@ import { uploadImg } from '../../../utils/cloudImage.js'
 import { hasContabilidad } from '../../../utils/hasContabilidad.js'
 
 export const getCiclos = async (req, res) => {
-  const { fecha, tipoImpuesto, isSujetoPasivoEspecial } = req.body
-  console.log(fecha, tipoImpuesto, isSujetoPasivoEspecial)
+  const { fecha, tipoImpuesto, isSujetoPasivoEspecial, fechaInicioSujetoPasivo } = req.body
+  const fechaPasivoEspecial = fechaInicioSujetoPasivo
+  const allCiclos = fechaPasivoEspecial && moment(fechaPasivoEspecial).year() === moment(fecha).year()
+  const ciclosNormales = fechaPasivoEspecial && moment(fechaPasivoEspecial).year() > moment(fecha).year()
+  // const ciclosEspeciales = fechaPasivoEspecial && moment(fechaPasivoEspecial).year() <= moment(fecha).year()
   const matchConfig = {}
-  if (isSujetoPasivoEspecial) {
+  console.log({
+    allCiclos,
+    isSujetoPasivoEspecial
+  })
+  if (isSujetoPasivoEspecial && !allCiclos) {
     matchConfig.isSujetoPasivoEspecial = { $eq: isSujetoPasivoEspecial }
+  } else if (allCiclos) {
+    // matchConfig.isSujetoPasivoEspecial = { $eq: isSujetoPasivoEspecial }
+  } else {
+    matchConfig.isSujetoPasivoEspecial = { $ne: true }
+  }
+  if (ciclosNormales) {
+    matchConfig.isSujetoPasivoEspecial = { $ne: true }
   }
   try {
     const ciclos = await agreggateCollections({
@@ -20,7 +34,12 @@ export const getCiclos = async (req, res) => {
           $match:
           {
             tipoImpuesto,
-            isSujetoPasivoEspecial
+            ...matchConfig,
+            $or: [
+              { fechaFin: { $gte: moment(fecha).toDate() } },
+              { fechaFin: { $eq: null } }
+            ]
+            // isSujetoPasivoEspecial
             // ...matchConfig
             /* $or: [
               {
@@ -36,10 +55,14 @@ export const getCiclos = async (req, res) => {
               }
             ] */
           }
+        },
+        {
+          $sort: {
+            fechaFin: -1
+          }
         }
       ]
     })
-    console.log({ ciclos })
     return res.status(200).json({ ciclos })
   } catch (e) {
     console.log(e)
@@ -273,7 +296,7 @@ export const getListProveedores = async (req, res) => {
   }
 }
 export const getComprobantesRetencionIslr = async (req, res) => {
-  const { clienteId, periodoSelect } = req.body
+  const { clienteId, periodoSelect, pagina, itemsPorPagina } = req.body
   try {
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
@@ -289,6 +312,8 @@ export const getComprobantesRetencionIslr = async (req, res) => {
             // estado: { $ne: 'anulado' }
           }
         },
+        { $skip: (pagina - 1) * itemsPorPagina },
+        { $limit: itemsPorPagina },
         {
           $lookup: {
             from: proveedoresCollection,
@@ -344,7 +369,7 @@ export const getComprobantesRetencionIslr = async (req, res) => {
   }
 }
 export const saveComprobanteRetIslrCompras = async (req, res) => {
-  console.log(req.body)
+  // console.log('ret', req.body)
   try {
     const { clienteId, comprobantes, fecha } = req.body
     const comprobantesCrear = []
@@ -599,6 +624,7 @@ export const anularComprobante = async (req, res) => {
         enviromentClienteId: clienteId,
         filters: { _id: new ObjectId(detalleProveedor[0]?.detalleCategoria?.cuentaId) }
       })
+      if (!cuentaProveedor) throw new Error('El proveedor no tiene una cuenta asignada en su categoria')
       let terceroProveedor = await getItemSD({
         nameCollection: 'terceros',
         enviromentClienteId: clienteId,
@@ -752,7 +778,7 @@ export const saveDeclaracionIslr = async (req, res) => {
   }
 }
 export const saveComprobanteRetIvaCompras = async (req, res) => {
-  console.log(req.body)
+  // console.log('iva', req.body)
   try {
     const { clienteId, comprobantes, fecha } = req.body
     const comprobantesCrear = []
@@ -792,7 +818,7 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
       const verifyComprobante = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { facturaAsociada: new ObjectId(comprobante.facturaAsociada), tipoDocumento: tiposDocumentosFiscales.retIva }
+        filters: { facturaAsociada: new ObjectId(comprobante.facturaAsociada), tipoDocumento: tiposDocumentosFiscales.retIva, estado: { $ne: 'anulado' } }
       })
       if (verifyComprobante) throw new Error('Ya existe un comprobante para la factura N° ' + comprobante.numeroFacturaAsociada)
       let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIva' } }))?.contador || 0
@@ -801,7 +827,8 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
       comprobantesCrear.push({
         tipoMovimiento: 'compra',
         tipoDocumento: tiposDocumentosFiscales.retIva,
-        numeroFactura: contador,
+        numeroFactura: formatearNumeroRetencionIva(contador, moment(fecha).format('YYYYMM')),
+        numeroFacturaContador: contador,
         facturaAsociada: new ObjectId(comprobante.facturaAsociada),
         tipoDocumentoAfectado: comprobante.tipoDocumentoAfectado,
         fecha: moment(comprobante.fecha).toDate(),
@@ -950,7 +977,7 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
   }
 }
 export const getComprobantesRetencionIVA = async (req, res) => {
-  const { clienteId, periodoSelect } = req.body
+  const { clienteId, periodoSelect, pagina, itemsPorPagina } = req.body
   try {
     console.log(tiposDocumentosFiscales.retIva, 'comprobamt')
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
@@ -967,6 +994,8 @@ export const getComprobantesRetencionIVA = async (req, res) => {
             // estado: { $ne: 'anulado' }
           }
         },
+        { $skip: (pagina - 1) * itemsPorPagina },
+        { $limit: itemsPorPagina },
         {
           $lookup: {
             from: proveedoresCollection,
@@ -2231,7 +2260,9 @@ export const getDataIva = async (req, res) => {
             item343: { $subtract: ['$item343', '$item343resta'] },
             itemsProrrata: { $subtract: ['$itemsProrrata', '$itemsProrrataResta'] },
             itemsNoProrrata: { $subtract: ['$itemsNoProrrata', '$itemsNoProrrataResta'] },
-            item66: { $subtract: ['$item66', '$item66resta'] }
+            item66: { $subtract: ['$item66', '$item66resta'] },
+            item66suma: '$item66',
+            item66resta: '$item66resta'
           }
         }
       ]
@@ -2243,7 +2274,7 @@ export const getDataIva = async (req, res) => {
   }
 }
 export const getComprobantesRetencionIVAVenta = async (req, res) => {
-  const { clienteId, periodoSelect } = req.body
+  const { clienteId, periodoSelect, pagina, itemsPorPagina } = req.body
   try {
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
@@ -2259,6 +2290,8 @@ export const getComprobantesRetencionIVAVenta = async (req, res) => {
             // estado: { $ne: 'anulado' }
           }
         },
+        { $skip: (pagina - 1) * itemsPorPagina },
+        { $limit: itemsPorPagina },
         {
           $lookup: {
             from: proveedoresCollection,
@@ -2507,7 +2540,7 @@ export const saveComprobanteRetIvaVentas = async (req, res) => {
 }
 export const getFacturasPorDeclararIva = async (req, res) => {
   const { clienteId, pagina, itemsPorPagina, periodoSelect, tipo } = req.body
-  console.log(req.body)
+  // console.log(req.body)
   try {
     const fechaFin = periodoSelect?.fechaFin ? moment(periodoSelect.fechaFin).toDate() : moment().toDate()
     const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
@@ -2831,12 +2864,12 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         ivaSecundaria: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
         totalSecundaria: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
-        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
-        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
-        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : 0,
-        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
-        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
-        aplicaProrrateo: documento.aplicaProrrateo || false,
+        sinDerechoCredito: documento?.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
+        noSujeto: documento?.noSujeto ? Number(Number(documento?.noSujeto).toFixed(2)) : 0,
+        exonerado: documento?.exonerado ? Number(Number(documento?.exonerado).toFixed(2)) : 0,
+        exento: documento?.exento ? Number(Number(documento?.exento).toFixed(2)) : 0,
+        totalExento: documento?.totalExento ? Number(Number(documento?.totalExento).toFixed(2)) : 0,
+        aplicaProrrateo: documento?.aplicaProrrateo || false,
         isImportacion: documento.isImportacion || false
       }
       documentosFacturas.push(compra)
@@ -2862,6 +2895,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             })
           }
         }
+        console.log({ tercero })
         const asientos = [
           {
             cuentaId: new ObjectId(cuentaCosto._id),
@@ -2874,8 +2908,8 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             debe: Number(Number(compra.baseImponible.toFixed(2)) + Number(compra.totalExento.toFixed(2))),
             haber: 0,
             fechaCreacion: moment().toDate(),
-            terceroId: tercero ? new ObjectId(tercero._id) : null,
-            terceroNombre: tercero ? tercero.nombre : null,
+            // terceroId: tercero ? new ObjectId(tercero._id) : null,
+            // terceroNombre: tercero ? tercero.nombre : null,
             docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
             documento: {
               docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
@@ -2892,6 +2926,8 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             debe: 0,
             haber: Number(Number(compra.total.toFixed(2))),
             fechaCreacion: moment().toDate(),
+            terceroId: tercero ? new ObjectId(tercero._id) : null,
+            terceroNombre: tercero ? tercero.nombre : null,
             docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
             documento: {
               docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
@@ -2994,8 +3030,8 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         ivaSecundaria: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
         totalSecundaria: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
-        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
-        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
+        exento: documento?.exento ? Number(Number(documento?.exento).toFixed(2)) : 0,
+        totalExento: documento?.totalExento ? Number(Number(documento?.totalExento).toFixed(2)) : 0,
         isExportacion: documento.isExportacion || false,
         ownLogo: sucursal?.logo || clienteOwn?.logo,
         ownRazonSocial: sucursal?.nombre || clienteOwn?.razonSocial,
@@ -3202,12 +3238,12 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         ivaSecundaria: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
         totalSecundaria: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
-        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
-        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
-        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : 0,
-        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
-        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
-        aplicaProrrateo: documento.aplicaProrrateo || false,
+        sinDerechoCredito: documento?.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
+        noSujeto: documento?.noSujeto ? Number(Number(documento?.noSujeto).toFixed(2)) : 0,
+        exonerado: documento?.exonerado ? Number(Number(documento?.exonerado).toFixed(2)) : 0,
+        exento: documento?.exento ? Number(Number(documento?.exento).toFixed(2)) : 0,
+        totalExento: documento?.totalExento ? Number(Number(documento?.totalExento).toFixed(2)) : 0,
+        aplicaProrrateo: documento?.aplicaProrrateo || false,
         isImportacion: documento.isImportacion || false
       }
       if (!documento.documentoIdentidad && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado') {
@@ -3428,11 +3464,11 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
         total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
-        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
-        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
-        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : 0,
-        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
-        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
+        sinDerechoCredito: documento?.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
+        noSujeto: documento?.noSujeto ? Number(Number(documento?.noSujeto).toFixed(2)) : 0,
+        exonerado: documento?.exonerado ? Number(Number(documento?.exonerado).toFixed(2)) : 0,
+        exento: documento?.exento ? Number(Number(documento?.exento).toFixed(2)) : 0,
+        totalExento: documento?.totalExento ? Number(Number(documento?.totalExento).toFixed(2)) : 0,
         isExportacion: documento.isExportacion || false,
         ownLogo: sucursal?.logo || clienteOwn?.logo,
         ownRazonSocial: sucursal?.nombre || clienteOwn?.razonSocial,
@@ -3609,7 +3645,6 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
   let cuentaPago = null
   let periodo = null
   let comprobante = null
-  console.log({ filtros })
   if (tieneContabilidad) {
     cuentaRetIva = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaRetIva?._id) } })
     cuentaPago = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaPago?._id) } })
@@ -3643,6 +3678,8 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
       })
     }
   }
+  const ultimoContador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIva' } }))?.contador || 0
+  let numeroDocMayor = 0
   for (const documento of documentos) {
     let proveedor
     let cliente
@@ -3688,7 +3725,6 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         filters: { numeroFactura: documento.numeroFacturaAfectada, proveedorId: proveedor?._id }
       })
       if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
-        console.log({documento})
       const compra = {
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
@@ -3696,6 +3732,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         fecha: moment(documento.fecha).toDate(),
         fechaVencimiento: moment().toDate(),
         numeroFactura: documento.numeroFactura,
+        numeroFacturaContador: substringNumeroDocumento(documento.numeroFactura),
         tipoDocumento: tiposDocumentosFiscales.retIva,
         tipoDocumentoAfectado: facturaAfectada?.tipoDocumento || null,
         numeroControl: documento.numeroControl || null,
@@ -3704,17 +3741,20 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         monedaSecundaria: moneda,
         compraFiscal: true,
         baseImponible: facturaAfectada?.baseImponible ? Number(Number(facturaAfectada?.baseImponible).toFixed(2)) : 0,
-        iva: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
+        iva: facturaAfectada?.iva ? Number(Number(facturaAfectada?.iva).toFixed(2)) : 0,
         totalCompra: facturaAfectada?.total ? Number(Number(facturaAfectada?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
-        sinDerechoCredito: documento.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
-        noSujeto: documento.noSujeto ? Number(Number(documento.noSujeto).toFixed(2)) : 0,
-        exonerado: documento.exonerado ? Number(Number(documento.exonerado).toFixed(2)) : 0,
-        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
-        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
+        sinDerechoCredito: facturaAfectada?.sinDerechoCredito ? Number(Number(facturaAfectada.sinDerechoCredito).toFixed(2)) : 0,
+        noSujeto: facturaAfectada?.noSujeto ? Number(Number(facturaAfectada.noSujeto).toFixed(2)) : 0,
+        exonerado: facturaAfectada?.exonerado ? Number(Number(facturaAfectada.exonerado).toFixed(2)) : 0,
+        exento: facturaAfectada?.exento ? Number(Number(facturaAfectada.exento).toFixed(2)) : 0,
+        totalExento: facturaAfectada?.totalExento ? Number(Number(facturaAfectada.totalExento).toFixed(2)) : 0,
         totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
         totalRetenidoSecundario: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
         porcentajeRetenido: documento.porcentajeRetencion ? Number(documento.porcentajeRetencion.toFixed(2)) : 0
+      }
+      if (substringNumeroDocumento(documento.numeroFactura) > numeroDocMayor) {
+        numeroDocMayor = substringNumeroDocumento(documento.numeroFactura)
       }
       // console.log(documento.periodoIvaNombre)
       if (facturaAfectada) {
@@ -3862,17 +3902,20 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         direccionEnvio: cliente?.direccionEnvio,
         moneda,
         baseImponible: facturaAfectada?.baseImponible ? Number(Number(facturaAfectada?.baseImponible).toFixed(2)) : 0,
-        iva: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
+        iva: facturaAfectada?.iva ? Number(Number(facturaAfectada?.iva).toFixed(2)) : 0,
         totalCompra: facturaAfectada?.total ? Number(Number(facturaAfectada?.total).toFixed(2)) : 0,
         creadoPor: new ObjectId(uid),
-        exento: documento.exento ? Number(Number(documento.exento).toFixed(2)) : 0,
-        totalExento: documento.totalExento ? Number(Number(documento.totalExento).toFixed(2)) : 0,
+        exento: documento?.exento ? Number(Number(documento?.exento).toFixed(2)) : 0,
+        totalExento: facturaAfectada?.totalExento ? Number(Number(facturaAfectada?.totalExento).toFixed(2)) : 0,
         totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
         ownLogo: sucursal?.logo || clienteOwn?.logo,
         ownRazonSocial: sucursal?.nombre || clienteOwn?.razonSocial,
         ownDireccion: sucursal?.direccion || clienteOwn?.direccion,
         ownDocumentoIdentidad: sucursal?.rif || `${clienteOwn?.tipoDocumento}-${clienteOwn?.documentoIdentidad}`,
-        porcentajeRetenido: documento.porcentajeRetencion ? Number(documento.porcentajeRetencion.toFixed(2)) : 0
+        porcentajeRetenido: documento.porcentajeRetencion ? Number(documento.porcentajeRetencion.toFixed(2)) : 0,
+        periodoIvaNombre: documento.periodoIvaNombre,
+        periodoIvaInit: moment(documento.periodoIvaInit).toDate(),
+        periodoIvaEnd: moment(documento.periodoIvaEnd).toDate()
       }
       if (facturaAfectada) {
         const updatePeriodoFactura = {
@@ -3958,6 +4001,9 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
       }
     }
   }
+  if (numeroDocMayor > ultimoContador) {
+    upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIva' }, update: { $set: { contador: numeroDocMayor } } })
+  }
   if (documentosFiscales[0]) {
     await createManyItemsSD({
       nameCollection: 'documentosFiscales',
@@ -4014,4 +4060,8 @@ export const getCajasSucursalList = async (req, res) => {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
   }
+}
+const substringNumeroDocumento = (numeroDocumento) => {
+  const nuevoNumero = numeroDocumento.substring(6)
+  return Number(nuevoNumero)
 }

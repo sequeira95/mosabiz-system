@@ -180,10 +180,18 @@ export const formatearNumeroRetencionIslr = (numero) => {
 
 export const formatearNumeroRetencionIva = (numero, fecha) => {
   // Convertir el número a cadena y rellenar con ceros a la izquierda
-  const cadenaConCeros = numero.toString().padStart(8, '')
+  const cadenaConCeros = numero.toString().padStart(8, '0')
 
   // Cortar la cadena al tamaño máximo deseado
   const cadenaFormateada = `${fecha}${cadenaConCeros.slice(0, 8)}`
 
   return cadenaFormateada
+}
+
+export const constTiposResidenteISLR = {
+  pnr: 'Persona natural residente',
+  pnnr: 'Persona natural no residente',
+  pjd: 'Persona juridica domiciliada',
+  pjnd: 'Persona juridica no domiciliada'
+  // pjncd: 'PJNCD',
 }

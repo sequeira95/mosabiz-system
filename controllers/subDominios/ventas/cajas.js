@@ -48,6 +48,37 @@ export const getCajas = async (req, res) => {
   }
 }
 
+export const getUsuariosBySucursal = async (req, res) => {
+  const { clienteId, sucursalId } = req.body
+  try {
+    if (!sucursalId) throw new Error('Sucursal no existe')
+    const personasNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+    const [usuarios] = await agreggateCollectionsSD({
+      nameCollection: 'ventassucursales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: new ObjectId(sucursalId) } },
+        {
+          $lookup: {
+            from: personasNameCol,
+            localField: 'usuarios',
+            foreignField: '_id',
+            pipeline: [
+              { $project: { nombre: '$nombre' } }
+            ],
+            as: 'personas'
+          }
+        },
+        { $project: { usuarios: '$personas' } }
+      ]
+    })
+    return res.status(200).json({ usuarios: usuarios?.usuarios })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
+  }
+}
+
 export const createCajas = async (req, res) => {
   const {
     _id,
@@ -55,11 +86,12 @@ export const createCajas = async (req, res) => {
     descripcion,
     clienteId,
     sucursalId,
+    usuarios,
     cuentaId,
     numeroControl,
     useImpresoraFiscal,
     modeloImpresoraFiscal
-  } = req.body;
+  } = req.body
   if (!nombre) throw new Error('Debe un gresar un nombre y codigo valido')
   try {
     const verify = await getItemSD({
@@ -69,6 +101,11 @@ export const createCajas = async (req, res) => {
     })
     if ((_id && verify && String(verify._id) !== _id) || (verify && !_id)) throw new Error('EL nombre de caja ya existe')
     let caja
+    const usuariosArray = Array.isArray(usuarios)
+      ? usuarios
+      : usuarios
+        ? [usuarios]
+        : undefined
     if (_id) {
       caja = await updateItemSD({
         nameCollection: 'ventascajas',
@@ -82,6 +119,7 @@ export const createCajas = async (req, res) => {
             useImpresoraFiscal,
             modeloImpresoraFiscal,
             sucursalId: (sucursalId && new ObjectId(sucursalId)) || null,
+            usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
             cuentaId: (cuentaId && new ObjectId(cuentaId)) || null
           }
         }
@@ -94,6 +132,7 @@ export const createCajas = async (req, res) => {
           descripcion,
           nombre,
           sucursalId: (sucursalId && new ObjectId(sucursalId)) || null,
+          usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
           cuentaId: (cuentaId && new ObjectId(cuentaId)) || null,
           numeroControl,
           useImpresoraFiscal,

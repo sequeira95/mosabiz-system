@@ -70,9 +70,13 @@ export const getData = async (req, res) => {
             foreignField: 'sucursalId',
             pipeline: [
               {
+                $match: isEmpresa ? ({}) : query
+              },
+              {
                 $project: {
                   _id: 1,
                   nombre: '$nombre',
+                  usuarios: '$usuarios',
                   numeroControl: '$numeroControl',
                   useImpresoraFiscal: '$useImpresoraFiscal',
                   modeloImpresoraFiscal: '$modeloImpresoraFiscal'

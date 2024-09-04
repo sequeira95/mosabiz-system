@@ -1,6 +1,6 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { anularComprobante, deletePeriodoFactura, eliminarDocumentos, getCajasSucursalList, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIVA, getComprobantesRetencionIVAVenta, getDataIva, getFacturasPorDeclarar, getFacturasPorDeclararIva, getListClientes, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, getSucursalesList, saveComprobanteRetIslrCompras, saveComprobanteRetIvaCompras, saveComprobanteRetIvaVentas, saveDeclaracionIslr, saveDeclaracionIva, saveDocumentosfiscalesToArray, savePeriodoFactura, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
+import { addImagenPlanillaIva, anularComprobante, deleteImgPlanillas, deletePeriodoFactura, eliminarDocumentos, getCajasSucursalList, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIVA, getComprobantesRetencionIVAVenta, getDataIva, getFacturasPorDeclarar, getFacturasPorDeclararIva, getListClientes, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, getSucursalesList, saveComprobanteRetIslrCompras, saveComprobanteRetIvaCompras, saveComprobanteRetIvaVentas, saveDeclaracionIslr, saveDeclaracionIva, saveDocumentosfiscalesToArray, savePeriodoFactura, savePlanillaIva, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
 
 const router = express.Router()
 
@@ -27,5 +27,8 @@ router.post('/delete/periodoFactura', requireSubDominioToken, deletePeriodoFactu
 router.post('/save/documentosFiscalesToArray', requireSubDominioToken, saveDocumentosfiscalesToArray)
 router.post('/get/sucursales', requireSubDominioToken, getSucursalesList)
 router.post('/get/sucursales/caja', requireSubDominioToken, getCajasSucursalList)
+router.post('/save/planillaIva', requireSubDominioToken, savePlanillaIva)
+router.post('/add/img/planillaIva', requireSubDominioToken, addImagenPlanillaIva)
+router.post('/delete/img/planillaIva', requireSubDominioToken, deleteImgPlanillas)
 router.post('/eliminando', requireSubDominioToken, eliminarDocumentos) // eliminar esta ruta
 export default router

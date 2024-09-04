@@ -2,7 +2,7 @@ import moment from 'moment-timezone'
 import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getCollection, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { formatearNumeroRetencionIslr, formatearNumeroRetencionIva, subDominioName, tiposDeclaracion, tiposDocumentosFiscales, tiposIVa } from '../../../constants.js'
 import { ObjectId } from 'mongodb'
-import { uploadImg } from '../../../utils/cloudImage.js'
+import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
 import { hasContabilidad } from '../../../utils/hasContabilidad.js'
 
 export const getCiclos = async (req, res) => {
@@ -1132,12 +1132,11 @@ export const saveDeclaracionIva = async (req, res) => {
 export const getDataIva = async (req, res) => {
   const { clienteId, periodoSelect } = req.body
   try {
+    console.log({ periodoSelect })
     const ivaList = await getCollection({ nameCollection: 'iva' })
-    console.log({ ivaList })
     const alicuotaGeneral = ivaList.find(e => e.tipo === tiposIVa.general).iva
     const alicuotaReducida = ivaList.find(e => e.tipo === tiposIVa.reducida).iva
     const alicuotaAdicional = ivaList.find(e => e.tipo === tiposIVa.adicional).iva
-    console.log({ alicuotaGeneral, alicuotaReducida, alicuotaAdicional })
     const dataIva = (await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
@@ -2267,7 +2266,16 @@ export const getDataIva = async (req, res) => {
         }
       ]
     }))[0]
-    return res.status(200).json({ dataIva })
+    const planilla = await getItemSD({
+      nameCollection: 'declaraciones',
+      enviromentClienteId: clienteId,
+      filters: {
+        tipoDeclaracion: tiposDeclaracion.planillaIva,
+        periodoInit: { $gte: moment(periodoSelect.fechaInicio).toDate() },
+        priodoFin: { $lte: moment(periodoSelect.fechaFin).toDate() }
+      }
+    })
+    return res.status(200).json({ dataIva, planilla })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar datos para el IVA ' + e.message })
@@ -4064,4 +4072,147 @@ export const getCajasSucursalList = async (req, res) => {
 const substringNumeroDocumento = (numeroDocumento) => {
   const nuevoNumero = numeroDocumento.substring(6)
   return Number(nuevoNumero)
+}
+export const savePlanillaIva = async (req, res) => {
+  const { clienteId, _id, dataIva, estado, periodoInit, priodoFin, periodo } = req.body
+  try {
+    console.log(req.body)
+    // const documentos = req.files?.documentos
+    // const documentosAdjuntos = []
+    delete dataIva._id
+    console.log({ dataIva })
+    const declaracionCrear = {
+      estado,
+      periodoInit: moment(periodoInit).toDate(),
+      priodoFin: moment(priodoFin).toDate(),
+      periodo,
+      creadoPor: new ObjectId(req.uid),
+      tipoDeclaracion: tiposDeclaracion.planillaIva,
+      ...dataIva
+    }
+    /* if (req.files && req.files.documentos) {
+      if (documentos && documentos[0]) {
+        for (const documento of documentos) {
+          const extension = documento.mimetype.split('/')[1]
+          const namePath = `${documento.name}`
+          const resDoc = await uploadImg(documento.data, namePath)
+          documentosAdjuntos.push(
+            {
+              path: resDoc.filePath,
+              name: resDoc.name,
+              url: resDoc.url,
+              type: extension,
+              fileId: resDoc.fileId
+            })
+        }
+      }
+      if (documentos && documentos.name) {
+        const extension = documentos.mimetype.split('/')[1]
+        const namePath = `${documentos.name}`
+        const resDoc = await uploadImg(documentos.data, namePath)
+        documentosAdjuntos.push(
+          {
+            path: resDoc.filePath,
+            name: resDoc.name,
+            url: resDoc.url,
+            type: extension,
+            fileId: resDoc.fileId
+          }
+        )
+      }
+    }
+    if (documentosAdjuntos[0]) {
+      const itemsAnterior = (await getItemSD({ nameCollection: 'declaraciones', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })).documentosAdjuntos
+      if (itemsAnterior) {
+        documentosAdjuntos.push(...itemsAnterior)
+      }
+      declaracionCrear.documentosAdjuntos = documentosAdjuntos
+    } */
+    const declaracionGuardada = await upsertItemSD({
+      nameCollection: 'declaraciones',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: { $set: declaracionCrear }
+    })
+    return res.status(200).json({ status: 'Planilla guardada exitosamente', declaracion: declaracionGuardada })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar la declaracion ' + e.message })
+  }
+}
+export const addImagenPlanillaIva = async (req, res) => {
+  const { clienteId, planillaId } = req.body
+  console.log({ body: req.body, file: req.files.documentos })
+  try {
+    const documentos = req.files?.documentos
+    const documentosAdjuntos = []
+    if (req.files && req.files.documentos) {
+      if (documentos && documentos[0]) {
+        for (const documento of documentos) {
+          const extension = documento.mimetype.split('/')[1]
+          const namePath = `${documento.name}`
+          const resDoc = await uploadImg(documento.data, namePath)
+          documentosAdjuntos.push(
+            {
+              path: resDoc.filePath,
+              name: resDoc.name,
+              url: resDoc.url,
+              type: extension,
+              fileId: resDoc.fileId
+            })
+        }
+      }
+      if (documentos && documentos.name) {
+        const extension = documentos.mimetype.split('/')[1]
+        const namePath = `${documentos.name}`
+        const resDoc = await uploadImg(documentos.data, namePath)
+        documentosAdjuntos.push(
+          {
+            path: resDoc.filePath,
+            name: resDoc.name,
+            url: resDoc.url,
+            type: extension,
+            fileId: resDoc.fileId
+          }
+        )
+      }
+    }
+    if (documentosAdjuntos[0]) {
+      const itemsAnterior = (await getItemSD({ nameCollection: 'declaraciones', enviromentClienteId: clienteId, filters: { _id: new ObjectId(planillaId) } })).documentosAdjuntos
+      if (itemsAnterior) {
+        documentosAdjuntos.push(...itemsAnterior)
+      }
+      const documento = await updateItemSD({
+        nameCollection: 'declaraciones',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(planillaId) },
+        update: { $set: { documentosAdjuntos } }
+      })
+      return res.status(200).json({ status: 'Imagenes guardada exitosamente', documento })
+    }
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar las imagenes del almacen ' + e.message })
+  }
+}
+
+export const deleteImgPlanillas = async (req, res) => {
+  const { clienteId, planillaId, imgId } = req.body
+  try {
+    await updateItemSD({
+      nameCollection: 'declaraciones',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(planillaId) },
+      update: { $pull: { documentosAdjuntos: { fileId: imgId } } }
+    })
+    try {
+      await deleteImg(imgId)
+    } catch (e) {
+      console.log(e)
+    }
+    return res.status(200).json({ status: 'Imagen eliminada exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar la imagen del almacen ' + e.message })
+  }
 }

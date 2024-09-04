@@ -4422,7 +4422,10 @@ const createRetenciones = async ({ documentoId, clienteId, uid, periodosAsignar 
           tasaDia: Number(documento?.tasaDia),
           totalRetenidoSecundario: Number((retenidoIva * documento?.tasaDia).toFixed(2)),
           moneda: documento?.moneda,
-          monedaSecundaria: documento?.monedaSecundaria
+          monedaSecundaria: documento?.monedaSecundaria,
+          periodoIvaNombre: periodosAsignar.periodoIvaNombre,
+          periodoIvaInit: periodosAsignar.periodoIvaInit,
+          periodoIvaEnd: periodosAsignar.periodoIvaEnd
         }
       })
       upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIva' }, update: { $set: { contador: contadorIva } } })

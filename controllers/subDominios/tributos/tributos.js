@@ -843,7 +843,10 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
         creadoPor: new ObjectId(req.uid),
         tasaDia: Number(comprobante.tasaDia),
         monedaSecundaria: 'USD',
-        totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2))
+        totalRetenidoSecundario: Number(comprobante.totalRetenidoSecundario.toFixed(2)),
+        periodoIvaNombre: comprobante.periodoIvaNombre,
+        periodoIvaInit: moment(comprobante.periodoIvaInit).toDate(),
+        periodoIvaEnd: moment(comprobante.periodoIvaEnd).toDate()
       })
       const factura = await getItemSD({
         nameCollection: 'documentosFiscales',
@@ -3759,7 +3762,10 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         totalExento: facturaAfectada?.totalExento ? Number(Number(facturaAfectada.totalExento).toFixed(2)) : 0,
         totalRetenido: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
         totalRetenidoSecundario: documento.totalRetenido ? Number(Number(documento.totalRetenido).toFixed(2)) : 0,
-        porcentajeRetenido: documento.porcentajeRetencion ? Number(documento.porcentajeRetencion.toFixed(2)) : 0
+        porcentajeRetenido: documento.porcentajeRetencion ? Number(documento.porcentajeRetencion.toFixed(2)) : 0,
+        periodoIvaNombre: documento.periodoIvaNombre,
+        periodoIvaInit: moment(documento.periodoIvaInit).toDate(),
+        periodoIvaEnd: moment(documento.periodoIvaEnd).toDate()
       }
       if (substringNumeroDocumento(documento.numeroFactura) > numeroDocMayor) {
         numeroDocMayor = substringNumeroDocumento(documento.numeroFactura)

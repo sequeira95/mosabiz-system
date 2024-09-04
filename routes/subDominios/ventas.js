@@ -21,7 +21,9 @@ import {
   deleteZonas,
   getZonas,
   saveZonas,
-  saveZonasToArray
+  saveZonasToArray,
+  listCategoriasPorZonas,
+  saveCategoriasPorZonas
 } from '../../controllers/subDominios/ventas/zonas.js'
 
 import {
@@ -61,6 +63,8 @@ router.post('/zonas/get', requireSubDominioToken, getZonas)
 router.post('/zonas/set', requireSubDominioToken, saveZonas)
 router.post('/zonas/save', requireSubDominioToken, saveZonasToArray)
 router.post('/zonas/delete', requireSubDominioToken, deleteZonas)
+router.post('/zonas/list-categorias-servicios', requireSubDominioToken, listCategoriasPorZonas)
+router.post('/zonas/save-categorias-servicios', requireSubDominioToken, saveCategoriasPorZonas)
 
 router.post('/facturacion/data', requireSubDominioToken, getData)
 router.post('/facturacion/pedidos-venta', requireSubDominioToken, getPedidosVentas)

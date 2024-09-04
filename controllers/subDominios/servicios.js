@@ -28,6 +28,8 @@ export const getServicios = async (req, res) => {
             descuento: '$detalleCategoria.descuento',
             tipoDescuento: '$detalleCategoria.tipoDescuento',
             hasDescuento: '$detalleCategoria.hasDescuento',
+            iva: '$iva',
+            ivaId: '$ivaId',
             codigo: 1,
             nombre: 1,
             moneda: 1,
@@ -46,7 +48,7 @@ export const getServicios = async (req, res) => {
   }
 }
 export const saveServicios = async (req, res) => {
-  const { _id, clienteId, categoria, codigo, nombre, moneda, precio, observacion, tipo } = req.body
+  const { _id, clienteId, categoria, codigo, nombre, moneda, precio, observacion, tipo, ivaId } = req.body
   try {
     if (!_id) {
       const verify = await getItemSD({
@@ -68,6 +70,7 @@ export const saveServicios = async (req, res) => {
             nombre,
             moneda: moneda ? new ObjectId(moneda) : null,
             precio: Number(precio) || null,
+            ivaId: (ivaId && new ObjectId(ivaId)) || null,
             observacion,
             fechaCreacion: moment().toDate(),
             tipo
@@ -87,6 +90,7 @@ export const saveServicios = async (req, res) => {
           nombre,
           moneda: moneda ? new ObjectId(moneda) : null,
           precio: Number(precio) || null,
+          ivaId: (ivaId && new ObjectId(ivaId)) || null,
           observacion,
           tipo
         }

@@ -1,7 +1,7 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
 import { addImagenPlanillaIva, anularComprobante, deleteImgPlanillas, deletePeriodoFactura, eliminarDocumentos, getCajasSucursalList, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIVA, getComprobantesRetencionIVAVenta, getDataIva, getFacturasPorDeclarar, getFacturasPorDeclararIva, getListClientes, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, getSucursalesList, saveComprobanteRetIslrCompras, saveComprobanteRetIvaCompras, saveComprobanteRetIvaVentas, saveDeclaracionIslr, saveDeclaracionIva, saveDocumentosfiscalesToArray, savePeriodoFactura, savePlanillaIva, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
-import { getLibroCompra } from '../../controllers/subDominios/tributos/reportes.js'
+import { getLibroCompra, getLibroVenta } from '../../controllers/subDominios/tributos/reportes.js'
 
 const router = express.Router()
 
@@ -32,5 +32,6 @@ router.post('/save/planillaIva', requireSubDominioToken, savePlanillaIva)
 router.post('/add/img/planillaIva', requireSubDominioToken, addImagenPlanillaIva)
 router.post('/delete/img/planillaIva', requireSubDominioToken, deleteImgPlanillas)
 router.post('/get/libroCompras', requireSubDominioToken, getLibroCompra)
+router.post('/get/libroVentas', requireSubDominioToken, getLibroVenta)
 router.post('/eliminando', requireSubDominioToken, eliminarDocumentos) // eliminar esta ruta
 export default router

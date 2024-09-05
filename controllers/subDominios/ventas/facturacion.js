@@ -542,7 +542,7 @@ export const getDetalleFacturas = async (req, res) => {
                   then: { $multiply: ['$precioVenta', -1] },
                   else: {
                     $cond: {
-                      if: { $ne: ['$tipoDocumento', 'Nota de crédito'] },
+                      if: { $eq: ['$tipoDocumento', 'Factura'] },
                       then: '$precioVenta',
                       else: 0
                     }
@@ -555,7 +555,13 @@ export const getDetalleFacturas = async (req, res) => {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                   then: { $multiply: ['$precioSinDescuento', -1] },
-                  else: '$precioSinDescuento'
+                  else: {
+                    $cond: {
+                      if: { $eq: ['$tipoDocumento', 'Factura'] },
+                      then: '$precioSinDescuento',
+                      else: 0
+                    }
+                  }
                 }
               }
             },
@@ -564,7 +570,13 @@ export const getDetalleFacturas = async (req, res) => {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                   then: { $multiply: ['$descuentoTotal', -1] },
-                  else: '$descuentoTotal'
+                  else: {
+                    $cond: {
+                      if: { $eq: ['$tipoDocumento', 'Factura'] },
+                      then: '$descuentoTotal',
+                      else: 0
+                    }
+                  }
                 }
               }
             },
@@ -573,7 +585,13 @@ export const getDetalleFacturas = async (req, res) => {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                   then: { $multiply: ['$precioConDescuento', -1] },
-                  else: '$precioConDescuento'
+                  else: {
+                    $cond: {
+                      if: { $eq: ['$tipoDocumento', 'Factura'] },
+                      then: '$precioConDescuento',
+                      else: 0
+                    }
+                  }
                 }
               }
             },
@@ -582,7 +600,13 @@ export const getDetalleFacturas = async (req, res) => {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                   then: { $multiply: ['$baseImponible', -1] },
-                  else: '$baseImponible'
+                  else: {
+                    $cond: {
+                      if: { $eq: ['$tipoDocumento', 'Factura'] },
+                      then: '$baseImponible',
+                      else: 0
+                    }
+                  }
                 }
               }
             },
@@ -591,7 +615,13 @@ export const getDetalleFacturas = async (req, res) => {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                   then: { $multiply: ['$montoIva', -1] },
-                  else: '$montoIva'
+                  else: {
+                    $cond: {
+                      if: { $eq: ['$tipoDocumento', 'Factura'] },
+                      then: '$montoIva',
+                      else: 0
+                    }
+                  }
                 }
               }
             },
@@ -600,7 +630,13 @@ export const getDetalleFacturas = async (req, res) => {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                   then: { $multiply: ['$precioTotal', -1] },
-                  else: '$precioTotal'
+                  else: {
+                    $cond: {
+                      if: { $eq: ['$tipoDocumento', 'Factura'] },
+                      then: '$precioTotal',
+                      else: 0
+                    }
+                  }
                 }
               }
             }

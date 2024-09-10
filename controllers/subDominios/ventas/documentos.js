@@ -10,7 +10,7 @@ export const getDocumentosByTipo = async (req, res) => {
   try {
     const documentosFiscalesNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const extraStages = []
-    if (['Nota de crédito','Nota de débito'].includes(tipo)) {
+    if (['Nota de crédito', 'Nota de débito'].includes(tipo)) {
       extraStages.push({
         $lookup: {
           from: documentosFiscalesNameCol,
@@ -25,7 +25,25 @@ export const getDocumentosByTipo = async (req, res) => {
       {
         $addFields: {
           documentoAsociado: {
-            $concat: ['FAC - ', '$factura.numeroFactura']
+            $concat: [{
+              $cond: {
+                if: { $eq: ['$factura.tipoDocumento', 'Factura'] },
+                then: 'FAC - ',
+                else: {
+                  $cond: {
+                    if: { $eq: ['$factura.tipoDocumento', 'Nota de débito'] },
+                    then: 'ND - ',
+                    else: {
+                      $cond: {
+                        if: { $eq: ['$factura.tipoDocumento', 'Nota de crédito'] },
+                        then: 'NC - ',
+                        else: { $concat: ['$factura.tipoDocumento', ' - '] }
+                      }
+                    }
+                  }
+                }
+              }
+            }, '$factura.numeroFactura']
           }
         }
       })

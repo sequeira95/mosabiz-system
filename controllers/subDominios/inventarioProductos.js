@@ -795,7 +795,7 @@ export const saveProductosVentas = async (req, res) => {
           moneda,
           isExento,
           precioVenta: Number(precioVenta),
-          ivaId: new ObjectId(ivaId),
+          ivaId: (ivaId && new ObjectId(ivaId)) || null,
           observacion
         }
       }

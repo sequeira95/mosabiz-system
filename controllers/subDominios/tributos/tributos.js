@@ -4201,7 +4201,6 @@ export const addImagenPlanillaIva = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de guardar las imagenes del almacen ' + e.message })
   }
 }
-
 export const deleteImgPlanillas = async (req, res) => {
   const { clienteId, planillaId, imgId } = req.body
   try {
@@ -4220,5 +4219,36 @@ export const deleteImgPlanillas = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la imagen del almacen ' + e.message })
+  }
+}
+export const getResumenIvaCompra = async (req, res) => {
+  const { clienteId, periodoSelect } = req.body
+  try {
+    const dataResumen = (await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoMovimiento: 'compra',
+            tipoDocumento: tiposDocumentosFiscales.retIva,
+            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() },
+            estado: { $ne: 'anulado' }
+          }
+        },
+        {
+          $group: {
+            _id: '$tipoDocumentoAfectado',
+            totalRetenido: { $sum: '$totalRetenido' },
+            documentos: { $sum: 1 },
+            tipoDocumentoAfectado: { $first: '$tipoDocumentoAfectado' }
+          }
+        }
+      ]
+    }))
+    return res.status(200).json({ dataResumen })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de bucar los comprobantes de retencion ISLR ' + e.message })
   }
 }

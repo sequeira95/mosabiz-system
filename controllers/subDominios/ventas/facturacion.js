@@ -621,7 +621,6 @@ export const getDetalleFacturas = async (req, res) => {
     const pagosDocumento = { credito: 0, pagado: 0, porPagar: 0 }
 
     if (documento.estado === 'pendiente') {
-      pagosDocumento.credito = documento.totalCredito
       const [pagos] = await agreggateCollectionsSD({
         enviromentClienteId: clienteId,
         nameCollection: 'transacciones',
@@ -634,11 +633,14 @@ export const getDetalleFacturas = async (req, res) => {
           {
             $group: {
               _id: 0,
-              total: { $sum: '$pago' }
+              total: { $sum: '$pago' },
+              abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, '$pago', 0] } }
             }
           }
         ]
       })
+      pagosDocumento.credito = documento.totalCredito - (pagos?.abonosCredito || 0)
+      pagosDocumento.credito = pagosDocumento.credito > 0 ? pagosDocumento.credito : 0
       pagosDocumento.pagado = pagos?.total || 0
       pagosDocumento.porPagar = pagosDocumento.credito - pagosDocumento.pagado
     }
@@ -890,7 +892,38 @@ export const getDetalleNotasEntrega = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ productos: detalles, cliente })
+    const documento = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      filters: { _id: new ObjectId(notaEntregaId) }
+    })
+    const pagosDocumento = { credito: 0, pagado: 0, porPagar: 0 }
+
+    if (documento.estado === 'pendiente') {
+      const [pagos] = await agreggateCollectionsSD({
+        enviromentClienteId: clienteId,
+        nameCollection: 'transacciones',
+        pipeline: [
+          {
+            $match: {
+              documentoId: new ObjectId(notaEntregaId)
+            }
+          },
+          {
+            $group: {
+              _id: 0,
+              total: { $sum: '$pago' },
+              abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, '$pago', 0] } }
+            }
+          }
+        ]
+      })
+      pagosDocumento.credito = documento.totalCredito - (pagos?.abonosCredito || 0)
+      pagosDocumento.credito = pagosDocumento.credito > 0 ? pagosDocumento.credito : 0
+      pagosDocumento.pagado = pagos?.total || 0
+      pagosDocumento.porPagar = pagosDocumento.credito - pagosDocumento.pagado
+    }
+    return res.status(200).json({ productos: detalles, cliente, pagosDocumento })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de las facturas: ' + e.message })
@@ -1690,7 +1723,8 @@ const createPagosDocumento = async ({ clienteId, ventaInfo, documentoId, creadoP
     moneda: ventaInfo.moneda,
     monedaSecundaria: e.moneda,
     tasa: e.tasa,
-    tipo: `venta-${ventaInfo.documento}`,
+    tipo: 'venta',
+    tipoDocumento: ventaInfo.documento,
     creadoPor: new ObjectId(creadoPor),
     credito: e.credito,
     fechaCreacion: moment().toDate()

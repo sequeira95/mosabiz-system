@@ -44,7 +44,14 @@ const datosRangoFechas = async ({ rangoFechaVencimiento, clienteId, tasa, fechaA
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipoMovimiento: 'venta', estado: { $eq: 'pendiente' }, tipoDocumento: { $in: tiposMovimientosUsar }, fecha: { $lte: moment(fechaActual).endOf('day').toDate() } } },
+        {
+          $match: {
+            tipoMovimiento: 'venta',
+            estado: { $eq: 'pendiente' },
+            tipoDocumento: { $in: tiposMovimientosUsar },
+            fecha: { $lte: moment(fechaActual).endOf('day').toDate() }
+          }
+        },
         {
           $addFields: {
             tasa: { $objectToArray: tasa }
@@ -95,7 +102,7 @@ const datosRangoFechas = async ({ rangoFechaVencimiento, clienteId, tasa, fechaA
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito] } } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito] }, totalCredito: { $gt: 0 } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -377,7 +384,7 @@ const datosGrupoClientes = async ({ clienteId, tasa, fechaActual, timeZone, item
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito] } } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito] }, totalCredito: { $gt: 0 } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -695,7 +702,7 @@ export const getDetalleVentas = async (req, res) => {
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito] } } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.notaCredito] }, totalCredito: { $gt: 0 } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -1223,6 +1230,7 @@ export const createPagoOrdenes = async (req, res) => {
               enviromentClienteId: clienteId,
               filters: { _id: new ObjectId(abono.banco.cuentaId) }
             })
+            if (!cuentaBanco) throw new Error('No se encontraron datos de la cuenta del banco')
             asientosContables.push({
               cuentaId: new ObjectId(cuentaBanco._id),
               cuentaCodigo: cuentaBanco.codigo,

@@ -613,9 +613,39 @@ export const getDetalleFacturas = async (req, res) => {
         }
       ]
     })
+    const documento = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      filters: { _id: new ObjectId(facturaId) }
+    })
+    const pagosDocumento = { credito: 0, pagado: 0, porPagar: 0 }
+
+    if (documento.estado === 'pendiente') {
+      pagosDocumento.credito = documento.totalCredito
+      const [pagos] = await agreggateCollectionsSD({
+        enviromentClienteId: clienteId,
+        nameCollection: 'transacciones',
+        pipeline: [
+          {
+            $match: {
+              documentoId: new ObjectId(facturaId)
+            }
+          },
+          {
+            $group: {
+              _id: 0,
+              total: { $sum: '$pago' }
+            }
+          }
+        ]
+      })
+      pagosDocumento.pagado = pagos?.total || 0
+      pagosDocumento.porPagar = pagosDocumento.credito - pagosDocumento.pagado
+    }
     return res.status(200).json({
       productos: detalles.map(e => ({ ...e, nombre: e.nombre?.replaceAll(' (Ajuste de precio)', '') })),
-      cliente
+      cliente,
+      pagosDocumento
     })
   } catch (e) {
     console.log(e)

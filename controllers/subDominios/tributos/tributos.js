@@ -1,5 +1,5 @@
 import moment from 'moment-timezone'
-import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getCollection, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollection, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { formatearNumeroRetencionIslr, formatearNumeroRetencionIva, subDominioName, tiposDeclaracion, tiposDocumentosFiscales, tiposIVa } from '../../../constants.js'
 import { ObjectId } from 'mongodb'
 import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
@@ -132,7 +132,14 @@ export const getFacturasPorDeclarar = async (req, res) => {
           }
         },
         { $addFields: { hasServicios: { $size: '$detalleForServicios' } } },
-        { $match: { hasServicios: { $gt: 0 } } })
+        {
+          $match: {
+            $or: [
+              { hasServicios: { $gt: 0 } },
+              { aplicaIslr: { $eq: true } }
+            ]
+          }
+        })
     }
     const facturas = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
@@ -2881,7 +2888,12 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         exento: documento?.exento ? Number(Number(documento?.exento).toFixed(2)) : 0,
         totalExento: documento?.totalExento ? Number(Number(documento?.totalExento).toFixed(2)) : 0,
         aplicaProrrateo: documento?.aplicaProrrateo || false,
-        isImportacion: documento.isImportacion || false
+        isImportacion: documento.isImportacion || false,
+        periodoIvaNombre: documento.periodoIvaNombre,
+        periodoIvaInit: moment(documento.periodoIvaInit).toDate(),
+        periodoIvaEnd: moment(documento.periodoIvaEnd).toDate(),
+        isImportadoExcel: true,
+        aplicaIslr: documento.aplicaIslr || false
       }
       documentosFacturas.push(compra)
       if (tieneContabilidad) {
@@ -3047,7 +3059,11 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         ownLogo: sucursal?.logo || clienteOwn?.logo,
         ownRazonSocial: sucursal?.nombre || clienteOwn?.razonSocial,
         ownDireccion: sucursal?.direccion || clienteOwn?.direccion,
-        ownDocumentoIdentidad: sucursal?.rif || `${clienteOwn?.tipoDocumento}-${clienteOwn?.documentoIdentidad}`
+        ownDocumentoIdentidad: sucursal?.rif || `${clienteOwn?.tipoDocumento}-${clienteOwn?.documentoIdentidad}`,
+        periodoIvaNombre: documento.periodoIvaNombre,
+        periodoIvaInit: moment(documento.periodoIvaInit).toDate(),
+        periodoIvaEnd: moment(documento.periodoIvaEnd).toDate(),
+        isImportadoExcel: true
       }
       documentosFacturas.push(venta)
       if (tieneContabilidad) {
@@ -3255,7 +3271,12 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         exento: documento?.exento ? Number(Number(documento?.exento).toFixed(2)) : 0,
         totalExento: documento?.totalExento ? Number(Number(documento?.totalExento).toFixed(2)) : 0,
         aplicaProrrateo: documento?.aplicaProrrateo || false,
-        isImportacion: documento.isImportacion || false
+        isImportacion: documento.isImportacion || false,
+        periodoIvaNombre: documento.periodoIvaNombre,
+        periodoIvaInit: moment(documento.periodoIvaInit).toDate(),
+        periodoIvaEnd: moment(documento.periodoIvaEnd).toDate(),
+        isImportadoExcel: true,
+        aplicaIslr: documento.aplicaIslr || false
       }
       if (!documento.documentoIdentidad && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado') {
         compra.estado = 'anulado'
@@ -3484,7 +3505,11 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         ownLogo: sucursal?.logo || clienteOwn?.logo,
         ownRazonSocial: sucursal?.nombre || clienteOwn?.razonSocial,
         ownDireccion: sucursal?.direccion || clienteOwn?.direccion,
-        ownDocumentoIdentidad: sucursal?.rif || `${clienteOwn?.tipoDocumento}-${clienteOwn?.documentoIdentidad}`
+        ownDocumentoIdentidad: sucursal?.rif || `${clienteOwn?.tipoDocumento}-${clienteOwn?.documentoIdentidad}`,
+        periodoIvaNombre: documento.periodoIvaNombre,
+        periodoIvaInit: moment(documento.periodoIvaInit).toDate(),
+        periodoIvaEnd: moment(documento.periodoIvaEnd).toDate(),
+        isImportadoExcel: true
       }
       documentosFiscales.push(venta)
       if (tieneContabilidad && venta.estado !== 'anulado') {
@@ -4049,6 +4074,7 @@ export const getSucursalesList = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
   }
 }
+/** esto hay que eliminarlo */
 export const eliminarDocumentos = async (req, res) => {
   const { clienteId, tipo } = req.body
   try {
@@ -4058,6 +4084,7 @@ export const eliminarDocumentos = async (req, res) => {
     console.log(e)
   }
 }
+/** esto hay que eliminarlo */
 export const getCajasSucursalList = async (req, res) => {
   const { clienteId, sucursalId } = req.body
   console.log({ sucursalId })
@@ -4250,5 +4277,16 @@ export const getResumenIvaCompra = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de bucar los comprobantes de retencion ISLR ' + e.message })
+  }
+}
+
+export const deleteDocumentoPorDeclarar = async (req, res) => {
+  const { clienteId, documentoId } = req.body
+  try {
+    deleteItemSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, filters: { _id: new ObjectId(documentoId) } })
+    deleteManyItemsSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, filters: { facturaAsociada: new ObjectId(documentoId) } })
+    return res.status(200).json({ status: 'Documento eliminado correctamente' })
+  } catch (e) {
+    console.log(e)
   }
 }

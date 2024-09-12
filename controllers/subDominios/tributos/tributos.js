@@ -2927,7 +2927,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: proveedor.razonSocial.toUpperCase(), // `${compra.tipoDocumento}-${compra.numeroFactura}`,
-            fecha: moment(fechaActual).toDate(),
+            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: Number(Number(compra.baseImponible.toFixed(2)) + Number(compra.totalExento.toFixed(2))),
             haber: 0,
             fechaCreacion: moment().toDate(),
@@ -2936,7 +2936,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
             documento: {
               docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-              docFecha: moment(fechaActual).toDate()
+              docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
             }
           }, {
             cuentaId: new ObjectId(cuentaPago._id),
@@ -2945,7 +2945,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: proveedor.razonSocial.toUpperCase(), // `${compra.tipoDocumento}-${compra.numeroFactura}`,
-            fecha: moment(fechaActual).toDate(),
+            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: 0,
             haber: Number(Number(compra.total.toFixed(2))),
             fechaCreacion: moment().toDate(),
@@ -2954,7 +2954,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
             documento: {
               docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-              docFecha: moment(fechaActual).toDate()
+              docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
             }
           }
         ]
@@ -2966,14 +2966,14 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: proveedor.razonSocial.toUpperCase(), // `${compra.tipoDocumento}-${compra.numeroFactura}`,
-            fecha: moment(fechaActual).toDate(),
+            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: compra.iva,
             haber: 0,
             fechaCreacion: moment().toDate(),
             docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
             documento: {
               docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-              docFecha: moment(fechaActual).toDate()
+              docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
             }
           })
         }
@@ -3096,7 +3096,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
-            fecha: moment(fechaActual).toDate(),
+            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: Number(Number(venta.total.toFixed(2))),
             haber: 0,
             fechaCreacion: moment().toDate(),
@@ -3105,7 +3105,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
             documento: {
               docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              docFecha: moment(fechaActual).toDate()
+              docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
             }
           },
           {
@@ -3115,14 +3115,14 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
-            fecha: moment(fechaActual).toDate(),
+            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: 0,
             haber: Number(Number(venta.baseImponible.toFixed(2)) + Number(venta.totalExento.toFixed(2))),
             fechaCreacion: moment().toDate(),
             docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
             documento: {
               docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              docFecha: moment(fechaActual).toDate()
+              docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
             }
           }
         ]
@@ -3134,14 +3134,14 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
-            fecha: moment(fechaActual).toDate(),
+            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: 0,
             haber: venta.iva,
             fechaCreacion: moment().toDate(),
             docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
             documento: {
               docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              docFecha: moment(fechaActual).toDate()
+              docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
             }
           })
         }
@@ -3314,14 +3314,14 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
               descripcion: proveedor.razonSocial.toUpperCase(),
-              fecha: moment(fechaActual).toDate(),
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: Number(Number(compra.baseImponible.toFixed(2)) + Number(compra.totalExento.toFixed(2))),
               haber: 0,
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
               documento: {
                 docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-                docFecha: moment(fechaActual).toDate()
+                docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
               }
             }, {
               cuentaId: new ObjectId(cuentaPago._id),
@@ -3330,7 +3330,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
               descripcion: proveedor.razonSocial.toUpperCase(),
-              fecha: moment(fechaActual).toDate(),
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: 0,
               haber: Number(Number(compra.total.toFixed(2))),
               fechaCreacion: moment().toDate(),
@@ -3339,7 +3339,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
               documento: {
                 docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-                docFecha: moment(fechaActual).toDate()
+                docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
               }
             }
           ]
@@ -3351,14 +3351,14 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
               descripcion: proveedor.razonSocial.toUpperCase(),
-              fecha: moment(fechaActual).toDate(),
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: compra.iva,
               haber: 0,
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
               documento: {
                 docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-                docFecha: moment(fechaActual).toDate()
+                docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
               }
             })
           }
@@ -3373,7 +3373,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
               descripcion: proveedor.razonSocial.toUpperCase(),
-              fecha: moment(fechaActual).toDate(),
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: Number(Number(compra.total.toFixed(2))),
               haber: 0,
               fechaCreacion: moment().toDate(),
@@ -3382,7 +3382,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
               documento: {
                 docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-                docFecha: moment(fechaActual).toDate()
+                docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
               }
             },
             {
@@ -3392,14 +3392,14 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
               descripcion: proveedor.razonSocial.toUpperCase(),
-              fecha: moment(fechaActual).toDate(),
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: 0,
               haber: Number(Number(compra.baseImponible.toFixed(2)) + Number(compra.totalExento.toFixed(2))),
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
               documento: {
                 docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-                docFecha: moment(fechaActual).toDate()
+                docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
               }
             }
           ]
@@ -3412,14 +3412,14 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
                 comprobanteId: new ObjectId(comprobante._id),
                 periodoId: new ObjectId(periodo._id),
                 descripcion: proveedor.razonSocial.toUpperCase(),
-                fecha: moment(fechaActual).toDate(),
+                fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
                 debe: 0,
                 haber: compra.iva,
                 fechaCreacion: moment().toDate(),
                 docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
                 documento: {
                   docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-                  docFecha: moment(fechaActual).toDate()
+                  docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
                 }
               }
             )
@@ -3543,7 +3543,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
               descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              fecha: moment(fechaActual).toDate(),
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: Number(Number(venta.total.toFixed(2))),
               haber: 0,
               fechaCreacion: moment().toDate(),
@@ -3552,7 +3552,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
               documento: {
                 docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-                docFecha: moment(fechaActual).toDate()
+                docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
               }
             },
             {
@@ -3562,14 +3562,14 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
               descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              fecha: moment(fechaActual).toDate(),
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: 0,
               haber: Number(Number(venta.baseImponible.toFixed(2)) + Number(venta.totalExento.toFixed(2))),
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
               documento: {
                 docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-                docFecha: moment(fechaActual).toDate()
+                docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
               }
             }
           ]
@@ -3581,14 +3581,14 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
               descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              fecha: moment(fechaActual).toDate(),
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: 0,
               haber: venta.iva,
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
               documento: {
                 docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-                docFecha: moment(fechaActual).toDate()
+                docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
               }
             })
           }
@@ -3603,7 +3603,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
               descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              fecha: moment(fechaActual).toDate(),
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: Number(Number(venta.baseImponible.toFixed(2)) + Number(venta.totalExento.toFixed(2))),
               haber: 0,
               fechaCreacion: moment().toDate(),
@@ -3612,7 +3612,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
               documento: {
                 docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-                docFecha: moment(fechaActual).toDate()
+                docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
               }
             },
             {
@@ -3622,14 +3622,14 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
               descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              fecha: moment(fechaActual).toDate(),
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: 0,
               haber: Number(Number(venta.total.toFixed(2))),
               fechaCreacion: moment().toDate(),
               docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
               documento: {
                 docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-                docFecha: moment(fechaActual).toDate()
+                docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
               }
             }
           ]
@@ -3642,14 +3642,14 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
                 comprobanteId: new ObjectId(comprobante._id),
                 periodoId: new ObjectId(periodo._id),
                 descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
-                fecha: moment(fechaActual).toDate(),
+                fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
                 debe: venta.iva,
                 haber: 0,
                 fechaCreacion: moment().toDate(),
                 docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
                 documento: {
                   docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-                  docFecha: moment(fechaActual).toDate()
+                  docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
                 }
               })
           }
@@ -3846,7 +3846,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: proveedor.razonSocial.toUpperCase(),
-            fecha: moment(fechaActual).toDate(),
+            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: Number(Number(compra.totalRetenido).toFixed(2)),
             haber: 0,
             fechaCreacion: moment().toDate(),
@@ -3855,7 +3855,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
             documento: {
               docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-              docFecha: moment(fechaActual).toDate()
+              docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
             }
           },
           {
@@ -3865,14 +3865,14 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: proveedor.razonSocial.toUpperCase(),
-            fecha: moment(fechaActual).toDate(),
+            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: 0,
             haber: Number(Number(compra.totalRetenido).toFixed(2)),
             fechaCreacion: moment().toDate(),
             docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
             documento: {
               docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-              docFecha: moment(fechaActual).toDate()
+              docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
             }
           }
         ]
@@ -4006,14 +4006,14 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,,
-            fecha: moment(fechaActual).toDate(),
+            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: Number(Number(venta.totalRetenido).toFixed(2)),
             haber: 0,
             fechaCreacion: moment().toDate(),
             docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
             documento: {
               docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              docFecha: moment(fechaActual).toDate()
+              docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
             }
           },
           {
@@ -4023,7 +4023,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
             descripcion: cliente.razonSocial.toUpperCase(),
-            fecha: moment(fechaActual).toDate(),
+            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: 0,
             haber: Number(Number(venta.totalRetenido).toFixed(2)),
             fechaCreacion: moment().toDate(),
@@ -4032,7 +4032,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
             documento: {
               docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              docFecha: moment(fechaActual).toDate()
+              docFecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit)
             }
           }
         ]
@@ -4101,6 +4101,14 @@ export const getCajasSucursalList = async (req, res) => {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
   }
+}
+const validarFechaDentroRago = (fecha, fechaInicio) => {
+  const fechaObj = moment(fecha)
+  const fechaInicioObj = moment(fechaInicio).startOf('month')
+  const fechaFinObj = moment(fechaInicio).endOf('month')
+  const isRango = fechaObj.isBetween(fechaInicioObj, fechaFinObj, null, '[]')
+  if (isRango) return moment(fecha).toDate()
+  return moment(fechaInicio).startOf('month').toDate()
 }
 const substringNumeroDocumento = (numeroDocumento) => {
   const nuevoNumero = numeroDocumento.substring(6)

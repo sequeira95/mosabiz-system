@@ -44,8 +44,8 @@ export const upsertAjusteCliente = async (req, res) => {
   if (ajuste.cuentaRetIslrCompra && ajuste.cuentaRetIslrCompra._id) ajuste.cuentaRetIslrCompra = new ObjectId(ajuste.cuentaRetIslrCompra._id)
   if (ajuste.cuentaRetIvaVenta && ajuste.cuentaRetIvaVenta._id) ajuste.cuentaRetIvaVenta = new ObjectId(ajuste.cuentaRetIvaVenta._id)
   if (ajuste.cuentaIgtf && ajuste.cuentaIgtf._id) ajuste.cuentaIgtf = new ObjectId(ajuste.cuentaIgtf._id)
-  if (ajuste.cuentaVariacionCambiaria && ajuste.cuentaVariacionCambiaria) ajuste.cuentaVariacionCambiaria = new ObjectId(ajuste.cuentaVariacionCambiaria)
-  if (ajuste.cuentaVariacionCambiariaGastos && ajuste.cuentaVariacionCambiariaGastos) ajuste.cuentaVariacionCambiariaGastos = new ObjectId(ajuste.cuentaVariacionCambiariaGastos)
+  if (ajuste.cuentaVariacionCambiaria && ajuste.cuentaVariacionCambiaria._id) ajuste.cuentaVariacionCambiaria = new ObjectId(ajuste.cuentaVariacionCambiaria._id)
+  if (ajuste.cuentaVariacionCambiariaGastos && ajuste.cuentaVariacionCambiariaGastos._id) ajuste.cuentaVariacionCambiariaGastos = new ObjectId(ajuste.cuentaVariacionCambiariaGastos._id)
   if (ajuste.cuentaDescuentosDevolucionesCompras && ajuste.cuentaDescuentosDevolucionesCompras._id) ajuste.cuentaDescuentosDevolucionesCompras = new ObjectId(ajuste.cuentaDescuentosDevolucionesCompras._id)
   if (ajuste.cuentaIvaId) ajuste.cuentaIvaId = new ObjectId(ajuste.cuentaIvaId)
   if (ajuste.cuentaPorCobrarClienteId) ajuste.cuentaPorCobrarClienteId = new ObjectId(ajuste.cuentaPorCobrarClienteId)
@@ -73,6 +73,25 @@ export const upsertAjusteCliente = async (req, res) => {
   if (ajuste.accesoFacturacionFija && ajuste.accesoFacturacionFija[0]) ajuste.accesoFacturacionFija = ajuste.accesoFacturacionFija.map(accesoFacturacionFija => new ObjectId(accesoFacturacionFija._id))
   if (ajuste.puedeCrearEditarFacturacionFija && ajuste.puedeCrearEditarFacturacionFija[0]) ajuste.puedeCrearEditarFacturacionFija = ajuste.puedeCrearEditarFacturacionFija.map(puedeCrearEditarFacturacionFija => new ObjectId(puedeCrearEditarFacturacionFija._id))
   if (ajuste.numeroFacturaInicial) ajuste.numeroFacturaInicial = Number(ajuste.numeroFacturaInicial)
+  if (ajuste.numeroRetIslrInicial || ajuste.numeroRetIvaInicial) {
+    const verificarNumeros = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'ajustes',
+      filters: { tipo: 'tributos' }
+    })
+    if (ajuste.numeroRetIslrInicial) {
+      ajuste.numeroRetIslrInicial = Number(ajuste.numeroRetIslrInicial)
+      if (verificarNumeros.numeroRetIslrInicial !== Number(ajuste.numeroRetIslrInicial)) {
+        upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIslr' }, update: { $set: { contador: Number(ajuste.numeroRetIslrInicial) } } })
+      }
+    }
+    if (ajuste.numeroRetIvaInicial) {
+      ajuste.numeroRetIvaInicial = Number(ajuste.numeroRetIvaInicial)
+      if (verificarNumeros.numeroRetIvaInicial !== Number(ajuste.numeroRetIvaInicial)) {
+        upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIva' }, update: { $set: { contador: Number(ajuste.numeroRetIvaInicial) } } })
+      }
+    }
+  }
   if (!clienteId) return res.status(400).json({ error: 'Falta el cliente' })
   try {
     if (!ajuste.fechaCreacion) ajuste.fechaCreacion = moment().toDate()

@@ -272,6 +272,7 @@ export const ultimaInfoRetencion = async (req, res) => {
       'RET IVA': 'retencionIva'
     }
     const ultimoNumeroGuardado = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: tiposContadores[tiposImpuesto] } }))?.contador || 0
+    console.log({ tipo: tiposContadores[tiposImpuesto], ultimoNumeroGuardado })
     return res.status(200).json({ ultimaRetencion, ultimoNumeroGuardado })
   } catch (e) {
     console.log(e)
@@ -500,6 +501,7 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
           enviromentClienteId: clienteId,
           filters: { _id: new ObjectId(detalleProveedor[0]?.detalleCategoria?.cuentaId) }
         })
+        if (!cuentaProveedor?._id) throw new Error(`El proveedor ${detalleProveedor[0]?.razonSocial.toUpperCase()} no tiene una cuenta contable definida`)
         let terceroProveedor = await getItemSD({
           nameCollection: 'terceros',
           enviromentClienteId: clienteId,

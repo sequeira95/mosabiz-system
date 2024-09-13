@@ -2871,7 +2871,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
       const validarNumeroFactura = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor._id) }
+        filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor._id), tipoMovimiento: 'compra' }
       })
       if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
       const compra = {
@@ -3028,8 +3028,9 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         const validarNumeroFactura = await getItemSD({
           nameCollection: 'documentosFiscales',
           enviromentClienteId: clienteId,
-          filters: { numeroFactura: documento.numeroFactura }
+          filters: { numeroFactura: documento.numeroFactura, tipoMovimiento: 'venta' }
         })
+        // console.log({ validarNumeroFactura, documento })
         if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} ya se encuentra registrada`)
       }
       let caja = null
@@ -3484,7 +3485,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
       const validarNumeroFactura = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFactura }
+        filters: { numeroFactura: documento.numeroFactura, tipoMovimiento: 'venta' }
       })
       // PREGUNTAR VALIDACION PARA NOTAS DE DEBITO Y NOTAS DE CREDITO
       if (validarNumeroFactura) throw new Error(`La ${tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()]} N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)

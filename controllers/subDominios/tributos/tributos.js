@@ -2846,6 +2846,11 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
       })
       if (!proveedor) {
+        const categoriaGeneral = await getItemSD({
+          nameCollection: 'categorias',
+          enviromentClienteId: clienteId,
+          filters: { nombre: 'Proveedores Generales', tipo: 'compras/proveedor' }
+        })
         proveedor = await upsertItemSD({
           nameCollection: 'proveedores',
           enviromentClienteId: clienteId,
@@ -2854,7 +2859,8 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             $set: {
               tipoDocumento: documento.tipoDocumentoIdentidad,
               documentoIdentidad: documento.documentoIdentidad,
-              razonSocial: documento.razonSocial
+              razonSocial: documento.razonSocial,
+              categoria: categoriaGeneral._id
             }
           }
         })
@@ -3223,6 +3229,11 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
       })
       if (!proveedor && documento.documentoIdentidad) {
+        const categoriaGeneral = await getItemSD({
+          nameCollection: 'categorias',
+          enviromentClienteId: clienteId,
+          filters: { nombre: 'Proveedores Generales', tipo: 'compras/proveedor' }
+        })
         proveedor = await upsertItemSD({
           nameCollection: 'proveedores',
           enviromentClienteId: clienteId,
@@ -3231,7 +3242,8 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
             $set: {
               tipoDocumento: documento.tipoDocumentoIdentidad,
               documentoIdentidad: documento.documentoIdentidad,
-              razonSocial: documento.razonSocial
+              razonSocial: documento.razonSocial,
+              categoriaId: categoriaGeneral._id
             }
           }
         })
@@ -3728,6 +3740,11 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
       })
       if (!proveedor && documento.documentoIdentidad) {
+        const categoriaGeneral = await getItemSD({
+          nameCollection: 'categorias',
+          enviromentClienteId: clienteId,
+          filters: { nombre: 'Proveedores Generales', tipo: 'compras/proveedor' }
+        })
         proveedor = await upsertItemSD({
           nameCollection: 'proveedores',
           enviromentClienteId: clienteId,
@@ -3736,7 +3753,8 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             $set: {
               tipoDocumento: documento.tipoDocumentoIdentidad,
               documentoIdentidad: documento.documentoIdentidad,
-              razonSocial: documento.razonSocial
+              razonSocial: documento.razonSocial,
+              categoriaId: new ObjectId(categoriaGeneral._id)
             }
           }
         })

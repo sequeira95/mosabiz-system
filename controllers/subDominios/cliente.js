@@ -281,6 +281,16 @@ export const createCliente = async (req, res) => {
         }
       ]
     })
+    createManyItemsSD({
+      nameCollection: 'categorias',
+      enviromentClienteId: clienteCol.insertedId,
+      items: [
+        {
+          tipo: 'compras/proveedor',
+          nombre: 'Proveedores Generales'
+        }
+      ]
+    })
     return res.status(200).json({ status: 'Empresa creada exitosamente', cliente })
   } catch (e) {
     console.log(e)

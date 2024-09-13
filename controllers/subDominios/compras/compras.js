@@ -3274,7 +3274,13 @@ export const getFacturas = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipoMovimiento: 'compra', estado: { $nin: ['pagada', 'anulado'] } } },
+        {
+          $match: {
+            tipoMovimiento: 'compra',
+            tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] },
+            estado: { $nin: ['pagada', 'anulado'] }
+          }
+        },
         { $skip: (pagina - 1) * itemsPorPagina },
         { $limit: itemsPorPagina },
         {
@@ -3336,7 +3342,13 @@ export const getFacturas = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipoMovimiento: 'compra', estado: { $nin: ['pagada', 'anulado'] } } },
+        {
+          $match: {
+            tipoMovimiento: 'compra',
+            tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] },
+            estado: { $nin: ['pagada', 'anulado'] }
+          }
+        },
         { $count: 'total' }
       ]
     })

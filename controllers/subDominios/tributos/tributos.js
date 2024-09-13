@@ -2845,26 +2845,29 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         enviromentClienteId: clienteId,
         filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
       })
-      if (!proveedor) {
-        const categoriaGeneral = await getItemSD({
-          nameCollection: 'categorias',
-          enviromentClienteId: clienteId,
-          filters: { nombre: 'Proveedores Generales', tipo: 'compras/proveedor' }
-        })
-        proveedor = await upsertItemSD({
-          nameCollection: 'proveedores',
-          enviromentClienteId: clienteId,
-          filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
-          update: {
-            $set: {
-              tipoDocumento: documento.tipoDocumentoIdentidad,
-              documentoIdentidad: documento.documentoIdentidad,
-              razonSocial: documento.razonSocial,
-              categoria: categoriaGeneral._id
+      if (documento.razonSocial !== 'DOCUMENTO ANULADO') {
+        if (!proveedor) {
+          const categoriaGeneral = await getItemSD({
+            nameCollection: 'categorias',
+            enviromentClienteId: clienteId,
+            filters: { nombre: 'Proveedores Generales', tipo: 'compras/proveedor' }
+          })
+          proveedor = await upsertItemSD({
+            nameCollection: 'proveedores',
+            enviromentClienteId: clienteId,
+            filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
+            update: {
+              $set: {
+                tipoDocumento: documento.tipoDocumentoIdentidad,
+                documentoIdentidad: documento.documentoIdentidad,
+                razonSocial: documento.razonSocial,
+                categoria: categoriaGeneral._id
+              }
             }
-          }
-        })
+          })
+        }
       }
+      const razonSocial = documento.razonSocial !== 'DOCUMENTO ANULADO' ? proveedor?.razonSocial : 'DOCUMENTO ANULADO'
       const validarNumeroFactura = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
@@ -2879,7 +2882,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         numeroFactura: documento.numeroFactura,
         tipoDocumento: 'Factura',
         numeroControl: documento.numeroControl,
-        proveedorId: new ObjectId(proveedor._id),
+        proveedorId: proveedor?._id ? new ObjectId(proveedor._id) : null,
         moneda,
         monedaSecundaria: moneda,
         compraFiscal: true,
@@ -2901,29 +2904,32 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         periodoIvaInit: moment(documento.periodoIvaInit).toDate(),
         periodoIvaEnd: moment(documento.periodoIvaEnd).toDate(),
         isImportadoExcel: true,
-        aplicaIslr: documento.aplicaIslr || false
+        aplicaIslr: documento.aplicaIslr || false,
+        estado: documento.razonSocial !== 'DOCUMENTO ANULADO' ? null : 'anulado'
       }
       documentosFacturas.push(compra)
       if (tieneContabilidad) {
         let tercero = null
-        if (filtros.terceros) {
-          tercero = await getItemSD({
-            nameCollection: 'terceros',
-            enviromentClienteId: clienteId,
-            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() }
-          })
-          if (!tercero) {
-            tercero = await upsertItemSD({
+        if (proveedor) {
+          if (filtros.terceros) {
+            tercero = await getItemSD({
               nameCollection: 'terceros',
               enviromentClienteId: clienteId,
-              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() },
-              update: {
-                $set: {
-                  nombre: proveedor?.razonSocial.toUpperCase(),
-                  cuentaId: new ObjectId(cuentaPago._id)
-                }
-              }
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() }
             })
+            if (!tercero) {
+              tercero = await upsertItemSD({
+                nameCollection: 'terceros',
+                enviromentClienteId: clienteId,
+                filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() },
+                update: {
+                  $set: {
+                    nombre: proveedor?.razonSocial.toUpperCase(),
+                    cuentaId: new ObjectId(cuentaPago._id)
+                  }
+                }
+              })
+            }
           }
         }
         console.log({ tercero })
@@ -2934,7 +2940,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             cuentaNombre: cuentaCosto.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
-            descripcion: proveedor.razonSocial.toUpperCase(), // `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            descripcion: razonSocial.toUpperCase(), // `${compra.tipoDocumento}-${compra.numeroFactura}`,
             fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: Number(Number(compra.baseImponible.toFixed(2)) + Number(compra.totalExento.toFixed(2))),
             haber: 0,
@@ -2952,7 +2958,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             cuentaNombre: cuentaPago.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
-            descripcion: proveedor.razonSocial.toUpperCase(), // `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            descripcion: razonSocial.toUpperCase(), // `${compra.tipoDocumento}-${compra.numeroFactura}`,
             fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: 0,
             haber: Number(Number(compra.total.toFixed(2))),
@@ -2973,7 +2979,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             cuentaNombre: cuentaIva.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
-            descripcion: proveedor.razonSocial.toUpperCase(), // `${compra.tipoDocumento}-${compra.numeroFactura}`,
+            descripcion: razonSocial.toUpperCase(), // `${compra.tipoDocumento}-${compra.numeroFactura}`,
             fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: compra.iva,
             haber: 0,
@@ -2994,20 +3000,23 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         enviromentClienteId: clienteId,
         filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
       })
-      if (!cliente) {
-        cliente = await upsertItemSD({
-          nameCollection: 'clientes',
-          enviromentClienteId: clienteId,
-          filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
-          update: {
-            $set: {
-              tipoDocumento: documento.tipoDocumentoIdentidad,
-              documentoIdentidad: documento.documentoIdentidad,
-              razonSocial: documento.razonSocial
+      if (documento.razonSocial !== 'DOCUMENTO ANULADO') {
+        if (!cliente) {
+          cliente = await upsertItemSD({
+            nameCollection: 'clientes',
+            enviromentClienteId: clienteId,
+            filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
+            update: {
+              $set: {
+                tipoDocumento: documento.tipoDocumentoIdentidad,
+                documentoIdentidad: documento.documentoIdentidad,
+                razonSocial: documento.razonSocial
+              }
             }
-          }
-        })
+          })
+        }
       }
+      const razonSocial = documento.razonSocial !== 'DOCUMENTO ANULADO' ? cliente?.razonSocial : 'DOCUMENTO ANULADO'
       if (documento.numeroReporteZ) {
         const validarNumeroFactura = await getItemSD({
           nameCollection: 'documentosFiscales',
@@ -3046,11 +3055,11 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         activo: false,
         sucursalId: sucursal,
         cajaId: caja,
-        clienteId: new ObjectId(cliente._id),
-        clienteNombre: cliente.razonSocial,
-        clienteDocumentoIdentidad: `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}`,
-        direccion: cliente?.direccion,
-        direccionEnvio: cliente?.direccionEnvio,
+        clienteId: cliente._id ? new ObjectId(cliente._id) : null,
+        clienteNombre: razonSocial,
+        clienteDocumentoIdentidad: cliente ? `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}` : null,
+        direccion: cliente ? cliente?.direccion : null,
+        direccionEnvio: cliente ? cliente?.direccionEnvio : null,
         moneda,
         compraFiscal: true,
         baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
@@ -3071,29 +3080,32 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         periodoIvaNombre: documento.periodoIvaNombre,
         periodoIvaInit: moment(documento.periodoIvaInit).toDate(),
         periodoIvaEnd: moment(documento.periodoIvaEnd).toDate(),
-        isImportadoExcel: true
+        isImportadoExcel: true,
+        estado: documento.razonSocial !== 'DOCUMENTO ANULADO' ? null : 'anulado'
       }
       documentosFacturas.push(venta)
       if (tieneContabilidad) {
         let tercero = null
-        if (filtros.terceros) {
-          tercero = await getItemSD({
-            nameCollection: 'terceros',
-            enviromentClienteId: clienteId,
-            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() }
-          })
-          if (!tercero) {
-            tercero = await upsertItemSD({
+        if (cliente) {
+          if (filtros.terceros) {
+            tercero = await getItemSD({
               nameCollection: 'terceros',
               enviromentClienteId: clienteId,
-              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() },
-              update: {
-                $set: {
-                  nombre: cliente?.razonSocial.toUpperCase(),
-                  cuentaId: new ObjectId(cuentaPago._id)
-                }
-              }
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() }
             })
+            if (!tercero) {
+              tercero = await upsertItemSD({
+                nameCollection: 'terceros',
+                enviromentClienteId: clienteId,
+                filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() },
+                update: {
+                  $set: {
+                    nombre: cliente?.razonSocial.toUpperCase(),
+                    cuentaId: new ObjectId(cuentaPago._id)
+                  }
+                }
+              })
+            }
           }
         }
         const asientos = [
@@ -3103,7 +3115,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             cuentaNombre: cuentaPago.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
-            descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
+            descripcion: razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
             fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: Number(Number(venta.total.toFixed(2))),
             haber: 0,
@@ -3122,7 +3134,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             cuentaNombre: cuentaCosto.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
-            descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
+            descripcion: razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
             fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: 0,
             haber: Number(Number(venta.baseImponible.toFixed(2)) + Number(venta.totalExento.toFixed(2))),
@@ -3141,7 +3153,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
             cuentaNombre: cuentaIva.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
-            descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
+            descripcion: razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
             fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: 0,
             haber: venta.iva,
@@ -3228,38 +3240,41 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         enviromentClienteId: clienteId,
         filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
       })
-      if (!proveedor && documento.documentoIdentidad) {
-        const categoriaGeneral = await getItemSD({
-          nameCollection: 'categorias',
-          enviromentClienteId: clienteId,
-          filters: { nombre: 'Proveedores Generales', tipo: 'compras/proveedor' }
-        })
-        proveedor = await upsertItemSD({
-          nameCollection: 'proveedores',
-          enviromentClienteId: clienteId,
-          filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
-          update: {
-            $set: {
-              tipoDocumento: documento.tipoDocumentoIdentidad,
-              documentoIdentidad: documento.documentoIdentidad,
-              razonSocial: documento.razonSocial,
-              categoriaId: categoriaGeneral._id
+      if (documento.razonSocial !== 'DOCUMENTO ANULADO') {
+        if (!proveedor && documento.documentoIdentidad) {
+          const categoriaGeneral = await getItemSD({
+            nameCollection: 'categorias',
+            enviromentClienteId: clienteId,
+            filters: { nombre: 'Proveedores Generales', tipo: 'compras/proveedor' }
+          })
+          proveedor = await upsertItemSD({
+            nameCollection: 'proveedores',
+            enviromentClienteId: clienteId,
+            filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
+            update: {
+              $set: {
+                tipoDocumento: documento.tipoDocumentoIdentidad,
+                documentoIdentidad: documento.documentoIdentidad,
+                razonSocial: documento.razonSocial,
+                categoriaId: categoriaGeneral._id
+              }
             }
-          }
-        })
+          })
+        }
       }
       const validarNumeroFactura = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor._id) }
+        filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor?._id) }
       })
-      if (validarNumeroFactura) throw new Error(`La ${tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()]} N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
+      if (validarNumeroFactura && proveedor) throw new Error(`La ${tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()]} N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
       const facturaAfectada = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFacturaAfectada, proveedorId: proveedor._id }
+        filters: { numeroFactura: documento.numeroFacturaAfectada, proveedorId: proveedor?._id }
       })
-      if (!facturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
+      if (!facturaAfectada && proveedor) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
+      const razonSocial = documento.razonSocial !== 'DOCUMENTO ANULADO' ? proveedor?.razonSocial : 'DOCUMENTO ANULADO'
       const compra = {
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
@@ -3292,31 +3307,33 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         isImportadoExcel: true,
         aplicaIslr: documento.aplicaIslr || false
       }
-      if (!documento.documentoIdentidad && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado') {
+      if (!documento.documentoIdentidad && razonSocial === 'DOCUMENTO ANULADO') {
         compra.estado = 'anulado'
         compra.proveedorId = null
       }
       documentosFiscales.push(compra)
-      if (tieneContabilidad && compra.estado !== 'anulado') {
+      if (tieneContabilidad /* && compra.estado !== 'anulado' */) {
         let tercero = null
-        if (filtros.terceros) {
-          tercero = await getItemSD({
-            nameCollection: 'terceros',
-            enviromentClienteId: clienteId,
-            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() }
-          })
-          if (!tercero) {
-            tercero = await upsertItemSD({
+        if (proveedor) {
+          if (filtros.terceros) {
+            tercero = await getItemSD({
               nameCollection: 'terceros',
               enviromentClienteId: clienteId,
-              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() },
-              update: {
-                $set: {
-                  nombre: proveedor?.razonSocial.toUpperCase(),
-                  cuentaId: new ObjectId(cuentaPago._id)
-                }
-              }
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() }
             })
+            if (!tercero) {
+              tercero = await upsertItemSD({
+                nameCollection: 'terceros',
+                enviromentClienteId: clienteId,
+                filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() },
+                update: {
+                  $set: {
+                    nombre: proveedor?.razonSocial.toUpperCase(),
+                    cuentaId: new ObjectId(cuentaPago._id)
+                  }
+                }
+              })
+            }
           }
         }
         if (compra.tipoDocumento === tiposDocumentosFiscales.notaDebito) {
@@ -3327,7 +3344,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               cuentaNombre: cuentaCosto.descripcion,
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
-              descripcion: proveedor.razonSocial.toUpperCase(),
+              descripcion: razonSocial.toUpperCase(),
               fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: Number(Number(compra.baseImponible.toFixed(2)) + Number(compra.totalExento.toFixed(2))),
               haber: 0,
@@ -3343,7 +3360,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               cuentaNombre: cuentaPago.descripcion,
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
-              descripcion: proveedor.razonSocial.toUpperCase(),
+              descripcion: razonSocial.toUpperCase(),
               fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: 0,
               haber: Number(Number(compra.total.toFixed(2))),
@@ -3364,7 +3381,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               cuentaNombre: cuentaIva.descripcion,
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
-              descripcion: proveedor.razonSocial.toUpperCase(),
+              descripcion: razonSocial.toUpperCase(),
               fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: compra.iva,
               haber: 0,
@@ -3386,7 +3403,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               cuentaNombre: cuentaPago.descripcion,
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
-              descripcion: proveedor.razonSocial.toUpperCase(),
+              descripcion: razonSocial.toUpperCase(),
               fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: Number(Number(compra.total.toFixed(2))),
               haber: 0,
@@ -3405,7 +3422,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               cuentaNombre: cuentaCosto.descripcion,
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
-              descripcion: proveedor.razonSocial.toUpperCase(),
+              descripcion: razonSocial.toUpperCase(),
               fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: 0,
               haber: Number(Number(compra.baseImponible.toFixed(2)) + Number(compra.totalExento.toFixed(2))),
@@ -3425,7 +3442,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
                 cuentaNombre: cuentaIva.descripcion,
                 comprobanteId: new ObjectId(comprobante._id),
                 periodoId: new ObjectId(periodo._id),
-                descripcion: proveedor.razonSocial.toUpperCase(),
+                descripcion: razonSocial.toUpperCase(),
                 fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
                 debe: 0,
                 haber: compra.iva,
@@ -3448,19 +3465,21 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         enviromentClienteId: clienteId,
         filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
       })
-      if (!cliente) {
-        cliente = await upsertItemSD({
-          nameCollection: 'clientes',
-          enviromentClienteId: clienteId,
-          filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
-          update: {
-            $set: {
-              tipoDocumento: documento.tipoDocumentoIdentidad,
-              documentoIdentidad: documento.documentoIdentidad,
-              razonSocial: documento.razonSocial
+      if (documento.razonSocial !== 'DOCUMENTO ANULADO') {
+        if (!cliente) {
+          cliente = await upsertItemSD({
+            nameCollection: 'clientes',
+            enviromentClienteId: clienteId,
+            filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
+            update: {
+              $set: {
+                tipoDocumento: documento.tipoDocumentoIdentidad,
+                documentoIdentidad: documento.documentoIdentidad,
+                razonSocial: documento.razonSocial
+              }
             }
-          }
-        })
+          })
+        }
       }
       const validarNumeroFactura = await getItemSD({
         nameCollection: 'documentosFiscales',
@@ -3486,6 +3505,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
           caja = new ObjectId(filtros.caja._id)
         }
       }
+      const razonSocial = documento.razonSocial !== 'DOCUMENTO ANULADO' ? proveedor?.razonSocial : 'DOCUMENTO ANULADO'
       const venta = {
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
@@ -3499,11 +3519,11 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         activo: false,
         sucursalId: sucursal,
         cajaId: caja,
-        clienteId: new ObjectId(cliente._id),
-        clienteNombre: cliente.razonSocial,
-        clienteDocumentoIdentidad: `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}`,
-        direccion: cliente?.direccion,
-        direccionEnvio: cliente?.direccionEnvio,
+        clienteId: cliente ? new ObjectId(cliente._id) : null,
+        clienteNombre: razonSocial,
+        clienteDocumentoIdentidad: cliente ? `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}` : null,
+        direccion: cliente ? cliente?.direccion : null,
+        direccionEnvio: cliente ? cliente?.direccionEnvio : null,
         moneda,
         compraFiscal: true,
         baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
@@ -3525,27 +3545,32 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         periodoIvaEnd: moment(documento.periodoIvaEnd).toDate(),
         isImportadoExcel: true
       }
+      if (!documento.documentoIdentidad && razonSocial === 'DOCUMENTO ANULADO') {
+        venta.estado = 'anulado'
+      }
       documentosFiscales.push(venta)
-      if (tieneContabilidad && venta.estado !== 'anulado') {
+      if (tieneContabilidad /* && venta.estado !== 'anulado' */) {
         let tercero = null
-        if (filtros.terceros) {
-          tercero = await getItemSD({
-            nameCollection: 'terceros',
-            enviromentClienteId: clienteId,
-            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() }
-          })
-          if (!tercero) {
-            tercero = await upsertItemSD({
+        if (cliente) {
+          if (filtros.terceros) {
+            tercero = await getItemSD({
               nameCollection: 'terceros',
               enviromentClienteId: clienteId,
-              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() },
-              update: {
-                $set: {
-                  nombre: cliente?.razonSocial.toUpperCase(),
-                  cuentaId: new ObjectId(cuentaPago._id)
-                }
-              }
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() }
             })
+            if (!tercero) {
+              tercero = await upsertItemSD({
+                nameCollection: 'terceros',
+                enviromentClienteId: clienteId,
+                filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() },
+                update: {
+                  $set: {
+                    nombre: cliente?.razonSocial.toUpperCase(),
+                    cuentaId: new ObjectId(cuentaPago._id)
+                  }
+                }
+              })
+            }
           }
         }
         if (venta.tipoDocumento === tiposDocumentosFiscales.notaDebito) {
@@ -3556,7 +3581,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               cuentaNombre: cuentaPago.descripcion,
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
-              descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
+              descripcion: razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
               fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: Number(Number(venta.total.toFixed(2))),
               haber: 0,
@@ -3575,7 +3600,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               cuentaNombre: cuentaCosto.descripcion,
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
-              descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
+              descripcion: razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
               fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: 0,
               haber: Number(Number(venta.baseImponible.toFixed(2)) + Number(venta.totalExento.toFixed(2))),
@@ -3594,7 +3619,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               cuentaNombre: cuentaIva.descripcion,
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
-              descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
+              descripcion: razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
               fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: 0,
               haber: venta.iva,
@@ -3616,7 +3641,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               cuentaNombre: cuentaCosto.descripcion,
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
-              descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
+              descripcion: razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
               fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: Number(Number(venta.baseImponible.toFixed(2)) + Number(venta.totalExento.toFixed(2))),
               haber: 0,
@@ -3635,7 +3660,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
               cuentaNombre: cuentaPago.descripcion,
               comprobanteId: new ObjectId(comprobante._id),
               periodoId: new ObjectId(periodo._id),
-              descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
+              descripcion: razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
               fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
               debe: 0,
               haber: Number(Number(venta.total.toFixed(2))),
@@ -3655,7 +3680,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
                 cuentaNombre: cuentaIva.descripcion,
                 comprobanteId: new ObjectId(comprobante._id),
                 periodoId: new ObjectId(periodo._id),
-                descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
+                descripcion: razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,
                 fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
                 debe: venta.iva,
                 haber: 0,
@@ -3781,6 +3806,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         filters: { numeroFactura: documento.numeroFacturaAfectada, proveedorId: proveedor?._id }
       })
       if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
+      const razonSocial = proveedor ? proveedor?.razonSocial : 'DOCUMENTO ANULADO'
       const compra = {
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
@@ -3831,31 +3857,33 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         }
         bulkWriteFacturasPeriodos.push(updatePeriodoFactura)
       }
-      if (!documento.documentoIdentidad && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado') {
+      if (!documento.documentoIdentidad /* && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado' */) {
         compra.estado = 'anulado'
         compra.proveedorId = null
       }
       documentosFiscales.push(compra)
-      if (tieneContabilidad && compra.estado !== 'anulado') {
+      if (tieneContabilidad /* && compra.estado !== 'anulado' */) {
         let tercero = null
-        if (filtros.terceros) {
-          tercero = await getItemSD({
-            nameCollection: 'terceros',
-            enviromentClienteId: clienteId,
-            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() }
-          })
-          if (!tercero) {
-            tercero = await upsertItemSD({
+        if (proveedor) {
+          if (filtros.terceros) {
+            tercero = await getItemSD({
               nameCollection: 'terceros',
               enviromentClienteId: clienteId,
-              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() },
-              update: {
-                $set: {
-                  nombre: proveedor?.razonSocial.toUpperCase(),
-                  cuentaId: new ObjectId(cuentaPago._id)
-                }
-              }
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() }
             })
+            if (!tercero) {
+              tercero = await upsertItemSD({
+                nameCollection: 'terceros',
+                enviromentClienteId: clienteId,
+                filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: proveedor?.razonSocial.toUpperCase() },
+                update: {
+                  $set: {
+                    nombre: proveedor?.razonSocial.toUpperCase(),
+                    cuentaId: new ObjectId(cuentaPago._id)
+                  }
+                }
+              })
+            }
           }
         }
         const asientos = [
@@ -3865,7 +3893,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             cuentaNombre: cuentaPago.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
-            descripcion: proveedor.razonSocial.toUpperCase(),
+            descripcion: razonSocial.toUpperCase(),
             fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: Number(Number(compra.totalRetenido).toFixed(2)),
             haber: 0,
@@ -3884,7 +3912,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             cuentaNombre: cuentaRetIva.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
-            descripcion: proveedor.razonSocial.toUpperCase(),
+            descripcion: razonSocial.toUpperCase(),
             fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: 0,
             haber: Number(Number(compra.totalRetenido).toFixed(2)),
@@ -3905,19 +3933,21 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         enviromentClienteId: clienteId,
         filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad }
       })
-      if (!cliente) {
-        cliente = await upsertItemSD({
-          nameCollection: 'clientes',
-          enviromentClienteId: clienteId,
-          filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
-          update: {
-            $set: {
-              tipoDocumento: documento.tipoDocumentoIdentidad,
-              documentoIdentidad: documento.documentoIdentidad,
-              razonSocial: documento.razonSocial
+      if (documento.documentoIdentidad) {
+        if (!cliente) {
+          cliente = await upsertItemSD({
+            nameCollection: 'clientes',
+            enviromentClienteId: clienteId,
+            filters: { tipoDocumento: documento.tipoDocumentoIdentidad, documentoIdentidad: documento.documentoIdentidad },
+            update: {
+              $set: {
+                tipoDocumento: documento.tipoDocumentoIdentidad,
+                documentoIdentidad: documento.documentoIdentidad,
+                razonSocial: documento.razonSocial
+              }
             }
-          }
-        })
+          })
+        }
       }
       /* if (cliente?._id) {
         const validarNumeroFactura = await getItemSD({
@@ -3941,6 +3971,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         filters: { numeroFactura: documento.numeroFacturaAfectada }
       })
       if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
+      const razonSocial = cliente ? cliente?.razonSocial : 'DOCUMENTO ANULADO'
       const venta = {
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
@@ -3954,9 +3985,9 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         activo: false,
         // sucursalId: sucursal,
         // cajaId: caja,
-        clienteId: new ObjectId(cliente._id),
-        clienteNombre: cliente.razonSocial,
-        clienteDocumentoIdentidad: `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}`,
+        clienteId: cliente._id ? new ObjectId(cliente._id) : null,
+        clienteNombre: razonSocial,
+        clienteDocumentoIdentidad: cliente ? `${cliente.tipoDocumento} - ${cliente.documentoIdentidad}` : null,
         direccion: cliente?.direccion,
         direccionEnvio: cliente?.direccionEnvio,
         moneda,
@@ -3991,31 +4022,33 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         }
         bulkWriteFacturasPeriodos.push(updatePeriodoFactura)
       }
-      if (!documento.documentoIdentidad && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado') {
+      if (!documento.documentoIdentidad /* && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado' */) {
         venta.estado = 'anulado'
         venta.clienteId = null
       }
       documentosFiscales.push(venta)
-      if (tieneContabilidad && venta.estado !== 'anulado') {
+      if (tieneContabilidad /* && venta.estado !== 'anulado' */) {
         let tercero = null
-        if (filtros.terceros) {
-          tercero = await getItemSD({
-            nameCollection: 'terceros',
-            enviromentClienteId: clienteId,
-            filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() }
-          })
-          if (!tercero) {
-            tercero = await upsertItemSD({
+        if (cliente) {
+          if (filtros.terceros) {
+            tercero = await getItemSD({
               nameCollection: 'terceros',
               enviromentClienteId: clienteId,
-              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() },
-              update: {
-                $set: {
-                  nombre: cliente?.razonSocial.toUpperCase(),
-                  cuentaId: new ObjectId(cuentaPago._id)
-                }
-              }
+              filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() }
             })
+            if (!tercero) {
+              tercero = await upsertItemSD({
+                nameCollection: 'terceros',
+                enviromentClienteId: clienteId,
+                filters: { cuentaId: new ObjectId(cuentaPago._id), nombre: cliente?.razonSocial.toUpperCase() },
+                update: {
+                  $set: {
+                    nombre: cliente?.razonSocial.toUpperCase(),
+                    cuentaId: new ObjectId(cuentaPago._id)
+                  }
+                }
+              })
+            }
           }
         }
         const asientos = [
@@ -4025,7 +4058,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             cuentaNombre: cuentaRetIva.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
-            descripcion: cliente.razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,,
+            descripcion: razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,,
             fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: Number(Number(venta.totalRetenido).toFixed(2)),
             haber: 0,
@@ -4042,7 +4075,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             cuentaNombre: cuentaPago.descripcion,
             comprobanteId: new ObjectId(comprobante._id),
             periodoId: new ObjectId(periodo._id),
-            descripcion: cliente.razonSocial.toUpperCase(),
+            descripcion: razonSocial.toUpperCase(),
             fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit),
             debe: 0,
             haber: Number(Number(venta.totalRetenido).toFixed(2)),

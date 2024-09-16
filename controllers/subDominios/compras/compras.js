@@ -1502,7 +1502,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             detalleTransacciones: '$detalleTransacciones'
           }
         },
-        { $sort: { diffFechaVencimiento: 1 } }
+        { $sort: { diffFechaVencimiento: 1, proveedor: 1 } }
       ]
     })
     const count = await agreggateCollectionsSD({
@@ -2183,7 +2183,8 @@ export const createPagoOrdenes = async (req, res) => {
           monedaSecundaria: abono.monedaSecundaria,
           tasa: abono.tasa,
           tipo: 'compra',
-          creadoPor: new ObjectId(req.uid)
+          creadoPor: new ObjectId(req.uid),
+          fechaCreacion: moment().toDate()
         })
         createHistorial.push({
           idMovimiento: new ObjectId(abono.compraId),
@@ -2281,6 +2282,7 @@ export const createPagoOrdenes = async (req, res) => {
               enviromentClienteId: clienteId,
               filters: { _id: new ObjectId(abono.caja.cuentaId) }
             })
+            if (!cuenta) throw new Error(`La ${abono.caja.descripcion} no tiene cuenta contable`)
           }
           asientosContables.push({
             cuentaId: new ObjectId(cuenta._id),

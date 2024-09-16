@@ -117,12 +117,12 @@ export const getData = async (req, res) => {
       nameCollection: 'bancos',
       enviromentClienteId: clienteId,
       pipeline: [
-        {
+        /* {
           $project: {
             _id: 1,
             nombre: 1
           }
-        }
+        } */
       ]
     })
     return res.status(200).json({ monedas, sucursales, tasa, zonas, bancos })

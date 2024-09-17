@@ -41,9 +41,8 @@ export const getTotalesTransaciones = async (req, res) => {
                     $and: [
                       { $eq: ['$tipo', 'venta'] },
                       { $eq: ['$monedaSecundaria', monedaPrincipal] },
-                      { $ne: ['caja', undefined] },
-                      { $ne: ['caja', null] },
-                      { $ne: ['caja', ''] }
+                      { $ne: [{ $type: '$banco' }, 'objectId'] },
+                      { $eq: [{ $type: '$caja' }, 'objectId'] }
                     ]
                   },
                   then: '$valor',
@@ -58,9 +57,11 @@ export const getTotalesTransaciones = async (req, res) => {
                     $and: [
                       { $eq: ['$tipo', 'venta'] },
                       { $eq: ['$monedaSecundaria', monedaPrincipal] },
-                      { $ne: ['banco', undefined] },
-                      { $ne: ['banco', null] },
-                      { $ne: ['banco', ''] }
+                      { $eq: [{ $type: '$banco' }, 'objectId'] },
+                      { $ne: [{ $type: '$caja' }, 'objectId'] }
+                      // { $ne: ['banco', undefined] },
+                      // { $ne: ['banco', null] },
+                      // { $ne: ['banco', ''] }
                     ]
                   },
                   then: '$valor',
@@ -75,9 +76,8 @@ export const getTotalesTransaciones = async (req, res) => {
                     $and: [
                       { $eq: ['$tipo', 'venta'] },
                       { $ne: ['$monedaSecundaria', monedaPrincipal] },
-                      { $ne: ['caja', undefined] },
-                      { $ne: ['caja', null] },
-                      { $ne: ['caja', ''] }
+                      { $ne: [{ $type: '$banco' }, 'objectId'] },
+                      { $eq: [{ $type: '$caja' }, 'objectId'] }
                     ]
                   },
                   then: '$valor',
@@ -92,9 +92,8 @@ export const getTotalesTransaciones = async (req, res) => {
                     $and: [
                       { $eq: ['$tipo', 'venta'] },
                       { $ne: ['$monedaSecundaria', monedaPrincipal] },
-                      { $ne: ['banco', undefined] },
-                      { $ne: ['banco', null] },
-                      { $ne: ['banco', ''] }
+                      { $eq: [{ $type: '$banco' }, 'objectId'] },
+                      { $ne: [{ $type: '$caja' }, 'objectId'] }
                     ]
                   },
                   then: '$valor',
@@ -109,9 +108,8 @@ export const getTotalesTransaciones = async (req, res) => {
                     $and: [
                       { $eq: ['$tipo', 'compra'] },
                       { $eq: ['$monedaSecundaria', monedaPrincipal] },
-                      { $ne: ['caja', undefined] },
-                      { $ne: ['caja', null] },
-                      { $ne: ['caja', ''] }
+                      { $ne: [{ $type: '$banco' }, 'objectId'] },
+                      { $eq: [{ $type: '$caja' }, 'objectId'] }
                     ]
                   },
                   then: '$valor',
@@ -126,9 +124,8 @@ export const getTotalesTransaciones = async (req, res) => {
                     $and: [
                       { $eq: ['$tipo', 'compra'] },
                       { $eq: ['$monedaSecundaria', monedaPrincipal] },
-                      { $ne: ['banco', undefined] },
-                      { $ne: ['banco', null] },
-                      { $ne: ['banco', ''] }
+                      { $eq: [{ $type: '$banco' }, 'objectId'] },
+                      { $ne: [{ $type: '$caja' }, 'objectId'] }
                     ]
                   },
                   then: '$valor',
@@ -143,9 +140,8 @@ export const getTotalesTransaciones = async (req, res) => {
                     $and: [
                       { $eq: ['$tipo', 'compra'] },
                       { $ne: ['$monedaSecundaria', monedaPrincipal] },
-                      { $ne: ['caja', undefined] },
-                      { $ne: ['caja', null] },
-                      { $ne: ['caja', ''] }
+                      { $ne: [{ $type: '$banco' }, 'objectId'] },
+                      { $eq: [{ $type: '$caja' }, 'objectId'] }
                     ]
                   },
                   then: '$valor',
@@ -160,9 +156,8 @@ export const getTotalesTransaciones = async (req, res) => {
                     $and: [
                       { $eq: ['$tipo', 'compra'] },
                       { $ne: ['$monedaSecundaria', monedaPrincipal] },
-                      { $ne: ['banco', undefined] },
-                      { $ne: ['banco', null] },
-                      { $ne: ['banco', ''] }
+                      { $eq: [{ $type: '$banco' }, 'objectId'] },
+                      { $ne: [{ $type: '$caja' }, 'objectId'] }
                     ]
                   },
                   then: '$valor',

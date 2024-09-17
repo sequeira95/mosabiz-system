@@ -1142,13 +1142,14 @@ export const saveDeclaracionIva = async (req, res) => {
   }
 }
 export const getDataIva = async (req, res) => {
-  const { clienteId, periodoSelect } = req.body
+  const { clienteId, periodoSelect, periodoAnterior } = req.body
   try {
-    console.log({ periodoSelect })
+    console.log({ periodoSelect, periodoAnterior })
     const ivaList = await getCollection({ nameCollection: 'iva' })
     const alicuotaGeneral = ivaList.find(e => e.tipo === tiposIVa.general).iva
     const alicuotaReducida = ivaList.find(e => e.tipo === tiposIVa.reducida).iva
     const alicuotaAdicional = ivaList.find(e => e.tipo === tiposIVa.adicional).iva
+    const declaracionesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'declaraciones' })
     const dataIva = (await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
@@ -2278,6 +2279,15 @@ export const getDataIva = async (req, res) => {
         }
       ]
     }))[0]
+    const planillaAnterior = await getItemSD({
+      nameCollection: 'declaraciones',
+      enviromentClienteId: clienteId,
+      filters: {
+        tipoDeclaracion: tiposDeclaracion.planillaIva,
+        periodoInit: { $gte: moment(periodoAnterior.fechaInicio).toDate() },
+        priodoFin: { $lte: moment(periodoAnterior.fechaFin).toDate() }
+      }
+    })
     const planilla = await getItemSD({
       nameCollection: 'declaraciones',
       enviromentClienteId: clienteId,
@@ -2287,7 +2297,7 @@ export const getDataIva = async (req, res) => {
         priodoFin: { $lte: moment(periodoSelect.fechaFin).toDate() }
       }
     })
-    return res.status(200).json({ dataIva, planilla })
+    return res.status(200).json({ dataIva, planilla, planillaAnterior })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar datos para el IVA ' + e.message })
@@ -4331,6 +4341,52 @@ export const getResumenIvaCompra = async (req, res) => {
             totalRetenido: { $sum: '$totalRetenido' },
             documentos: { $sum: 1 },
             tipoDocumentoAfectado: { $first: '$tipoDocumentoAfectado' }
+          }
+        }
+      ]
+    }))
+    return res.status(200).json({ dataResumen })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de bucar los comprobantes de retencion ISLR ' + e.message })
+  }
+}
+export const getResumenIslr = async (req, res) => {
+  const { clienteId, periodoSelect } = req.body
+  try {
+    const dataResumen = (await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoMovimiento: 'compra',
+            tipoDocumento: tiposDocumentosFiscales.retIslr,
+            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() },
+            estado: { $ne: 'anulado' }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              codigo: '$tipoRetencion.codigo',
+              tipoRetencionAux: '$tipoRetencionAux'
+            },
+            totalRetenido: { $sum: '$totalRetenido' },
+            baseRetencion: { $sum: '$baseRetencion' },
+            documentos: { $sum: 1 },
+            tipoDocumentoAfectado: { $first: '$tipoDocumentoAfectado' }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            codigo: '$_id.codigo',
+            tipoRetencionAux: '$_id.tipoRetencionAux',
+            totalRetenido: '$totalRetenido',
+            baseRetencion: '$baseRetencion',
+            documentos: '$documentos',
+            tipoDocumentoAfectado: '$tipoDocumentoAfectado'
           }
         }
       ]

@@ -1,3 +1,4 @@
+import { tiposDocumentosFiscales } from '../../../constants.js'
 import { agreggateCollections, agreggateCollectionsSD, getItem } from '../../../utils/dataBaseConfing.js'
 
 export const getTotalesTransaciones = async (req, res) => {
@@ -42,7 +43,39 @@ export const getTotalesTransaciones = async (req, res) => {
                       { $eq: ['$tipo', 'venta'] },
                       { $eq: ['$monedaSecundaria', monedaPrincipal] },
                       { $ne: [{ $type: '$banco' }, 'objectId'] },
-                      { $eq: [{ $type: '$caja' }, 'objectId'] }
+                      { $eq: [{ $type: '$caja' }, 'objectId'] },
+                      { $ne: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                      { $ne: ['$tipoDocumento', tiposDocumentosFiscales.devolucion] }
+                    ]
+                  },
+                  then: '$valor',
+                  else: 0
+                }
+              }
+            },
+            egresosVentasEfectivoNacional: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipo', 'venta'] },
+                          { $eq: ['$monedaSecundaria', monedaPrincipal] },
+                          { $ne: [{ $type: '$banco' }, 'objectId'] },
+                          { $eq: [{ $type: '$caja' }, 'objectId'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipo', 'venta'] },
+                          { $eq: ['$monedaSecundaria', monedaPrincipal] },
+                          { $ne: [{ $type: '$banco' }, 'objectId'] },
+                          { $eq: [{ $type: '$caja' }, 'objectId'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.devolucion] }
+                        ]
+                      }
                     ]
                   },
                   then: '$valor',
@@ -58,10 +91,39 @@ export const getTotalesTransaciones = async (req, res) => {
                       { $eq: ['$tipo', 'venta'] },
                       { $eq: ['$monedaSecundaria', monedaPrincipal] },
                       { $eq: [{ $type: '$banco' }, 'objectId'] },
-                      { $ne: [{ $type: '$caja' }, 'objectId'] }
-                      // { $ne: ['banco', undefined] },
-                      // { $ne: ['banco', null] },
-                      // { $ne: ['banco', ''] }
+                      { $ne: [{ $type: '$caja' }, 'objectId'] },
+                      { $ne: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                      { $ne: ['$tipoDocumento', tiposDocumentosFiscales.devolucion] }
+                    ]
+                  },
+                  then: '$valor',
+                  else: 0
+                }
+              }
+            },
+            egresosVentasBancoNacional: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipo', 'venta'] },
+                          { $eq: ['$monedaSecundaria', monedaPrincipal] },
+                          { $eq: [{ $type: '$banco' }, 'objectId'] },
+                          { $ne: [{ $type: '$caja' }, 'objectId'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipo', 'venta'] },
+                          { $eq: ['$monedaSecundaria', monedaPrincipal] },
+                          { $eq: [{ $type: '$banco' }, 'objectId'] },
+                          { $ne: [{ $type: '$caja' }, 'objectId'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.devolucion] }
+                        ]
+                      }
                     ]
                   },
                   then: '$valor',
@@ -85,6 +147,36 @@ export const getTotalesTransaciones = async (req, res) => {
                 }
               }
             },
+            egresosVentasEfectivoDivisas: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipo', 'venta'] },
+                          { $ne: ['$monedaSecundaria', monedaPrincipal] },
+                          { $ne: [{ $type: '$banco' }, 'objectId'] },
+                          { $eq: [{ $type: '$caja' }, 'objectId'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipo', 'venta'] },
+                          { $ne: ['$monedaSecundaria', monedaPrincipal] },
+                          { $ne: [{ $type: '$banco' }, 'objectId'] },
+                          { $eq: [{ $type: '$caja' }, 'objectId'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.devolucion] }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$valor',
+                  else: 0
+                }
+              }
+            },
             ingresosVentasBancoDivisas: {
               $sum: {
                 $cond: {
@@ -94,6 +186,36 @@ export const getTotalesTransaciones = async (req, res) => {
                       { $ne: ['$monedaSecundaria', monedaPrincipal] },
                       { $eq: [{ $type: '$banco' }, 'objectId'] },
                       { $ne: [{ $type: '$caja' }, 'objectId'] }
+                    ]
+                  },
+                  then: '$valor',
+                  else: 0
+                }
+              }
+            },
+            egresosVentasBancoDivisas: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $or: [
+                      {
+                        $and: [
+                          { $eq: ['$tipo', 'venta'] },
+                          { $ne: ['$monedaSecundaria', monedaPrincipal] },
+                          { $eq: [{ $type: '$banco' }, 'objectId'] },
+                          { $ne: [{ $type: '$caja' }, 'objectId'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] }
+                        ]
+                      },
+                      {
+                        $and: [
+                          { $eq: ['$tipo', 'venta'] },
+                          { $ne: ['$monedaSecundaria', monedaPrincipal] },
+                          { $eq: [{ $type: '$banco' }, 'objectId'] },
+                          { $ne: [{ $type: '$caja' }, 'objectId'] },
+                          { $eq: ['$tipoDocumento', tiposDocumentosFiscales.devolucion] }
+                        ]
+                      }
                     ]
                   },
                   then: '$valor',
@@ -165,6 +287,14 @@ export const getTotalesTransaciones = async (req, res) => {
                 }
               }
             }
+          }
+        },
+        {
+          $project: {
+            efectivoPrincipal: { $subtract: ['$ingresosVentasEfectivoNacional', { $add: ['$egresosComprasEfectivoNacional', '$egresosVentasEfectivoNacional'] }] },
+            efectivoDivisas: { $subtract: ['$ingresosVentasEfectivoDivisas', { $add: ['$egresosComprasEfectivoDivisas', '$egresosVentasEfectivoDivisas'] }] },
+            bancoPrincipal: { $subtract: ['$ingresosVentasBancoNacional', { $add: ['$egresosComprasBancoNacional', '$egresosVentasBancoNacional'] }] },
+            bancoDivisas: { $subtract: ['$ingresosVentasBancoDivisas', { $add: ['$egresosComprasBancoDivisas', '$egresosVentasBancoDivisas'] }] }
           }
         }
       ]

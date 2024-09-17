@@ -156,7 +156,8 @@ export const tiposDocumentosFiscales = {
   retIva: 'Retención IVA',
   'RET ISLR': 'Retención ISLR',
   'RET IVA': 'Retención IVA',
-  notaEntrega: 'Nota de entrega'
+  notaEntrega: 'Nota de entrega',
+  devolucion: 'Devolución'
 }
 export const tiposDeclaracion = {
   islr: 'retIslr',

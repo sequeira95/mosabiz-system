@@ -3523,13 +3523,13 @@ export const getFacturasPagadas = async (req, res) => {
   }
 }
 export const saveEditFactura = async (req, res) => {
-  const { clienteId, _id, numeroFactura, numeroControl, aplicaProrrateo, isImportacion } = req.body
+  const { clienteId, _id, numeroFactura, numeroControl, aplicaProrrateo, isImportacion, aplicaIslr } = req.body
   try {
     const documento = await updateItemSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) },
-      update: { $set: { numeroFactura, numeroControl, aplicaProrrateo, isImportacion } }
+      update: { $set: { numeroFactura, numeroControl, aplicaProrrateo, isImportacion, aplicaIslr } }
     })
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const detalleFacturaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })

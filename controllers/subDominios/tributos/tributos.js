@@ -1149,7 +1149,6 @@ export const getDataIva = async (req, res) => {
     const alicuotaGeneral = ivaList.find(e => e.tipo === tiposIVa.general).iva
     const alicuotaReducida = ivaList.find(e => e.tipo === tiposIVa.reducida).iva
     const alicuotaAdicional = ivaList.find(e => e.tipo === tiposIVa.adicional).iva
-    const declaracionesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'declaraciones' })
     const dataIva = (await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
@@ -2279,15 +2278,18 @@ export const getDataIva = async (req, res) => {
         }
       ]
     }))[0]
-    const planillaAnterior = await getItemSD({
-      nameCollection: 'declaraciones',
-      enviromentClienteId: clienteId,
-      filters: {
-        tipoDeclaracion: tiposDeclaracion.planillaIva,
-        periodoInit: { $gte: moment(periodoAnterior.fechaInicio).toDate() },
-        priodoFin: { $lte: moment(periodoAnterior.fechaFin).toDate() }
-      }
-    })
+    let planillaAnterior = null
+    if (periodoAnterior) {
+      planillaAnterior = await getItemSD({
+        nameCollection: 'declaraciones',
+        enviromentClienteId: clienteId,
+        filters: {
+          tipoDeclaracion: tiposDeclaracion.planillaIva,
+          periodoInit: { $gte: moment(periodoAnterior?.fechaInicio).toDate() },
+          priodoFin: { $lte: moment(periodoAnterior?.fechaFin).toDate() }
+        }
+      })
+    }
     const planilla = await getItemSD({
       nameCollection: 'declaraciones',
       enviromentClienteId: clienteId,

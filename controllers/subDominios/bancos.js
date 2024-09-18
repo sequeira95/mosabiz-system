@@ -63,7 +63,7 @@ export const getListBancosGeneral = async (req, res) => {
   }
 }
 export const saveBancos = async (req, res) => {
-  const { _id, clienteId, nombre, cuentaId, descripcion, tipo, tipoBanco/*, cuentaCodigo */ } = req.body
+  const { _id, clienteId, nombre, cuentaId, descripcion, tipo, tipoBanco/*, cuentaCodigo */, isNacionalDivisas } = req.body
   console.log({ tipoBanco })
   try {
     if (!_id) {
@@ -73,7 +73,8 @@ export const saveBancos = async (req, res) => {
         filters: {
           nombre,
           descripcion,
-          tipo
+          tipo,
+          isNacionalDivisas
         }
       })
       if (verify) return res.status(400).json({ error: 'Ya existe un banco con este nombre' })
@@ -88,7 +89,8 @@ export const saveBancos = async (req, res) => {
             tipo,
             cuentaId: cuentaId ? new ObjectId(cuentaId) : null,
             fechaCreacion: moment().toDate(),
-            tipoBanco
+            tipoBanco,
+            isNacionalDivisas
           }
         }
       })
@@ -104,7 +106,8 @@ export const saveBancos = async (req, res) => {
           descripcion,
           tipo,
           cuentaId: cuentaId ? new ObjectId(cuentaId) : null,
-          tipoBanco
+          tipoBanco,
+          isNacionalDivisas
         }
       }
     })

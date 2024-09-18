@@ -5499,7 +5499,8 @@ export const getDespachosVentas = async (req, res) => {
             tipoDocumento: 1,
             numeroDocumento: '$dataDocumento.numeroFactura',
             fecha: '$dataDocumento.fecha',
-            cliente: { $concat: ['$dataDocumento.clienteDocumentoIdentidad', ' - ', '$dataDocumento.clienteNombre'] },
+            clienteDocumentoIdentidad: '$dataDocumento.clienteDocumentoIdentidad',
+            cliente: '$dataDocumento.clienteNombre',
             status: 1,
             almacenNombre: { $concat: ['$dataAlmacenOrigen.codigo', ' - ', '$dataAlmacenOrigen.nombre'] },
           }

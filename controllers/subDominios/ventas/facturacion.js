@@ -2496,6 +2496,7 @@ const crearMovimientoInventario = async ({
     )
   } catch (e) {
     console.log('error al crear comprobante en movimientos despachos de ventas', e)
+    throw e
   }
   // if (!comprobante) return
 
@@ -2605,6 +2606,7 @@ const crearMovimientoInventario = async ({
       } catch (e) {
         console.log('error contabilidad ventas mov inventario', e.message)
         doContabilidad = false
+        throw e
       }
     }
     let costoProductoTotal = 0

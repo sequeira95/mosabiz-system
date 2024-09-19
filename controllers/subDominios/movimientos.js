@@ -5497,6 +5497,7 @@ export const getDespachosVentas = async (req, res) => {
             documentoId: 1,
             numeroMovimiento: 1,
             tipoDocumento: 1,
+            almacenOrigen: 1,
             numeroDocumento: '$dataDocumento.numeroFactura',
             fecha: '$dataDocumento.fecha',
             clienteDocumentoIdentidad: '$dataDocumento.clienteDocumentoIdentidad',

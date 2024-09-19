@@ -35,7 +35,8 @@ import {
   getProductos,
   handleVenta,
   getNotasEntrega,
-  getDetalleNotasEntrega
+  getDetalleNotasEntrega,
+  despacharProductos
 } from '../../controllers/subDominios/ventas/facturacion.js'
 
 import {
@@ -75,6 +76,7 @@ router.post('/facturacion/notas-entrega', requireSubDominioToken, getNotasEntreg
 router.post('/facturacion/notas-entrega/detalle', requireSubDominioToken, getDetalleNotasEntrega)
 router.post('/facturacion/productos', requireSubDominioToken, getProductos)
 router.post('/facturacion/pago-venta', requireSubDominioToken, handleVenta)
+router.post('/facturacion/despachos', requireSubDominioToken, despacharProductos)
 
 router.post('/documentos/:tipo', requireSubDominioToken, getDocumentosByTipo)
 router.post('/documentos/:tipo/detalle', requireSubDominioToken, getDocumentoByTipo)

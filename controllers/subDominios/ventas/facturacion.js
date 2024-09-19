@@ -2474,15 +2474,13 @@ const crearMovimientoInventario = async ({
   })
 
   const documento = await getItemSD({ enviromentClienteId: clienteId, nameCollection: 'documentosFiscales', filters: { _id: documentoId } })
-  if (!documento) return
+  if (!documento) throw new Error('No existe el documento')
 
   const infoDoc = documentosVentas.find(e => e.value === documento.tipoDocumento)
-  if (!infoDoc) return
+  if (!infoDoc) throw new Error('No existe el tipo de documento')
   const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
   const ajustesVentas = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'ventas' } })
 
-  // if (!ajustesVentas?.codigoComprobanteFacturacion) return
-  const zona = await getItemSD({ nameCollection: 'ventaszonas', enviromentClienteId: clienteId, filters: { _id: new ObjectId(documento.zonaId) } })
   let comprobante
 
   const mesPeriodo = momentDate(ajustesSistema.timeZone, fecha).format('YYYY/MM')
@@ -2498,6 +2496,7 @@ const crearMovimientoInventario = async ({
     )
   } catch (e) {
     console.log('error al crear comprobante en movimientos despachos de ventas', e)
+    throw e
   }
   // if (!comprobante) return
 
@@ -2607,6 +2606,7 @@ const crearMovimientoInventario = async ({
       } catch (e) {
         console.log('error contabilidad ventas mov inventario', e.message)
         doContabilidad = false
+        throw e
       }
     }
     let costoProductoTotal = 0
@@ -2716,4 +2716,49 @@ const crearMovimientoInventario = async ({
     enviromentClienteId: clienteId,
     items: detallesCrear
   })
+}
+// apis de modulo de inventario para usar el crearMovimientoInventario
+
+export const despacharProductos = async (req, res) => {
+  const { clienteId, movimientoId, fecha, documentoId, almacenId } = req.body
+  if (!movimientoId) return res.status(500).json({ error: 'No existe el movimiento' })
+  if (!almacenId) return res.status(500).json({ error: 'No existe el Almacen' })
+  if (!documentoId) return res.status(500).json({ error: 'No existe el Documento' })
+  if (!fecha) return res.status(500).json({ error: 'Ingrese una fecha de despacho' })
+  try {
+    const movimiento = await getItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(movimientoId) }
+    })
+    if (movimiento?.estado === 'Despachado') return res.status(500).json({ error: 'Los productos ya han sido despachado' })
+    // condicion en caso que las fechas deban tener esta condicion
+    // if (moment(movimiento.fecha).valueOf() > moment(fecha).valueOf()) return res.status(500).json({ error: 'La fecha de despacho no puede ser menor a la fecha de creado el documento' })
+    await crearMovimientoInventario({
+      clienteId,
+      documentoId: new ObjectId(documentoId),
+      facturaAsociada: '',
+      notaEntregaAsociada: '',
+      creadoPor: req.uid,
+      movimientoId: new ObjectId(movimientoId),
+      almacenOrigenId: new ObjectId(almacenId),
+      almacenDestinoId: null,
+      tipoMovimiento: 'salida',
+      fecha
+    })
+    await updateItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(movimientoId) },
+      update: {
+        $set: {
+          estado: 'Despachado'
+        }
+      }
+    })
+    return res.status(200).json({ message: 'Despacho realiazdo con exito' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor: ' + e.message })
+  }
 }

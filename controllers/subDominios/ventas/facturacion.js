@@ -620,7 +620,7 @@ export const getDetalleFacturas = async (req, res) => {
     })
     const pagosDocumento = { credito: 0, pagado: 0, porPagar: 0 }
 
-    if (documento.estado === 'pendiente') {
+    if (documento.estado) {
       const [pagos] = await agreggateCollectionsSD({
         enviromentClienteId: clienteId,
         nameCollection: 'transacciones',

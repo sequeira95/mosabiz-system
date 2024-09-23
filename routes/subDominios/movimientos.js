@@ -20,7 +20,9 @@ import {
   saveAjusteAlmacenDevoluciones,
   updateCostoMovimiento,
   updateEstadoMovimiento,
-  getDespachosVentas
+  getDespachosVentas,
+  getDevolucionesVentas,
+  getDetalleDevolucionesVentas
 } from '../../controllers/subDominios/movimientos.js'
 
 const router = express.Router()
@@ -38,6 +40,8 @@ router.post('/getDevoluciones', requireSubDominioToken, getDevoluciones)
 router.post('/get/dataCompra/recepcion', requireSubDominioToken, getDataCompraRecepcion)
 router.post('/get/comprasRecepcion', requireSubDominioToken, getComprasForRecepcion)
 router.post('/get/despachos-ventas', requireSubDominioToken, getDespachosVentas)
+router.post('/get/devoluciones-ventas', requireSubDominioToken, getDevolucionesVentas)
+router.post('/get/devoluciones-ventas/detalle', requireSubDominioToken, getDetalleDevolucionesVentas)
 router.post('/recepcionCompra', requireSubDominioToken, recepcionInventarioCompra)
 router.post('/cierreRecepcionCompra', requireSubDominioToken, cerrarRecepcionCompra)
 router.post('/saveAjusteAlmacenDevoluciones', requireSubDominioToken, saveAjusteAlmacenDevoluciones)

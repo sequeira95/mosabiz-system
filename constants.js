@@ -104,7 +104,9 @@ export const tipoMovimientosShort = {
   transferencia: 'TR',
   Ajuste: 'AJ',
   devolucion: 'DEV',
-  recepcion: 'REC'
+  recepcion: 'REC',
+  'despacho-ventas': 'Despacho',
+  'devolucion-ventas': 'DEV-V'
 }
 
 // ventas

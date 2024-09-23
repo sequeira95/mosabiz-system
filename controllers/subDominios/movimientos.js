@@ -3842,11 +3842,10 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
     tipoAuditoria,
     lote,
     fechaVencimiento,
-    fechaIngreso
+    fechaIngreso,
+    isVenta
   } = req.body
   try {
-    console.log({ 3: fechaIngreso })
-    console.log(req.body)
     const tieneContabilidad = await hasContabilidad({ clienteId })
     /* if (tieneContabilidad) {
       const validContabilidad = validMovimientoAuditoria({ clienteId, tipoAjuste, almacen, productoId })
@@ -3969,7 +3968,7 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
     let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'devolucion' } }))?.contador
     if (contador) ++contador
     if (!contador) contador = 1
-    const movimiento = await createItemSD({
+    let movimiento = await createItemSD({
       nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
       item: {
@@ -3978,12 +3977,19 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
         tipo: 'devolucion',
         almacenOrigen: almacenDevoluciones?._id,
         estado: 'devolucion',
+        fechaDevolucion: isVenta ? moment().toDate() : undefined,
         almacenDestino: almacen ? new ObjectId(almacen?._id) : null,
         zona: null,
         numeroMovimiento: contador,
         creadoPor: new ObjectId(req.uid)
       }
     })
+    movimiento = await getItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      filters: { _id: movimiento.insertedId }
+    })
+    movimiento.insertedId = movimiento._id
     createItemSD({
       nameCollection: 'detalleMovimientos',
       enviromentClienteId: clienteId,
@@ -4026,7 +4032,7 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
             fechaIngreso: moment(fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
-            costoPromedio: Number(costoPromedio),
+            costoPromedio: Number(Number(costoPromedio).toFixed(2)),
             movimientoAfectado: new ObjectId(movimientoId),
             afecta: tipoAjuste,
             creadoPor: new ObjectId(req.uid),
@@ -4047,7 +4053,7 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
             fechaIngreso: moment(fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
-            costoPromedio: Number(costoPromedio),
+            costoPromedio: Number(Number(costoPromedio).toFixed(2)),
             // movimientoAfectado: new ObjectId(movimientoId),
             afecta: tipoAjuste,
             creadoPor: new ObjectId(req.uid),
@@ -4350,7 +4356,9 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
               $match:
               {
                 productoId: new ObjectId(productoId),
-                almacenId: { $nin: [new ObjectId(almacenDevoluciones?._id), null, undefined] },
+                almacenId: (isVenta
+                  ? { $eq: new ObjectId(almacenDevoluciones?._id) }
+                  : { $nin: [new ObjectId(almacenDevoluciones?._id), null, undefined] }),
                 movimientoId: new ObjectId(movimientoId),
                 lote: { $ne: null }
               }
@@ -4359,6 +4367,7 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
             { $limit: 1 }
           ]
         })
+        console.log({movimientoId, detalleProductoAlmacen, isVenta, productoId, almacen: almacenDevoluciones?._id})
         /* Ajustaremos el costo promedio del producto porque la mercancia sobrante se le pagará al proveedor */
         const inventarioAnterior = await agreggateCollectionsSD({
           nameCollection: 'productosPorAlmacen',
@@ -4406,11 +4415,10 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
             { $match: { cantidad: { $gt: 0 } } }
           ]
         })
-        const costoPromedioTotalAnterior = (inventarioAnterior[0]?.costoPromedio || 0) * (inventarioAnterior[0].cantidad || 0)
+        const costoPromedioTotalAnterior = (inventarioAnterior[0]?.costoPromedio || 0) * (inventarioAnterior[0]?.cantidad || 0)
         const costoPromedioTotalActualizado = (Number(cantidad) * (costoUnitario || 0)) + costoPromedioTotalAnterior
-        const nuevoCostoPromedio = costoPromedioTotalActualizado / (Number(inventarioAnterior[0]?.cantidad || 0))
+        const nuevoCostoPromedio = costoPromedioTotalActualizado / (Number(inventarioAnterior[0]?.cantidad || 1))
         /** */
-        console.log({ detalleProductoAlmacen })
         const detallesCrear = [
           {
             productoId: new ObjectId(productoId),
@@ -4422,12 +4430,12 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
             tipoAuditoria,
             tipo: 'ajuste',
             tipoMovimiento: 'salida',
-            lote: null, // detalleProductoAlmacen[0]?.lote,
-            fechaVencimiento: null, // moment(detalleProductoAlmacen[0]?.fechaVencimiento).toDate(),
-            fechaIngreso: null, // moment(detalleProductoAlmacen[0]?.fechaIngreso).toDate(),
+            lote: isVenta ? detalleProductoAlmacen[0]?.lote : null,
+            fechaVencimiento: isVenta ? moment(detalleProductoAlmacen[0]?.fechaVencimiento).toDate() : null,
+            fechaIngreso: isVenta ? moment(detalleProductoAlmacen[0]?.fechaIngreso).toDate() : null,
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
-            costoPromedio: Number(nuevoCostoPromedio),
+            costoPromedio: Number(Number(nuevoCostoPromedio).toFixed(2)),
             movimientoAfectado: new ObjectId(movimientoId),
             afecta: tipoAjuste,
             creadoPor: new ObjectId(req.uid),
@@ -4447,7 +4455,7 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
             fechaIngreso: moment(detalleProductoAlmacen[0]?.fechaIngreso).toDate(),
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
-            costoPromedio: Number(nuevoCostoPromedio),
+            costoPromedio: Number(Number(nuevoCostoPromedio).toFixed(2)),
             creadoPor: new ObjectId(req.uid),
             fechaCreacion: moment().toDate()
           }
@@ -4512,6 +4520,25 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
         console.log({ detallesCrear })
       }
       if (tipoAjuste === 'Cobrar al proveedor' || tipoAjuste === 'Perdida') {
+        const detalleProductoAlmacen = await agreggateCollectionsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          pipeline: [
+            {
+              $match:
+              {
+                productoId: new ObjectId(productoId),
+                almacenId: (isVenta
+                  ? { $eq: new ObjectId(almacenDevoluciones?._id) }
+                  : { $nin: [new ObjectId(almacenDevoluciones?._id), null, undefined] }),
+                movimientoId: new ObjectId(movimientoId),
+                lote: { $ne: null }
+              }
+            },
+            { $sort: { fechaIngreso: -1 } },
+            { $limit: 1 }
+          ]
+        })
         const detallesCrear = [
           {
             productoId: new ObjectId(productoId),
@@ -4523,9 +4550,9 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
             tipoAuditoria,
             tipo: 'ajuste',
             tipoMovimiento: 'salida',
-            lote: null,
-            fechaVencimiento: null, // moment(fechaVencimiento).toDate(),
-            fechaIngreso: null, // moment(fechaIngreso).toDate(),
+            lote: isVenta ? detalleProductoAlmacen[0]?.lote : null,
+            fechaVencimiento: isVenta ? moment(detalleProductoAlmacen[0]?.fechaVencimiento).toDate() : null,
+            fechaIngreso: isVenta ? moment(detalleProductoAlmacen[0]?.fechaIngreso).toDate() : null,
             fechaMovimiento: moment().toDate(),
             costoUnitario: Number(costoUnitario),
             costoPromedio: Number(costoPromedio),
@@ -4541,7 +4568,7 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
             const cuentaPerdida = await getItemSD({
               nameCollection: 'planCuenta',
               enviromentClienteId: clienteId,
-              filters: { _id: new ObjectId(ajusteInventario.cuentaPerdidaAcum) }
+              filters: { _id: new ObjectId(ajusteInventario.cuentaPerdidasAjusteInventario) }
             })
             const asientosContables = [{
               cuentaId: new ObjectId(cuentaPerdida._id),
@@ -5368,6 +5395,7 @@ export const createDevolucionCompra = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de craar esta devolución ' + e.message })
   }
 }
+
 export const deleteImgMovimiento = async (req, res) => {
   const { clienteId, movimientoId, imgId } = req.body
   try {
@@ -5388,6 +5416,7 @@ export const deleteImgMovimiento = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la imagen del almacen ' + e.message })
   }
 }
+
 export const addImagenMovimiento = async (req, res) => {
   const { clienteId, movimientoId } = req.body
   console.log({ body: req.body, file: req.files.documentos })
@@ -5443,6 +5472,7 @@ export const addImagenMovimiento = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de guardar las imagenes del almacen ' + e.message })
   }
 }
+
 export const getDespachosVentas = async (req, res) => {
   const { clienteId, pagina, itemsPorPagina, filters = {} } = req.body
   try {
@@ -5519,6 +5549,316 @@ export const getDespachosVentas = async (req, res) => {
       ]
     })
     return res.status(200).json({ movimientos, count: count[0]?.total || 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes por recibir ' + e.message })
+  }
+}
+
+export const getDevolucionesVentas = async (req, res) => {
+  const { clienteId, pagina, itemsPorPagina, filters = {} } = req.body
+  try {
+    const pagination = []
+    if (itemsPorPagina > 0 && pagina) {
+      pagination.push(
+        { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+        { $limit: Number(itemsPorPagina) }
+      )
+    }
+    const productoPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+    const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+    const documentosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
+    const detalleDocumentosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
+    const movimientos = await agreggateCollectionsSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo: 'devolucion-ventas', estado: filters.estado || 'Pendiente' } },
+        { $sort: { fechaCreacion: -1 } },
+        {
+          $lookup: {
+            from: documentosCollection,
+            localField: 'documentoId',
+            foreignField: '_id',
+            as: 'dataDocumento'
+          }
+        },
+        { $unwind: { path: '$dataDocumento', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: productoPorAlmacenCollection,
+            localField: '_id',
+            foreignField: 'movimientoId',
+            as: 'detalleMovimientos'
+          }
+        },
+        {
+          $lookup: {
+            from: almacenCollection,
+            localField: 'almacenDestino',
+            foreignField: '_id',
+            as: 'dataAlmacenOrigen'
+          }
+        },
+        { $unwind: { path: '$dataAlmacenOrigen', preserveNullAndEmptyArrays: true } },
+        ...pagination,
+        {
+          $project: {
+            _id: 1,
+            tipo: 1,
+            fechaCreacion: 1,
+            documentoId: 1,
+            numeroMovimiento: 1,
+            tipoDocumento: 1,
+            almacenDestino: 1,
+            almacenId: 1,
+            numeroDocumento: '$dataDocumento.numeroFactura',
+            fecha: '$dataDocumento.fecha',
+            status: 1,
+            almacenNombre: '$dataAlmacenOrigen.nombre',
+            detalleMovimientos: 1
+          }
+        },
+        {
+          $lookup: {
+            from: productoPorAlmacenCollection,
+            localField: '_id',
+            foreignField: 'movimientoId',
+            pipeline: [
+              {
+                $lookup: {
+                  from: productoPorAlmacenCollection,
+                  localField: 'movimientoId',
+                  foreignField: 'movimientoAfectado',
+                  let: { productoId: '$productoId' },
+                  pipeline: [
+                    { $match: { $expr: { $eq: ['$productoId', '$$productoId'] } } },
+                    {
+                      $group: {
+                        _id: 0,
+                        cantidad: {
+                          $sum: {$cond: {
+                            if: { $eq: ['$tipoMovimiento', 'entrada'] },
+                            then: '$cantidad',
+                            else: { $multiply: [-1, '$cantidad']}
+                          }}
+                        }
+                      }
+                    }
+                  ],
+                  as: 'detallesAjustes'
+                }
+              },
+              { $unwind: { path: '$detallesAjustes', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: detalleDocumentosCollection,
+                  localField: 'documentoId',
+                  foreignField: 'documentoId',
+                  let: { productoId: '$productoId' },
+                  pipeline: [
+                    { $match: { $expr: { $eq: ['$productoId', '$$productoId'] } } },
+                    { $match: { tipo: 'producto' } }
+                  ],
+                  as: 'producto'
+                }
+              },
+              { $unwind: { path: '$producto', preserveNullAndEmptyArrays: false } },
+              {
+                $project: {
+                  movimientoAfectado: 1,
+                  productoId: 1,
+                  movimientoId: 1,
+                  documentoId: 1,
+                  lote: 1,
+                  fechaVencimiento: 1,
+                  fechaIngreso: 1,
+                  tipoMovimiento: 1,
+                  codigo: '$producto.codigo',
+                  descripcion: '$producto.descripcion',
+                  nombre: '$producto.nombre',
+                  unidad: '$producto.unidad',
+                  cantidad: { $sum: ['$producto.cantidad', { $ifNull: ['$detallesAjustes.cantidad', 0] }] },
+                  faltante: '$producto.cantidad',
+                  precioVenta: '$producto.precioVenta',
+                  baseImponible: '$producto.baseImponible',
+                  costoPromedio: '$producto.costoPromedio',
+                  costoUnitario: '$producto.costoPromedio'
+                }
+              },
+              { $match: { cantidad: { $gt: 0 } } }
+            ],
+            as: 'cantidadAlmacen'
+          }
+        },
+        //{ $unwind: { path: '$cantidadAlmacen', preserveNullAndEmptyArrays: false } },
+        { $match: { $expr: { $gt: [{ $size: '$cantidadAlmacen' }, 0] } } },
+        /* { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+        { $limit: Number(itemsPorPagina) } */
+      ]
+    })
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo: 'devolucion-ventas', estado: filters.estado || 'Pendiente' } },
+        {
+          $lookup: {
+            from: productoPorAlmacenCollection,
+            localField: '_id',
+            foreignField: 'movimientoId',
+            pipeline: [
+              {
+                $lookup: {
+                  from: productoPorAlmacenCollection,
+                  localField: 'movimientoId',
+                  foreignField: 'movimientoAfectado',
+                  let: { productoId: '$productoId' },
+                  pipeline: [
+                    { $match: { $expr: { $eq: ['$productoId', '$$productoId'] } } },
+                    {
+                      $group: {
+                        _id: 0,
+                        cantidad: {
+                          $sum: {$cond: {
+                            if: { $eq: ['$tipoMovimiento', 'entrada'] },
+                            then: '$cantidad',
+                            else: { $multiply: [-1, '$cantidad']}
+                          }}
+                        }
+                      }
+                    }
+                  ],
+                  as: 'detallesAjustes'
+                }
+              },
+              { $unwind: { path: '$detallesAjustes', preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: detalleDocumentosCollection,
+                  localField: 'documentoId',
+                  foreignField: 'documentoId',
+                  let: { productoId: '$productoId' },
+                  pipeline: [
+                    { $match: { $expr: { $eq: ['$productoId', '$$productoId'] } } },
+                    { $match: { tipo: 'producto' } }
+                  ],
+                  as: 'producto'
+                }
+              },
+              { $unwind: { path: '$producto', preserveNullAndEmptyArrays: false } },
+              {
+                $project: {
+                  movimientoAfectado: 1,
+                  productoId: 1,
+                  movimientoId: 1,
+                  documentoId: 1,
+                  lote: 1,
+                  fechaVencimiento: 1,
+                  fechaIngreso: 1,
+                  tipoMovimiento: 1,
+                  codigo: '$producto.codigo',
+                  descripcion: '$producto.descripcion',
+                  nombre: '$producto.nombre',
+                  unidad: '$producto.unidad',
+                  cantidad: { $sum: ['$producto.cantidad', { $ifNull: ['$detallesAjustes.cantidad', 0] }] },
+                  faltante: '$producto.cantidad',
+                  precioVenta: '$producto.precioVenta',
+                  baseImponible: '$producto.baseImponible',
+                  costoPromedio: '$producto.costoPromedio',
+                  costoUnitario: '$producto.costoPromedio'
+                }
+              },
+              { $match: { cantidad: { $gt: 0 } } }
+            ],
+            as: 'cantidadAlmacen'
+          }
+        },
+        { $match: { $expr: { $gt: [{ $size: '$cantidadAlmacen' }, 0] } } },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ movimientos, count: count[0]?.total || 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes por recibir ' + e.message })
+  }
+}
+export const getDetalleDevolucionesVentas = async (req, res) => {
+  const { clienteId, movimientoId } = req.body
+  try {
+    const detalleDocumentosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
+    const productosPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+    const detalles = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { movimientoId: new ObjectId(movimientoId) } },
+        {
+          $lookup: {
+            from: productosPorAlmacenCollection,
+            localField: 'movimientoId',
+            foreignField: 'movimientoAfectado',
+            let: { productoId: '$productoId' },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$productoId', '$$productoId'] } } },
+              {
+                $group: {
+                  _id: 0,
+                  cantidad: {
+                    $sum: { $cond: {
+                      if: { $eq: ['$tipoMovimiento', 'entrada'] },
+                      then: '$cantidad',
+                      else: { $multiply: [-1, '$cantidad'] }
+                    } }
+                  }
+                }
+              }
+            ],
+            as: 'detallesAjustes'
+          }
+        },
+        { $unwind: { path: '$detallesAjustes', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: detalleDocumentosCollection,
+            localField: 'documentoId',
+            foreignField: 'documentoId',
+            let: { productoId: '$productoId' },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$productoId', '$$productoId'] } } },
+              { $match: { tipo: 'producto' } }
+            ],
+            as: 'producto'
+          }
+        },
+        { $unwind: { path: '$producto', preserveNullAndEmptyArrays: false } },
+        {
+          $project: {
+            movimientoAfectado: 1,
+            productoId: 1,
+            movimientoId: 1,
+            documentoId: 1,
+            lote: 1,
+            fechaVencimiento: 1,
+            fechaIngreso: 1,
+            tipoMovimiento: 1,
+            codigo: '$producto.codigo',
+            descripcion: '$producto.descripcion',
+            nombre: '$producto.nombre',
+            unidad: '$producto.unidad',
+            cantidad: { $sum: ['$producto.cantidad', { $ifNull: ['$detallesAjustes.cantidad', 0] }] },
+            faltante: '$producto.cantidad',
+            precioVenta: '$producto.precioVenta',
+            baseImponible: '$producto.baseImponible',
+            costoPromedio: '$producto.costoPromedio',
+            costoUnitario: '$producto.costoPromedio'
+          }
+        },
+        { $match: { cantidad: { $gt: 0 } } }
+      ]
+    })
+    return res.status(200).json({ detalles })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las compras pendientes por recibir ' + e.message })

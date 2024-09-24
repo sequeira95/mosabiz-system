@@ -45,6 +45,8 @@ import {
 } from '../../controllers/subDominios/ventas/documentos.js'
 import { createPagoOrdenes, getCajasSucursalListCobros, getDetalleVentas, getVentasCobros } from '../../controllers/subDominios/ventas/cobros.js'
 
+import { getSucursalesByUser, getCajasBySucursal } from '../../controllers/subDominios/ventas/cierresCaja.js'
+
 const router = express.Router()
 
 router.post('/sucursales/get', requireSubDominioToken, getSucursales)
@@ -85,5 +87,8 @@ router.post('/get/ventas/porCobrar', requireSubDominioToken, getVentasCobros)
 router.post('/getDetalleVentas', requireSubDominioToken, getDetalleVentas)
 router.post('/cobros/cajas/sucursal', requireSubDominioToken, getCajasSucursalListCobros)
 router.post('/create/pagosOrdenes', requireSubDominioToken, createPagoOrdenes)
+
+router.post('/cierres-caja/get/sucursales', requireSubDominioToken, getSucursalesByUser)
+router.post('/cierres-caja/get/cajas', requireSubDominioToken, getCajasBySucursal)
 
 export default router

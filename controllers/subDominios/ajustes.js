@@ -50,6 +50,7 @@ export const upsertAjusteCliente = async (req, res) => {
   if (ajuste.cuentaIvaId) ajuste.cuentaIvaId = new ObjectId(ajuste.cuentaIvaId)
   if (ajuste.cuentaPorCobrarClienteId) ajuste.cuentaPorCobrarClienteId = new ObjectId(ajuste.cuentaPorCobrarClienteId)
   if (ajuste.cuentaDiferenciaVentasId) ajuste.cuentaDiferenciaVentasId = new ObjectId(ajuste.cuentaDiferenciaVentasId)
+  if (ajuste.cuentaDiferenciasCajas) ajuste.cuentaDiferenciasCajas = new ObjectId(ajuste.cuentaDiferenciasCajas)
   if (ajuste.cuentaDescuentosProductosId) ajuste.cuentaDescuentosProductosId = new ObjectId(ajuste.cuentaDescuentosProductosId)
   if (ajuste.cuentaIGTFPorPagarId) ajuste.cuentaIGTFPorPagarId = new ObjectId(ajuste.cuentaIGTFPorPagarId)
   if (ajuste.cuentaCobroRetencion && ajuste.cuentaCobroRetencion._id) ajuste.cuentaCobroRetencion = ajuste.cuentaCobroRetencion = new ObjectId(ajuste.cuentaCobroRetencion._id)

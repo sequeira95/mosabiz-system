@@ -410,6 +410,8 @@ export const getDetalleFacturas = async (req, res) => {
     const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventaszonas' })
     const clientesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'clientes' })
+    const transaccionesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
+    const documentosFiscalesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
 
     const [cliente] = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
@@ -550,8 +552,8 @@ export const getDetalleFacturas = async (req, res) => {
                     { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                     { $eq: ['$tipoAjuste', 'precio'] }
                   ] },
-                  then: { $multiply: ['$precioVenta', -1] },
-                  else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, '$precioVenta', 0] }
+                  then: { $multiply: [{ $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, -1] },
+                  else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, { $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, 0] }
                 }
               }
             },
@@ -559,8 +561,8 @@ export const getDetalleFacturas = async (req, res) => {
               $sum: {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
-                  then: { $multiply: ['$precioSinDescuento', -1] },
-                  else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, '$precioSinDescuento', 0] }
+                  then: { $multiply: ['$precioConDescuento', -1] },
+                  else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, '$precioConDescuento', 0] }
                 }
               }
             },
@@ -631,10 +633,59 @@ export const getDetalleFacturas = async (req, res) => {
             }
           },
           {
+            $lookup: {
+              from: documentosFiscalesCol,
+              localField: 'documentoId',
+              foreignField: 'facturaAsociada',
+              pipeline: [
+                { $project: { documentoId: 1, tipoDocumento: 1 } },
+                {
+                  $lookup: {
+                    from: transaccionesCol,
+                    localField: '_id',
+                    foreignField: 'documentoId',
+                    pipeline: [
+                      {
+                        $group: {
+                          _id: 0,
+                          total: { $sum: '$pago' },
+                          abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, '$pago', 0] } }
+                        }
+                      }
+                    ],
+                    as: 'transaccionAsociada'
+                  }
+                },
+                { $unwind: { path: '$transaccionAsociada', preserveNullAndEmptyArrays: true } },
+                {
+                  $group: {
+                    _id: 0,
+                    total: { $sum: {
+                      $cond: {
+                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                        then: '$transaccionAsociada.total',
+                        else: { $multiply: ['$transaccionAsociada.total', -1] }
+                      }
+                    } },
+                    abonosCredito: { $sum: {
+                      $cond: {
+                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                        then: '$transaccionAsociada.abonosCredito',
+                        else: { $multiply: ['$transaccionAsociada.abonosCredito', -1] }
+                      }
+                    } },
+                  }
+                }
+              ],
+              as: 'documentoAsociado'
+            }
+          },
+          { $unwind: { path: '$documentoAsociado', preserveNullAndEmptyArrays: true } },
+          {
             $group: {
               _id: 0,
-              total: { $sum: '$pago' },
-              abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, '$pago', 0] } }
+              total: { $sum: { $sum: ['$pago', '$documentoAsociado.total'] } },
+              abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, { $sum: ['$pago', '$documentoAsociado.abonosCredito'] }, 0] } }
             }
           }
         ]
@@ -690,6 +741,8 @@ export const getDetalleNotasEntrega = async (req, res) => {
     const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventaszonas' })
     const clientesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'clientes' })
+    const transaccionesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
+    const documentosFiscalesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
 
     const [cliente] = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
@@ -823,14 +876,8 @@ export const getDetalleNotasEntrega = async (req, res) => {
                     { $eq: ['$tipoDocumento', 'Devolución'] },
                     { $eq: ['$tipoAjuste', 'precio'] }
                   ] },
-                  then: { $multiply: ['$precioVenta', -1] },
-                  else: {
-                    $cond: {
-                      if: { $ne: ['$tipoDocumento', 'Devolución'] },
-                      then: '$precioVenta',
-                      else: 0
-                    }
-                  }
+                  then: { $multiply: [{ $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, -1] },
+                  else: { $cond: [{ $ne: ['$tipoDocumento', 'Devolución'] }, { $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, 0] }
                 }
               }
             },
@@ -838,8 +885,8 @@ export const getDetalleNotasEntrega = async (req, res) => {
               $sum: {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Devolución'] },
-                  then: { $multiply: ['$precioSinDescuento', -1] },
-                  else: '$precioSinDescuento'
+                  then: { $multiply: ['$precioConDescuento', -1] },
+                  else: '$precioConDescuento'
                 }
               }
             },
@@ -899,7 +946,7 @@ export const getDetalleNotasEntrega = async (req, res) => {
     })
     const pagosDocumento = { credito: 0, pagado: 0, porPagar: 0 }
 
-    if (documento.estado === 'pendiente') {
+    if (documento.estado) {
       const [pagos] = await agreggateCollectionsSD({
         enviromentClienteId: clienteId,
         nameCollection: 'transacciones',
@@ -910,10 +957,59 @@ export const getDetalleNotasEntrega = async (req, res) => {
             }
           },
           {
+            $lookup: {
+              from: documentosFiscalesCol,
+              localField: 'documentoId',
+              foreignField: 'notaEntregaAsociada',
+              pipeline: [
+                { $project: { documentoId: 1, tipoDocumento: 1 } },
+                {
+                  $lookup: {
+                    from: transaccionesCol,
+                    localField: '_id',
+                    foreignField: 'documentoId',
+                    pipeline: [
+                      {
+                        $group: {
+                          _id: 0,
+                          total: { $sum: '$pago' },
+                          abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, '$pago', 0] } }
+                        }
+                      }
+                    ],
+                    as: 'transaccionAsociada'
+                  }
+                },
+                { $unwind: { path: '$transaccionAsociada', preserveNullAndEmptyArrays: true } },
+                {
+                  $group: {
+                    _id: 0,
+                    total: { $sum: {
+                      $cond: {
+                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                        then: '$transaccionAsociada.total',
+                        else: { $multiply: ['$transaccionAsociada.total', -1] }
+                      }
+                    } },
+                    abonosCredito: { $sum: {
+                      $cond: {
+                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                        then: '$transaccionAsociada.abonosCredito',
+                        else: { $multiply: ['$transaccionAsociada.abonosCredito', -1] }
+                      }
+                    } },
+                  }
+                }
+              ],
+              as: 'documentoAsociado'
+            }
+          },
+          { $unwind: { path: '$documentoAsociado', preserveNullAndEmptyArrays: true } },
+          {
             $group: {
               _id: 0,
-              total: { $sum: '$pago' },
-              abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, '$pago', 0] } }
+              total: { $sum: { $sum: ['$pago', '$documentoAsociado.total'] } },
+              abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, { $sum: ['$pago', '$documentoAsociado.abonosCredito'] }, 0] } }
             }
           }
         ]

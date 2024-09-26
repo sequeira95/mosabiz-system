@@ -1502,7 +1502,7 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
             detalleTransacciones: '$detalleTransacciones'
           }
         },
-        { $sort: { diffFechaVencimiento: 1 } }
+        { $sort: { diffFechaVencimiento: 1, proveedor: 1 } }
       ]
     })
     const count = await agreggateCollectionsSD({
@@ -2183,7 +2183,8 @@ export const createPagoOrdenes = async (req, res) => {
           monedaSecundaria: abono.monedaSecundaria,
           tasa: abono.tasa,
           tipo: 'compra',
-          creadoPor: new ObjectId(req.uid)
+          creadoPor: new ObjectId(req.uid),
+          fechaCreacion: moment().toDate()
         })
         createHistorial.push({
           idMovimiento: new ObjectId(abono.compraId),
@@ -2281,6 +2282,7 @@ export const createPagoOrdenes = async (req, res) => {
               enviromentClienteId: clienteId,
               filters: { _id: new ObjectId(abono.caja.cuentaId) }
             })
+            if (!cuenta) throw new Error(`La ${abono.caja.descripcion} no tiene cuenta contable`)
           }
           asientosContables.push({
             cuentaId: new ObjectId(cuenta._id),
@@ -3274,7 +3276,13 @@ export const getFacturas = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipoMovimiento: 'compra', estado: { $nin: ['pagada', 'anulado'] } } },
+        {
+          $match: {
+            tipoMovimiento: 'compra',
+            tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] },
+            estado: { $nin: ['pagada', 'anulado'] }
+          }
+        },
         { $skip: (pagina - 1) * itemsPorPagina },
         { $limit: itemsPorPagina },
         {
@@ -3336,7 +3344,13 @@ export const getFacturas = async (req, res) => {
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipoMovimiento: 'compra', estado: { $nin: ['pagada', 'anulado'] } } },
+        {
+          $match: {
+            tipoMovimiento: 'compra',
+            tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] },
+            estado: { $nin: ['pagada', 'anulado'] }
+          }
+        },
         { $count: 'total' }
       ]
     })
@@ -3509,13 +3523,13 @@ export const getFacturasPagadas = async (req, res) => {
   }
 }
 export const saveEditFactura = async (req, res) => {
-  const { clienteId, _id, numeroFactura, numeroControl, aplicaProrrateo, isImportacion } = req.body
+  const { clienteId, _id, numeroFactura, numeroControl, aplicaProrrateo, isImportacion, aplicaIslr } = req.body
   try {
     const documento = await updateItemSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) },
-      update: { $set: { numeroFactura, numeroControl, aplicaProrrateo, isImportacion } }
+      update: { $set: { numeroFactura, numeroControl, aplicaProrrateo, isImportacion, aplicaIslr } }
     })
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const detalleFacturaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
@@ -4268,6 +4282,7 @@ const createRetenciones = async ({ documentoId, clienteId, uid, periodosAsignar 
     let retMayor = { valorRet: 0 }
     if (documento?.productosServicios[0]?.categoria?.tiposRetencion) {
       for (const ret of documento?.productosServicios[0]?.categoria?.tiposRetencion) {
+        // console.log({ ret })
         if (constTiposResidenteISLR[documento?.proveedor?.tipoContribuyente] !== ret.tipoRetencion) continue
         if (retMayor.valorRet < ret.valorRet) {
           retMayor = ret
@@ -4356,39 +4371,44 @@ const createRetenciones = async ({ documentoId, clienteId, uid, periodosAsignar 
     const baseRetencion = (baseExtento * (retMayor.valorBaseImponible || 0)) / 100
     const valorBaseRetenida = (baseRetencion * retMayor.valorRet) / 100
     let valorSustraendo = retMayor.sustraendo
+    let valorminimo = retMayor.minimo
     if (retMayor.tipoCalculo === '%') {
       valorSustraendo = (valorBaseRetenida * retMayor.sustraendo) / 100
     }
     if (retMayor.tipoCalculo === 'UT') {
       valorSustraendo = retMayor.sustraendo * (retMayor.valorUT || 0)
+      valorminimo = retMayor.minimo * (retMayor.valorUT || 0)
     }
     const total = valorBaseRetenida - valorSustraendo
     console.log({ retMayor, baseExtento, baseRetencion, valorBaseRetenida, valorSustraendo, total })
-    createItemSD({
-      nameCollection: 'documentosFiscales',
-      enviromentClienteId: clienteId,
-      item: {
-        tipoMovimiento: 'compra',
-        tipoDocumento: tiposDocumentosFiscales.retIslr,
-        numeroFactura: contador,
-        facturaAsociada: new ObjectId(documento._id),
-        tipoDocumentoAfectado: documento.tipoDocumento,
-        fecha: moment(documento.fechaRecepcion).toDate(),
-        baseImponibleExento: Number(baseExtento.toFixed(2)),
-        porcentajeRetenido: Number(retMayor.valorRet),
-        baseRetencion: Number(baseRetencion.toFixed(2)),
-        sustraendo: Number(valorSustraendo.toFixed(2)),
-        totalRetenido: Number(total.toFixed(2)),
-        tipoRetencion: retMayor,
-        proveedorId: new ObjectId(documento.proveedor._id),
-        creadoPor: new ObjectId(uid),
-        tipoRetencionAux: retMayor.tipoRetencion,
-        tasaDia: Number(documento.tasaDia),
-        totalRetenidoSecundario: Number((total * documento.tasaDia).toFixed(2)),
-        moneda: documento.moneda,
-        monedaSecundaria: documento.monedaSecundaria
-      }
-    })
+    if (baseExtento >= valorminimo || !valorminimo) {
+      createItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        item: {
+          tipoMovimiento: 'compra',
+          tipoDocumento: tiposDocumentosFiscales.retIslr,
+          numeroFactura: contador,
+          facturaAsociada: new ObjectId(documento._id),
+          tipoDocumentoAfectado: documento.tipoDocumento,
+          fecha: moment(documento.fechaRecepcion).toDate(),
+          baseImponibleExento: Number(baseExtento.toFixed(2)),
+          porcentajeRetenido: Number(retMayor.valorRet),
+          baseRetencion: Number(baseRetencion.toFixed(2)),
+          sustraendo: Number(valorSustraendo.toFixed(2)),
+          totalRetenido: Number(total.toFixed(2)),
+          tipoRetencion: retMayor,
+          proveedorId: new ObjectId(documento.proveedor._id),
+          creadoPor: new ObjectId(uid),
+          tipoRetencionAux: retMayor.tipoRetencion,
+          tasaDia: Number(documento.tasaDia),
+          totalRetenidoSecundario: Number((total * documento.tasaDia).toFixed(2)),
+          moneda: documento.moneda,
+          monedaSecundaria: documento.monedaSecundaria
+        }
+      })
+      upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIslr' }, update: { $set: { contador } } })
+    }
     if (ajusteTributos?.isSujetoPasivoEspecial && documento.iva > 0) {
       if (!documento.proveedor?.tipoRetiva) throw new Error('Error al momento de crear retención de IVA el proveedor no tiene configurado la retención de IVA')
       const valorRetIva = documento.proveedor?.tipoRetiva?.retIva || 0
@@ -4416,9 +4436,13 @@ const createRetenciones = async ({ documentoId, clienteId, uid, periodosAsignar 
           tasaDia: Number(documento?.tasaDia),
           totalRetenidoSecundario: Number((retenidoIva * documento?.tasaDia).toFixed(2)),
           moneda: documento?.moneda,
-          monedaSecundaria: documento?.monedaSecundaria
+          monedaSecundaria: documento?.monedaSecundaria,
+          periodoIvaNombre: periodosAsignar.periodoIvaNombre,
+          periodoIvaInit: periodosAsignar.periodoIvaInit,
+          periodoIvaEnd: periodosAsignar.periodoIvaEnd
         }
       })
+      upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIva' }, update: { $set: { contador: contadorIva } } })
       if (tieneContabilidad) {
         const cuentaRetIva = await getItemSD({
           nameCollection: 'planCuenta',
@@ -4463,7 +4487,7 @@ const createRetenciones = async ({ documentoId, clienteId, uid, periodosAsignar 
         })
       }
     }
-    if (documento) {
+    if (documento && ((baseExtento >= valorminimo || !valorminimo) || (ajusteTributos?.isSujetoPasivoEspecial && documento.iva > 0))) {
       updateItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
@@ -4477,7 +4501,7 @@ const createRetenciones = async ({ documentoId, clienteId, uid, periodosAsignar 
         }
       })
     }
-    if (tieneContabilidad) {
+    if (tieneContabilidad && (baseExtento >= valorminimo || !valorminimo)) {
       console.log('entrando')
       const cuentaRetIslr = await getItemSD({
         nameCollection: 'planCuenta',
@@ -4562,7 +4586,6 @@ const createRetenciones = async ({ documentoId, clienteId, uid, periodosAsignar 
       )
       createManyItemsSD({ nameCollection: 'detallesComprobantes', enviromentClienteId: clienteId, items: [...asientosContables] })
     }
-    upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'retencionIslr' }, update: { $set: { contador } } })
     console.log({ retMayor })
   } catch (e) {
     console.log(e)

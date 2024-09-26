@@ -235,9 +235,10 @@ export const saveToArrayVentas = async (req, res) => {
             $set: {
               descripcion: e.descripcion,
               iva: e.iva,
+              ivaId: (e.ivaId && new ObjectId(e.ivaId)) || null,
               precioVenta: e.precioVenta,
               moneda: e.moneda,
-              isExcento: e.isExcento,
+              // isExcento: e.isExcento,
               observacion: e.observacion
             }
           }
@@ -795,7 +796,7 @@ export const saveProductosVentas = async (req, res) => {
           moneda,
           isExento,
           precioVenta: Number(precioVenta),
-          ivaId: new ObjectId(ivaId),
+          ivaId: (ivaId && new ObjectId(ivaId)) || null,
           observacion
         }
       }

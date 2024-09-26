@@ -1,11 +1,12 @@
 import { ObjectId } from 'mongodb'
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, createItemSD, updateItemSD, formatCollectionName } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, createItemSD, updateItemSD, formatCollectionName, getCollectionSD, getItemSD, updateManyItemSD } from '../../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../../constants.js'
 
 export const getZonas = async (req, res) => {
   const { clienteId } = req.body
   try {
+    const categoriaZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
     const cuentasColName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
     const zonas = await agreggateCollectionsSD({
       nameCollection: 'ventaszonas',
@@ -19,10 +20,12 @@ export const getZonas = async (req, res) => {
             as: 'cuentaData'
           }
         },
-        { $unwind: { path: '$cuentaData', preserveNullAndEmptyArrays: true } },
         {
-          $addFields: {
-            cuenta: '$cuentaData.codigo'
+          $lookup: {
+            from: categoriaZonaCollection,
+            localField: '_id',
+            foreignField: 'zonaId',
+            as: 'detallesCategoriaPorZona'
           }
         }
       ]
@@ -33,6 +36,7 @@ export const getZonas = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las zonas ' + e.message })
   }
 }
+
 export const saveZonas = async (req, res) => {
   const { _id, clienteId, nombre, cuentaId, observacion } = req.body
   try {
@@ -126,6 +130,7 @@ export const saveZonas = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de guardar la zona' + e.message })
   }
 }
+
 export const saveZonasToArray = async (req, res) => {
   const { clienteId, zonas } = req.body
   try {
@@ -178,6 +183,7 @@ export const saveZonasToArray = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de guardar las zonas' + e.message })
   }
 }
+
 export const deleteZonas = async (req, res) => {
   const { _id, clienteId } = req.body
   try {
@@ -191,5 +197,125 @@ export const deleteZonas = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la zona' + e.message })
+  }
+}
+
+export const listCategoriasPorZonas = async (req, res) => {
+  const { clienteId, zonaId, tipo } = req.body
+  try {
+    const categoriaZonaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorZona' })
+    const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+    const listCategorias = await agreggateCollectionsSD({
+      nameCollection: 'categorias',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo } },
+        {
+          $lookup: {
+            from: categoriaZonaCollection,
+            localField: '_id',
+            foreignField: 'categoriaId',
+            pipeline: [
+              {
+                $match: {
+                  zonaId: new ObjectId(zonaId)
+                }
+              },
+              {
+                $lookup: {
+                  from: planCuentaCollection,
+                  localField: 'cuentaId',
+                  foreignField: '_id',
+                  pipeline: [
+                    {
+                      $project: {
+                        cuentaId: '$_id',
+                        codigo: '$codigo',
+                        descripcion: '$descripcion'
+                      }
+                    }
+                  ],
+                  as: 'detalleCuenta'
+                }
+              },
+              { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  cuentaId: '$detalleCuenta.cuentaId',
+                  cuenta: '$detalleCuenta.codigo',
+                  descripcion: '$detalleCuenta.descripcion'
+                }
+              }
+            ],
+            as: 'detalleZona'
+          }
+        },
+        { $unwind: { path: '$detalleZona', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            categoriaId: '$_id',
+            categoria: '$nombre',
+            cuentaCodigo: '$detalleZona.cuenta',
+            cuentaId: '$detalleZona.cuentaId'
+          }
+        }
+      ]
+    })
+    const [cuentasUsadas] = await agreggateCollectionsSD({
+      nameCollection: 'categoriaPorZona',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipo } },
+        {
+          $group: {
+            _id: 0,
+            cuentaId: {
+              $push: { cuenta: '$cuentaId', categoria: '$categoriaId', zona: '$zonaId', tipo: 'cuentaId' }
+            }
+          }
+        }
+      ]
+    })
+    const cuentas = cuentasUsadas?.cuentaId || []
+    const cuentasObject = {}
+    cuentas.forEach(e => { if (e.cuenta) cuentasObject[e.cuenta] = e })
+    return res.status(200).json({ list: listCategorias, cuentas: cuentasObject })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar la lista de categorías por zonas ' + e.message })
+  }
+}
+
+export const saveCategoriasPorZonas = async (req, res) => {
+  const { clienteId, tipo, categoriasPorZona, zonaId } = req.body
+  try {
+    await saveCategoriasPorZona({ clienteId, tipo, categoriasPorZona, zonaId })
+    return res.status(200).json({ status: 'Categorias guardadas exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar las categoria por zona ' + e.message })
+  }
+}
+const saveCategoriasPorZona = async ({ clienteId, tipo, categoriasPorZona, zonaId }) => {
+  const bulkWrite = []
+  try {
+    for (const categoriaZona of categoriasPorZona) {
+      bulkWrite.push({
+        updateOne: {
+          filter: { categoriaId: new ObjectId(categoriaZona.categoriaId), zonaId: new ObjectId(zonaId) },
+          update: {
+            $set: {
+              cuentaId: categoriaZona.cuentaId ? new ObjectId(categoriaZona.cuentaId) : null,
+              tipo
+            }
+          },
+          upsert: true
+        }
+      })
+    }
+    if (bulkWrite[0]) await bulkWriteSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, pipeline: bulkWrite })
+  } catch (e) {
+    console.log(e)
+    throw e
   }
 }

@@ -21,7 +21,9 @@ import {
   deleteZonas,
   getZonas,
   saveZonas,
-  saveZonasToArray
+  saveZonasToArray,
+  listCategoriasPorZonas,
+  saveCategoriasPorZonas
 } from '../../controllers/subDominios/ventas/zonas.js'
 
 import {
@@ -33,7 +35,8 @@ import {
   getProductos,
   handleVenta,
   getNotasEntrega,
-  getDetalleNotasEntrega
+  getDetalleNotasEntrega,
+  despacharProductos
 } from '../../controllers/subDominios/ventas/facturacion.js'
 
 import {
@@ -41,6 +44,8 @@ import {
   getDocumentoByTipo
 } from '../../controllers/subDominios/ventas/documentos.js'
 import { createPagoOrdenes, getCajasSucursalListCobros, getDetalleVentas, getVentasCobros } from '../../controllers/subDominios/ventas/cobros.js'
+
+import { getSucursalesByUser, getCajasBySucursal, getCorteCaja } from '../../controllers/subDominios/ventas/cierresCaja.js'
 
 const router = express.Router()
 
@@ -61,6 +66,8 @@ router.post('/zonas/get', requireSubDominioToken, getZonas)
 router.post('/zonas/set', requireSubDominioToken, saveZonas)
 router.post('/zonas/save', requireSubDominioToken, saveZonasToArray)
 router.post('/zonas/delete', requireSubDominioToken, deleteZonas)
+router.post('/zonas/list-categorias-servicios', requireSubDominioToken, listCategoriasPorZonas)
+router.post('/zonas/save-categorias-servicios', requireSubDominioToken, saveCategoriasPorZonas)
 
 router.post('/facturacion/data', requireSubDominioToken, getData)
 router.post('/facturacion/pedidos-venta', requireSubDominioToken, getPedidosVentas)
@@ -71,6 +78,7 @@ router.post('/facturacion/notas-entrega', requireSubDominioToken, getNotasEntreg
 router.post('/facturacion/notas-entrega/detalle', requireSubDominioToken, getDetalleNotasEntrega)
 router.post('/facturacion/productos', requireSubDominioToken, getProductos)
 router.post('/facturacion/pago-venta', requireSubDominioToken, handleVenta)
+router.post('/facturacion/despachos', requireSubDominioToken, despacharProductos)
 
 router.post('/documentos/:tipo', requireSubDominioToken, getDocumentosByTipo)
 router.post('/documentos/:tipo/detalle', requireSubDominioToken, getDocumentoByTipo)
@@ -79,5 +87,9 @@ router.post('/get/ventas/porCobrar', requireSubDominioToken, getVentasCobros)
 router.post('/getDetalleVentas', requireSubDominioToken, getDetalleVentas)
 router.post('/cobros/cajas/sucursal', requireSubDominioToken, getCajasSucursalListCobros)
 router.post('/create/pagosOrdenes', requireSubDominioToken, createPagoOrdenes)
+
+router.post('/cierres-caja/get/sucursales', requireSubDominioToken, getSucursalesByUser)
+router.post('/cierres-caja/get/cajas', requireSubDominioToken, getCajasBySucursal)
+router.post('/cierres-caja/get/corte', requireSubDominioToken, getCorteCaja)
 
 export default router

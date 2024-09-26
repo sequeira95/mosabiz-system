@@ -104,7 +104,9 @@ export const tipoMovimientosShort = {
   transferencia: 'TR',
   Ajuste: 'AJ',
   devolucion: 'DEV',
-  recepcion: 'REC'
+  recepcion: 'REC',
+  'despacho-ventas': 'Despacho',
+  'devolucion-ventas': 'DEV-V'
 }
 
 // ventas
@@ -156,11 +158,13 @@ export const tiposDocumentosFiscales = {
   retIva: 'Retención IVA',
   'RET ISLR': 'Retención ISLR',
   'RET IVA': 'Retención IVA',
-  notaEntrega: 'Nota de entrega'
+  notaEntrega: 'Nota de entrega',
+  devolucion: 'Devolución'
 }
 export const tiposDeclaracion = {
   islr: 'retIslr',
-  iva: 'retIva'
+  iva: 'retIva',
+  planillaIva: 'planillaIva'
 }
 export const tiposIVa = {
   general: 'General',

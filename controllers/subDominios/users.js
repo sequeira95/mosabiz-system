@@ -35,16 +35,18 @@ export const getUsersClientes = async (req, res) => {
   }
 }
 export const getUsuariosYAlmacenesClientes = async (req, res) => {
+  const { clienteId } = req.body
   try {
+    if (!clienteId) throw new Error('Cliente no existe')
     const usuarios = await agreggateCollectionsSD({
       nameCollection: 'personas',
       pipeline: [
-        { $match: { isCliente: true, clienteId: new ObjectId(req.body._id) } }
+        { $match: { isCliente: true, clienteId: new ObjectId(clienteId) } }
       ]
     })
     const almacenes = await agreggateCollectionsSD({
       nameCollection: 'almacenes',
-      enviromentClienteId: req.body._id,
+      enviromentClienteId: clienteId,
       pipeline: [
         { $match: { nombre: { $nin: ['Transito', 'Auditoria', 'Devoluciones'] } } },
         {
@@ -57,7 +59,7 @@ export const getUsuariosYAlmacenesClientes = async (req, res) => {
     })
     const zonas = await agreggateCollectionsSD({
       nameCollection: 'zonas',
-      enviromentClienteId: req.body._id,
+      enviromentClienteId: clienteId,
       pipeline: [
         { $match: { tipo: 'inventario' } },
         {
@@ -68,7 +70,24 @@ export const getUsuariosYAlmacenesClientes = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ usuarios, almacenes, zonas })
+    const cajas = await await agreggateCollectionsSD({
+      nameCollection: 'bancos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { tipoBanco: 'cajaPrincipal' } },
+        {
+          $project: {
+            _id: 1,
+            isNacionalDivisas: 1,
+            nombre: 1,
+            descripcion: 1,
+            tipo: 1,
+            tipoBanco: 1
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ usuarios, almacenes, zonas, cajas })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener usuarios del clientes' })

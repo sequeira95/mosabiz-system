@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { subDominioName } from '../../constants.js'
 
@@ -28,6 +28,8 @@ export const getServicios = async (req, res) => {
             descuento: '$detalleCategoria.descuento',
             tipoDescuento: '$detalleCategoria.tipoDescuento',
             hasDescuento: '$detalleCategoria.hasDescuento',
+            iva: '$iva',
+            ivaId: '$ivaId',
             codigo: 1,
             nombre: 1,
             moneda: 1,
@@ -46,7 +48,7 @@ export const getServicios = async (req, res) => {
   }
 }
 export const saveServicios = async (req, res) => {
-  const { _id, clienteId, categoria, codigo, nombre, moneda, precio, observacion, tipo } = req.body
+  const { _id, clienteId, categoria, codigo, nombre, moneda, precio, observacion, tipo, ivaId } = req.body
   try {
     if (!_id) {
       const verify = await getItemSD({
@@ -66,8 +68,9 @@ export const saveServicios = async (req, res) => {
             categoria: categoria ? new ObjectId(categoria) : null,
             codigo,
             nombre,
-            moneda: moneda ? new ObjectId(moneda) : null,
+            moneda,
             precio: Number(precio) || null,
+            ivaId: (ivaId && new ObjectId(ivaId)) || null,
             observacion,
             fechaCreacion: moment().toDate(),
             tipo
@@ -85,8 +88,9 @@ export const saveServicios = async (req, res) => {
           categoria: categoria ? new ObjectId(categoria) : null,
           codigo,
           nombre,
-          moneda: moneda ? new ObjectId(moneda) : null,
+          moneda,
           precio: Number(precio) || null,
+          ivaId: (ivaId && new ObjectId(ivaId)) || null,
           observacion,
           tipo
         }
@@ -123,6 +127,37 @@ export const saveToArrayServicios = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar los servicios' + e.message })
+  }
+}
+// para ventas
+export const saveToArray = async (req, res) => {
+  const { clienteId, productos } = req.body
+  try {
+    if (!productos[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de productos' })
+    const bulkWrite = productos.map(e => {
+      return {
+        updateOne: {
+          filter: { codigo: e.codigo, tipo: e.tipo },
+          update: {
+            $set: {
+              descripcion: e.descripcion,
+              nombre: e.nombre,
+              precio: e.precio,
+              moneda: e.moneda,
+              ivaId: e.ivaId ? new ObjectId(e.ivaId) : null,
+              categoria: e.categoria ? new ObjectId(e.categoria) : null,
+              observacion: e.observacion
+            }
+          },
+          upsert: true
+        }
+      }
+    })
+    await bulkWriteSD({ nameCollection: 'servicios', enviromentClienteId: clienteId, pipeline: bulkWrite })
+    return res.status(200).json({ status: 'Servicios guardados exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar los servicios ' + e.message })
   }
 }
 export const deleteServicio = async (req, res) => {

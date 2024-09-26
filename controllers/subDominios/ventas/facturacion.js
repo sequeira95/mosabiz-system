@@ -117,12 +117,12 @@ export const getData = async (req, res) => {
       nameCollection: 'bancos',
       enviromentClienteId: clienteId,
       pipeline: [
-        {
+        /* {
           $project: {
             _id: 1,
             nombre: 1
           }
-        }
+        } */
       ]
     })
     return res.status(200).json({ monedas, sucursales, tasa, zonas, bancos })
@@ -371,14 +371,17 @@ export const getDetallePedidoVenta = async (req, res) => {
   }
 }
 export const getFacturas = async (req, res) => {
-  const { clienteId, search } = req.body
+  const { clienteId, search, documento } = req.body
   try {
     const query = {
       tipoMovimiento: 'venta',
-      tipoDocumento: 'Factura'
+      tipoDocumento: { $in: ['Factura', 'Nota de débito'] }
     }
     if (search) {
       query.numeroFactura = { $regex: `^${search}` }
+    }
+    if (documento === 'Nota de débito') {
+      query.tipoDocumento = 'Factura'
     }
     const facturas = await agreggateCollectionsSD({
       enviromentClienteId: clienteId,
@@ -389,7 +392,8 @@ export const getFacturas = async (req, res) => {
         {
           $project: {
             _id: 1,
-            numeroFactura: 1
+            numeroFactura: 1,
+            tipoDocumento: 1
           }
         }
       ]
@@ -406,6 +410,8 @@ export const getDetalleFacturas = async (req, res) => {
     const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventaszonas' })
     const clientesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'clientes' })
+    const transaccionesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
+    const documentosFiscalesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
 
     const [cliente] = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
@@ -463,7 +469,12 @@ export const getDetalleFacturas = async (req, res) => {
       enviromentClienteId: clienteId,
       nameCollection: 'documentosFiscales',
       pipeline: [
-        { $match: { facturaAsociada: new ObjectId(facturaId) } },
+        {
+          $match: {
+            facturaAsociada: new ObjectId(facturaId),
+            tipoDocumento: { $in: ['Nota de crédito'] }
+          }
+        },
         {
           $group: {
             _id: 0,
@@ -524,9 +535,11 @@ export const getDetalleFacturas = async (req, res) => {
                   then: { $multiply: ['$cantidad', -1] },
                   else: {
                     $cond: {
-                      if: { $eq: ['$tipoDocumento', 'Factura'] },
+                      if: { $ne: ['$tipoAjuste', 'precio'] },
                       then: '$cantidad',
-                      else: 0
+                      else: {
+                        $cond: [{ $eq: ['$tipoDocumento', 'Nota de débito'] }, '$cantidad', 0]
+                      }
                     }
                   }
                 }
@@ -539,14 +552,8 @@ export const getDetalleFacturas = async (req, res) => {
                     { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                     { $eq: ['$tipoAjuste', 'precio'] }
                   ] },
-                  then: { $multiply: ['$precioVenta', -1] },
-                  else: {
-                    $cond: {
-                      if: { $ne: ['$tipoDocumento', 'Nota de crédito'] },
-                      then: '$precioVenta',
-                      else: 0
-                    }
-                  }
+                  then: { $multiply: [{ $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, -1] },
+                  else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, { $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, 0] }
                 }
               }
             },
@@ -554,8 +561,8 @@ export const getDetalleFacturas = async (req, res) => {
               $sum: {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
-                  then: { $multiply: ['$precioSinDescuento', -1] },
-                  else: '$precioSinDescuento'
+                  then: { $multiply: ['$precioConDescuento', -1] },
+                  else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, '$precioConDescuento', 0] }
                 }
               }
             },
@@ -564,7 +571,7 @@ export const getDetalleFacturas = async (req, res) => {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                   then: { $multiply: ['$descuentoTotal', -1] },
-                  else: '$descuentoTotal'
+                  else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, '$descuentoTotal', 0] }
                 }
               }
             },
@@ -573,7 +580,7 @@ export const getDetalleFacturas = async (req, res) => {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                   then: { $multiply: ['$precioConDescuento', -1] },
-                  else: '$precioConDescuento'
+                  else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, '$precioConDescuento', 0] }
                 }
               }
             },
@@ -582,7 +589,7 @@ export const getDetalleFacturas = async (req, res) => {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                   then: { $multiply: ['$baseImponible', -1] },
-                  else: '$baseImponible'
+                  else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, '$baseImponible', 0] }
                 }
               }
             },
@@ -591,7 +598,7 @@ export const getDetalleFacturas = async (req, res) => {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                   then: { $multiply: ['$montoIva', -1] },
-                  else: '$montoIva'
+                  else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, '$montoIva', 0] }
                 }
               }
             },
@@ -600,7 +607,7 @@ export const getDetalleFacturas = async (req, res) => {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Nota de crédito'] },
                   then: { $multiply: ['$precioTotal', -1] },
-                  else: '$precioTotal'
+                  else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, '$precioTotal', 0] }
                 }
               }
             }
@@ -608,7 +615,91 @@ export const getDetalleFacturas = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ productos: detalles, cliente })
+    const documento = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      filters: { _id: new ObjectId(facturaId) }
+    })
+    const pagosDocumento = { credito: 0, pagado: 0, porPagar: 0 }
+
+    if (documento.estado) {
+      const [pagos] = await agreggateCollectionsSD({
+        enviromentClienteId: clienteId,
+        nameCollection: 'transacciones',
+        pipeline: [
+          {
+            $match: {
+              documentoId: new ObjectId(facturaId)
+            }
+          },
+          {
+            $lookup: {
+              from: documentosFiscalesCol,
+              localField: 'documentoId',
+              foreignField: 'facturaAsociada',
+              pipeline: [
+                { $project: { documentoId: 1, tipoDocumento: 1 } },
+                {
+                  $lookup: {
+                    from: transaccionesCol,
+                    localField: '_id',
+                    foreignField: 'documentoId',
+                    pipeline: [
+                      {
+                        $group: {
+                          _id: 0,
+                          total: { $sum: '$pago' },
+                          abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, '$pago', 0] } }
+                        }
+                      }
+                    ],
+                    as: 'transaccionAsociada'
+                  }
+                },
+                { $unwind: { path: '$transaccionAsociada', preserveNullAndEmptyArrays: true } },
+                {
+                  $group: {
+                    _id: 0,
+                    total: { $sum: {
+                      $cond: {
+                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                        then: '$transaccionAsociada.total',
+                        else: { $multiply: ['$transaccionAsociada.total', -1] }
+                      }
+                    } },
+                    abonosCredito: { $sum: {
+                      $cond: {
+                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                        then: '$transaccionAsociada.abonosCredito',
+                        else: { $multiply: ['$transaccionAsociada.abonosCredito', -1] }
+                      }
+                    } },
+                  }
+                }
+              ],
+              as: 'documentoAsociado'
+            }
+          },
+          { $unwind: { path: '$documentoAsociado', preserveNullAndEmptyArrays: true } },
+          {
+            $group: {
+              _id: 0,
+              total: { $sum: { $sum: ['$pago', '$documentoAsociado.total'] } },
+              abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, { $sum: ['$pago', '$documentoAsociado.abonosCredito'] }, 0] } }
+            }
+          }
+        ]
+      })
+      pagosDocumento.credito = documento.totalCredito - (pagos?.abonosCredito || 0)
+      pagosDocumento.credito = pagosDocumento.credito > 0 ? pagosDocumento.credito : 0
+      pagosDocumento.pagado = pagos?.total || 0
+      pagosDocumento.porPagar = pagosDocumento.credito - pagosDocumento.pagado
+    }
+    return res.status(200).json({
+      productos: detalles.map(e => ({ ...e, nombre: e.nombre?.replaceAll(' (Ajuste de precio)', '') })),
+      cliente,
+      pagosDocumento
+    })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de las facturas: ' + e.message })
@@ -650,6 +741,8 @@ export const getDetalleNotasEntrega = async (req, res) => {
     const categoriaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const zonasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventaszonas' })
     const clientesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'clientes' })
+    const transaccionesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
+    const documentosFiscalesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
 
     const [cliente] = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
@@ -783,14 +876,8 @@ export const getDetalleNotasEntrega = async (req, res) => {
                     { $eq: ['$tipoDocumento', 'Devolución'] },
                     { $eq: ['$tipoAjuste', 'precio'] }
                   ] },
-                  then: { $multiply: ['$precioVenta', -1] },
-                  else: {
-                    $cond: {
-                      if: { $ne: ['$tipoDocumento', 'Devolución'] },
-                      then: '$precioVenta',
-                      else: 0
-                    }
-                  }
+                  then: { $multiply: [{ $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, -1] },
+                  else: { $cond: [{ $ne: ['$tipoDocumento', 'Devolución'] }, { $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, 0] }
                 }
               }
             },
@@ -798,8 +885,8 @@ export const getDetalleNotasEntrega = async (req, res) => {
               $sum: {
                 $cond: {
                   if: { $eq: ['$tipoDocumento', 'Devolución'] },
-                  then: { $multiply: ['$precioSinDescuento', -1] },
-                  else: '$precioSinDescuento'
+                  then: { $multiply: ['$precioConDescuento', -1] },
+                  else: '$precioConDescuento'
                 }
               }
             },
@@ -852,7 +939,87 @@ export const getDetalleNotasEntrega = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ productos: detalles, cliente })
+    const documento = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      filters: { _id: new ObjectId(notaEntregaId) }
+    })
+    const pagosDocumento = { credito: 0, pagado: 0, porPagar: 0 }
+
+    if (documento.estado) {
+      const [pagos] = await agreggateCollectionsSD({
+        enviromentClienteId: clienteId,
+        nameCollection: 'transacciones',
+        pipeline: [
+          {
+            $match: {
+              documentoId: new ObjectId(notaEntregaId)
+            }
+          },
+          {
+            $lookup: {
+              from: documentosFiscalesCol,
+              localField: 'documentoId',
+              foreignField: 'notaEntregaAsociada',
+              pipeline: [
+                { $project: { documentoId: 1, tipoDocumento: 1 } },
+                {
+                  $lookup: {
+                    from: transaccionesCol,
+                    localField: '_id',
+                    foreignField: 'documentoId',
+                    pipeline: [
+                      {
+                        $group: {
+                          _id: 0,
+                          total: { $sum: '$pago' },
+                          abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, '$pago', 0] } }
+                        }
+                      }
+                    ],
+                    as: 'transaccionAsociada'
+                  }
+                },
+                { $unwind: { path: '$transaccionAsociada', preserveNullAndEmptyArrays: true } },
+                {
+                  $group: {
+                    _id: 0,
+                    total: { $sum: {
+                      $cond: {
+                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                        then: '$transaccionAsociada.total',
+                        else: { $multiply: ['$transaccionAsociada.total', -1] }
+                      }
+                    } },
+                    abonosCredito: { $sum: {
+                      $cond: {
+                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                        then: '$transaccionAsociada.abonosCredito',
+                        else: { $multiply: ['$transaccionAsociada.abonosCredito', -1] }
+                      }
+                    } },
+                  }
+                }
+              ],
+              as: 'documentoAsociado'
+            }
+          },
+          { $unwind: { path: '$documentoAsociado', preserveNullAndEmptyArrays: true } },
+          {
+            $group: {
+              _id: 0,
+              total: { $sum: { $sum: ['$pago', '$documentoAsociado.total'] } },
+              abonosCredito: { $sum: { $cond: [{ $ifNull: ['$tipoDocumento', true] }, { $sum: ['$pago', '$documentoAsociado.abonosCredito'] }, 0] } }
+            }
+          }
+        ]
+      })
+      pagosDocumento.credito = documento.totalCredito - (pagos?.abonosCredito || 0)
+      pagosDocumento.credito = pagosDocumento.credito > 0 ? pagosDocumento.credito : 0
+      pagosDocumento.pagado = pagos?.total || 0
+      pagosDocumento.porPagar = pagosDocumento.credito - pagosDocumento.pagado
+    }
+    return res.status(200).json({ productos: detalles, cliente, pagosDocumento })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la data de las facturas: ' + e.message })
@@ -1042,15 +1209,15 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
   if (!clienteId) return false
   if (!ventaInfo) return false
   if (!creadoPor) return false
-  if (!ventaInfo.productos[0]) return false
-  if (!ventaInfo.pagos[0]) return false
-  if (!ventaInfo.sucursalId) return false
-  if (!ventaInfo.zonaId) return false
+  if (!ventaInfo.productos[0]) throw new Error('Debe seleccionar al menos un producto')
+  if (!ventaInfo.pagos[0]) throw new Error('No existe pagos de la venta')
+  if (!ventaInfo.sucursalId) throw new Error('Debe seleccionar una sucursal')
+  if (!ventaInfo.zonaId) throw new Error('No existe la zona del cliente')
   const infoDoc = documentosVentas.find(e => e.value === ventaInfo.documento)
   if (!infoDoc) throw new Error(`No existe el tipo de documento: ${ventaInfo.documento}`)
   if (infoDoc.isFiscal && ventaInfo.useImpresoraFiscal && !ventaInfo.numeroControl) throw new Error('No existe el Numero de Control de la impresora')
   const tieneInventario = await hasInventario({ clienteId })
-  if (tieneInventario && !ventaInfo.almacenId) return false
+  if (tieneInventario && !ventaInfo.almacenId) throw new Error('Debe seleccionar un almacen')
 
   const tieneContabilidad = await hasContabilidad({ clienteId })
   if (!tieneContabilidad) return true
@@ -1062,7 +1229,6 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
   if (!existePeriodo) throw new Error('La fecha de la venta corresponde a un periodo contable cerrado o que no existe')
   const zona = await getItemSD({ nameCollection: 'ventaszonas', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ventaInfo.zonaId) } })
   if (!zona) throw new Error('No existe la zona del cliente')
-  if (!zona.cuentaId) throw new Error('No existe la cuenta contable asociada a la zona del cliente')
   const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
   if (!ajustesSistema.timeZone) return false
   if (!ajustesSistema.monedaPrincipal) return false
@@ -1244,6 +1410,20 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
   }
   // valdiar cuentad e productos
   for (const prod of ventaInfo.productos) {
+    if (prod.tipo === 'servicio') {
+      const producto = await getItemSD({ nameCollection: 'servicios', enviromentClienteId: clienteId, filters: { _id: new ObjectId(prod._id) } })
+      if (!producto) throw new Error(`el producto ${prod?.nombre || '-'} no existe`)
+      const categoriaPorZona = await getItemSD({
+        nameCollection: 'categoriaPorZona',
+        enviromentClienteId: clienteId,
+        filters: { categoriaId: producto.categoria, zonaId: new ObjectId(ventaInfo.zonaId) }
+      })
+      if (!categoriaPorZona) throw new Error(`el producto ${prod?.nombre || '-'} no tiene categoria existente o cuenta contable asociada`)
+      const cuentaCategoria = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorZona.cuentaId } })
+      if (!cuentaCategoria) throw new Error(`el producto ${prod?.nombre || '-'} no tiene una cuenta contable asociada`)
+      continue
+    }
+
     const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(prod._id) } })
     if (!producto) throw new Error(`el producto ${prod?.nombre || '-'} no existe`)
 
@@ -1632,14 +1812,15 @@ const createPagosDocumento = async ({ clienteId, ventaInfo, documentoId, creadoP
     pagoSecundario: Number((e.monto || 0).toFixed(2)),
     fechaPago: moment(ventaInfo.fecha).toDate(),
     referencia: e.referencia,
-    banco: (e.banco && new ObjectId(e.banco)) || '',
-    caja: (ventaInfo.cajaId && new ObjectId(ventaInfo.cajaId)) || '',
+    banco: (e.banco && new ObjectId(e.banco)) || null,
+    caja: (ventaInfo.cajaId && new ObjectId(ventaInfo.cajaId)) || null,
     porcentajeIgtf: Number(e.porcentajeIgtf || 0),
     pagoIgtf: e?.igtfPorPagar ? Number((e.monto || 0).toFixed(2)) * Number((e.porcentajeIgtf || 0).toFixed(2)) / 100 : 0,
     moneda: ventaInfo.moneda,
     monedaSecundaria: e.moneda,
     tasa: e.tasa,
-    tipo: `venta-${ventaInfo.documento}`,
+    tipo: 'venta',
+    tipoDocumento: ventaInfo.documento,
     creadoPor: new ObjectId(creadoPor),
     credito: e.credito,
     fechaCreacion: moment().toDate()
@@ -1852,8 +2033,10 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
     return { ...movimiento, ...datosDebe }
   }))
   // create movimientos de sucursal (base imponible, descuentos, ivas, igtf)
+  const servicios = ventaInfo.productos.filter(e => e.tipo === 'servicio')
   // base imponible
   {
+    const baseImponibleServicios = servicios.map(e => Number(Number(e.precioVenta).toFixed(2)) * Number(e.cantidad || 1)).reduce((a, b) => a + b, 0) || 0
     const dataCuenta = infoDoc.sigla === 'NE' ? 'NE' : 'DOC'
     const movimiento = {
       descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
@@ -1869,9 +2052,58 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
       cuentaCodigo: sucursalCuentas[dataCuenta]?.cuentaCodigo,
       cuentaNombre: sucursalCuentas[dataCuenta]?.cuentaNombre,
       debe: 0,
-      haber: Math.abs((documento.baseImponible || 0) + (documento.exentoSinDescuento || 0))
+      haber: Math.abs((documento.baseImponible || 0) + (documento.exentoSinDescuento || 0)) - baseImponibleServicios
     }
-    movimientos.push(movimiento)
+    if (movimiento.haber > 0) movimientos.push(movimiento)
+  }
+  // existe servicios
+  {
+    const categoriasZonasByCategoriaId = {}
+    const cuentasByCategoriaId = {}
+    if (servicios.length > 0) {
+      const zona = await getItemSD({ nameCollection: 'ventaszonas', enviromentClienteId: clienteId, filters: { _id: new ObjectId(documento.zonaId) } })
+      if (!zona) throw new Error('No existe la zona del cliente')
+      const movimientosHaberPorCategoria = {}
+      for (const servicio of servicios) {
+        const producto = await getItemSD({ nameCollection: 'servicios', enviromentClienteId: clienteId, filters: { _id: new ObjectId(servicio._id) } })
+        const categoriaIdProducto = producto.categoria
+        const categoriaPorZona = categoriasZonasByCategoriaId[categoriaIdProducto] || await getItemSD({
+          nameCollection: 'categoriaPorZona',
+          enviromentClienteId: clienteId,
+          filters: { categoriaId: categoriaIdProducto, zonaId: zona._id }
+        })
+        categoriasZonasByCategoriaId[categoriaIdProducto] = categoriaPorZona
+        const cuentaProducto = cuentasByCategoriaId[categoriaIdProducto] || await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorZona.cuentaId } })
+        cuentasByCategoriaId[categoriaIdProducto] = cuentaProducto
+        const asientoContableHaber = {
+          cuentaId: new ObjectId(cuentaProducto._id),
+          cuentaCodigo: cuentaProducto.codigo,
+          cuentaNombre: cuentaProducto.descripcion,
+          comprobanteId: comprobante._id,
+          periodoId: comprobante.periodoId,
+          descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
+          fecha: moment(ventaInfo.fecha).toDate(),
+          fechaCreacion: moment().toDate(),
+          docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
+          documento: {
+            docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`,
+            docFecha: moment(ventaInfo.fecha).toDate()
+          },
+          debe: 0,
+          haber: 0
+        }
+        const costoServicio = Number(Number(servicio.precioVenta).toFixed(2)) * Number(servicio.cantidad || 1)
+        if (movimientosHaberPorCategoria[categoriaIdProducto]) {
+          movimientosHaberPorCategoria[categoriaIdProducto].haber += costoServicio
+        } else {
+          movimientosHaberPorCategoria[categoriaIdProducto] = asientoContableHaber
+          movimientosHaberPorCategoria[categoriaIdProducto].haber = costoServicio
+        }
+      }
+      for (const categoriaId in movimientosHaberPorCategoria) {
+        movimientos.push(movimientosHaberPorCategoria[categoriaId])
+      }
+    }
   }
   // Descuentos
   if (documento.totalDescuento !== 0) {
@@ -1989,71 +2221,6 @@ const crearMovimientosContablesPagos = async ({ clienteId, ventaInfo, documentoI
       movimientos.push(movimiento)
     }
   }
-  /*
-    try {
-      const existeServicios = ventaInfo.productos.some(e => e.tipo === 'venta')
-      if (existeServicios) {
-        const zona = await getItemSD({ nameCollection: 'ventaszonas', enviromentClienteId: clienteId, filters: { _id: new ObjectId(documento.zonaId) } })
-        const servicios = ventaInfo.productos.filter(e => e.tipo === 'venta')
-        for (const servicio of servicios) {
-          const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(servicio._id) } })
-          const categoriaIdProducto = producto.categoria
-          const categoriaPorAlmacen = await getItemSD({
-            nameCollection: 'categorias',
-            enviromentClienteId: clienteId,
-            filters: { categoriaId: producto.categoria, tipo: 'servicios' }
-          })
-          const cuentaInventario = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: categoriaPorAlmacen.cuentaId } })
-          const asientoContableDebe = {
-            cuentaId: new ObjectId(cuentaCostoInventario._id),
-            cuentaCodigo: cuentaCostoInventario.codigo,
-            cuentaNombre: cuentaCostoInventario.descripcion,
-            comprobanteId: comprobante._id,
-            periodoId: comprobante.periodoId,
-            descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
-            fecha: moment(ventaInfo.fecha).toDate(),
-            fechaCreacion: moment().toDate(),
-            docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
-            documento: {
-              docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`,
-              docFecha: moment(ventaInfo.fecha).toDate()
-            },
-            debe: 0,
-            haber: 0
-          }
-          const asientoContableHaber = {
-            cuentaId: new ObjectId(cuentaInventario._id),
-            cuentaCodigo: cuentaInventario.codigo,
-            cuentaNombre: cuentaInventario.descripcion,
-            comprobanteId: comprobante._id,
-            periodoId: comprobante.periodoId,
-            descripcion: `DOC ${infoDoc.sigla} ${documento.numeroFactura} ${documento.clienteNombre}`,
-            fecha: moment(ventaInfo.fecha).toDate(),
-            fechaCreacion: moment().toDate(),
-            docReferenciaAux: `${infoDoc.sigla} ${documento.numeroFactura}`,
-            documento: {
-              docReferencia: `${infoDoc.sigla} ${documento.numeroFactura}`,
-              docFecha: moment(ventaInfo.fecha).toDate()
-            },
-            debe: 0,
-            haber: 0
-          }
-          if (movimientosDebePorCategoria[categoriaIdProducto]) {
-            movimientosDebePorCategoria[categoriaIdProducto].debe += costoProductoTotal
-            movimientosHaberPorCategoria[categoriaIdProducto].haber += costoProductoTotal
-          } else {
-            movimientosDebePorCategoria[categoriaIdProducto] = asientoContableDebe
-            movimientosDebePorCategoria[categoriaIdProducto].debe = costoProductoTotal
-
-            movimientosHaberPorCategoria[categoriaIdProducto] = asientoContableHaber
-            movimientosHaberPorCategoria[categoriaIdProducto].haber = costoProductoTotal
-          }
-        }
-      }
-    } catch (e) {
-      console.log(e)
-    }
-  */
   if (['Nota de crédito', 'Devolución'].includes(documento.tipoDocumento)) {
     movimientos = movimientos.map(e => ({
       ...e,
@@ -2403,15 +2570,13 @@ const crearMovimientoInventario = async ({
   })
 
   const documento = await getItemSD({ enviromentClienteId: clienteId, nameCollection: 'documentosFiscales', filters: { _id: documentoId } })
-  if (!documento) return
+  if (!documento) throw new Error('No existe el documento')
 
   const infoDoc = documentosVentas.find(e => e.value === documento.tipoDocumento)
-  if (!infoDoc) return
+  if (!infoDoc) throw new Error('No existe el tipo de documento')
   const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
   const ajustesVentas = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'ventas' } })
 
-  // if (!ajustesVentas?.codigoComprobanteFacturacion) return
-  const zona = await getItemSD({ nameCollection: 'ventaszonas', enviromentClienteId: clienteId, filters: { _id: new ObjectId(documento.zonaId) } })
   let comprobante
 
   const mesPeriodo = momentDate(ajustesSistema.timeZone, fecha).format('YYYY/MM')
@@ -2427,6 +2592,7 @@ const crearMovimientoInventario = async ({
     )
   } catch (e) {
     console.log('error al crear comprobante en movimientos despachos de ventas', e)
+    throw e
   }
   // if (!comprobante) return
 
@@ -2536,6 +2702,7 @@ const crearMovimientoInventario = async ({
       } catch (e) {
         console.log('error contabilidad ventas mov inventario', e.message)
         doContabilidad = false
+        throw e
       }
     }
     let costoProductoTotal = 0
@@ -2645,4 +2812,49 @@ const crearMovimientoInventario = async ({
     enviromentClienteId: clienteId,
     items: detallesCrear
   })
+}
+// apis de modulo de inventario para usar el crearMovimientoInventario
+
+export const despacharProductos = async (req, res) => {
+  const { clienteId, movimientoId, fecha, documentoId, almacenId } = req.body
+  if (!movimientoId) return res.status(500).json({ error: 'No existe el movimiento' })
+  if (!almacenId) return res.status(500).json({ error: 'No existe el Almacen' })
+  if (!documentoId) return res.status(500).json({ error: 'No existe el Documento' })
+  if (!fecha) return res.status(500).json({ error: 'Ingrese una fecha de despacho' })
+  try {
+    const movimiento = await getItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(movimientoId) }
+    })
+    if (movimiento?.estado === 'Despachado') return res.status(500).json({ error: 'Los productos ya han sido despachado' })
+    // condicion en caso que las fechas deban tener esta condicion
+    // if (moment(movimiento.fecha).valueOf() > moment(fecha).valueOf()) return res.status(500).json({ error: 'La fecha de despacho no puede ser menor a la fecha de creado el documento' })
+    await crearMovimientoInventario({
+      clienteId,
+      documentoId: new ObjectId(documentoId),
+      facturaAsociada: '',
+      notaEntregaAsociada: '',
+      creadoPor: req.uid,
+      movimientoId: new ObjectId(movimientoId),
+      almacenOrigenId: new ObjectId(almacenId),
+      almacenDestinoId: null,
+      tipoMovimiento: 'salida',
+      fecha
+    })
+    await updateItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(movimientoId) },
+      update: {
+        $set: {
+          estado: 'Despachado'
+        }
+      }
+    })
+    return res.status(200).json({ message: 'Despacho realiazdo con exito' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor: ' + e.message })
+  }
 }

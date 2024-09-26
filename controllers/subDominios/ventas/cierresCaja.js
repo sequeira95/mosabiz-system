@@ -302,6 +302,14 @@ export const getCorteCaja = async (req, res) => {
             foreignField: 'cajaId',
             pipeline: [
               {
+                $project: {
+                  _id: 1,
+                  tipoDocumento: 1,
+                  totalPagado: 1,
+                  totalCredito: 1
+                }
+              },
+              {
                 $lookup: {
                   from: transaccionesCol,
                   localField: '_id',
@@ -328,7 +336,7 @@ export const getCorteCaja = async (req, res) => {
                   ],
                   cobros: [
                     { $match: { $expr: { $ne: [{ $size: '$transacciones' }, 0] } } },
-                    { $match: { totalCredito: { $gt: 0 } } },
+                    // { $match: { totalCredito: { $gt: 0 } } },
                     { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: true } },
                     {
                       $group: {
@@ -342,7 +350,7 @@ export const getCorteCaja = async (req, res) => {
                           },
                           divisas: {
                             $cond: {
-                              if: { $eq: ['$transacciones.monedaSecundaria', monedaPrincipal] },
+                              if: { $ne: ['$transacciones.monedaSecundaria', monedaPrincipal] },
                               then: true,
                               else: false
                             }
@@ -351,7 +359,13 @@ export const getCorteCaja = async (req, res) => {
                           banco: '$transacciones.banco'
                         },
                         monto: {
-                          $sum: '$transacciones.pago'
+                          $sum: {
+                            $cond: {
+                              if: { $in: ['$tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                              then: { $multiply: ['$transacciones.pago', -1] },
+                              else: '$transacciones.pago'
+                            }
+                          }
                         }
                       }
                     },
@@ -362,12 +376,36 @@ export const getCorteCaja = async (req, res) => {
                     }
                   ],
                   credito: [
+                    { $match: { totalCredito: { $gt: 0 } } },
                     {
                       $group: {
                         _id: '$_id',
                         totalCredito: {
                           $first: '$totalCredito'
+                        },
+                        transacciones: {
+                          $first: '$transacciones'
                         }
+                      }
+                    },
+                    { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: true } },
+                    {
+                      $group: {
+                        _id: {
+                          doc: '$_id',
+                          cajaId: { $ifNull: ['$transacciones.caja', query._id] },
+                        },
+                        totalCredito: {
+                          $first: '$totalCredito'
+                        },
+                        pagos: {
+                          $sum: '$transacciones.pago'
+                        }
+                      }
+                    },
+                    {
+                      $match: {
+                        '_id.cajaId': query._id
                       }
                     },
                     {
@@ -375,7 +413,15 @@ export const getCorteCaja = async (req, res) => {
                         _id: 0,
                         totalCredito: {
                           $sum: '$totalCredito'
+                        },
+                        totalPagos: {
+                          $sum: '$pagos'
                         }
+                      }
+                    },
+                    {
+                      $project: {
+                        totalCredito: { $subtract: ['$totalCredito', '$totalPagos'] }
                       }
                     }
                   ]

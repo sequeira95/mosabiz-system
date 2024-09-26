@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, formatCollectionName, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, formatCollectionName, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
 import { subDominioName } from '../../../constants.js'
 
@@ -30,12 +30,27 @@ export const getSucursalesByUser = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ sucursales })
+    const bancos = await agreggateCollectionsSD({
+      nameCollection: 'bancos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $project: {
+            nombre: '$nombre',
+            descripcion: '$descripcion',
+            tipo: '$tipo',
+            tipoBanco: '$tipoBanco'
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ sucursales, bancos })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
   }
 }
+
 export const getCajasBySucursal = async (req, res) => {
   const { clienteId, filters } = req.body
   try {
@@ -261,3 +276,130 @@ export const getCajasBySucursal = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
   }
 }
+
+export const getCorteCaja = async (req, res) => {
+  const { clienteId, sucursalId, cajaId } = req.body
+  try {
+    if (!cajaId) throw new Error('Debe seleccionar una caja valida')
+    if (!sucursalId) throw new Error('Debe seleccionar una sucursal valida')
+    const query = {
+      sucursalId: new ObjectId(sucursalId),
+      _id: new ObjectId(cajaId),
+    }
+    const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
+    const monedaPrincipal = ajustesSistema.monedaPrincipal || 'Bs'
+    const documentosFiscalesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
+    const transaccionesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
+    const corte = await agreggateCollectionsSD({
+      nameCollection: 'ventascajas',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: query },
+        {
+          $lookup: {
+            from: documentosFiscalesCol,
+            localField: '_id',
+            foreignField: 'cajaId',
+            pipeline: [
+              {
+                $lookup: {
+                  from: transaccionesCol,
+                  localField: '_id',
+                  foreignField: 'documentoId',
+                  pipeline: [
+                    { $match: { cierreCajaId: { $exists: false } } }
+                  ],
+                  as: 'transacciones'
+                }
+              },
+              {
+                $facet: {
+                  venta: [
+                    { $match: { $expr: { $ne: [{ $size: '$transacciones' }, 0] } } },
+                    {
+                      $group: {
+                        _id: '$tipoDocumento',
+                        monto: {
+                          $sum: '$totalPagado'
+                        }
+                      }
+                    },
+                    { $sort: { _id: 1 } }
+                  ],
+                  cobros: [
+                    { $match: { $expr: { $ne: [{ $size: '$transacciones' }, 0] } } },
+                    { $match: { totalCredito: { $gt: 0 } } },
+                    { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: true } },
+                    {
+                      $group: {
+                        _id: {
+                          metodo: {
+                            $cond: {
+                              if: { $eq: [{ $type: '$transacciones.banco' }, 'objectId'] },
+                              then: 'banco',
+                              else: 'caja'
+                            }
+                          },
+                          divisas: {
+                            $cond: {
+                              if: { $eq: ['$transacciones.monedaSecundaria', monedaPrincipal] },
+                              then: true,
+                              else: false
+                            }
+                          },
+                          cajaId: { $ifNull: ['$transacciones.caja', '$cajaId'] },
+                          banco: '$transacciones.banco'
+                        },
+                        monto: {
+                          $sum: '$transacciones.pago'
+                        }
+                      }
+                    },
+                    {
+                      $match: {
+                        '_id.cajaId': query._id
+                      }
+                    }
+                  ],
+                  credito: [
+                    {
+                      $group: {
+                        _id: '$_id',
+                        totalCredito: {
+                          $first: '$totalCredito'
+                        }
+                      }
+                    },
+                    {
+                      $group: {
+                        _id: 0,
+                        totalCredito: {
+                          $sum: '$totalCredito'
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            as: 'documentos'
+          }
+        },
+        { $unwind: { path: '$documentos', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$documentos.credito', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            venta: '$documentos.venta',
+            cobros: '$documentos.cobros',
+            totalCredito: { $ifNull: ['$documentos.credito.totalCredito', 0] }
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ corte: corte[0] })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
+  }
+}
+

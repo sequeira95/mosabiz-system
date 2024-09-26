@@ -1,3 +1,4 @@
+import { ObjectId } from 'mongodb'
 import { subDominioName, tiposDocumentosFiscales } from '../../../constants.js'
 import { agreggateCollections, agreggateCollectionsSD, formatCollectionName, getItem } from '../../../utils/dataBaseConfing.js'
 
@@ -342,7 +343,7 @@ export const getDetalleTransacciones = async (req, res) => {
                       $cond: {
                         if: {
                           $and: [
-                            { $eq: ['$tipo', 'compra'] },
+                            { $eq: ['$tipo', 'compra'] }
                           ]
                         },
                         then: '$valor',
@@ -380,5 +381,130 @@ export const getDetalleTransacciones = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar información sobre las transacciones ' + e.message })
+  }
+}
+export const getListTiposcuentas = async (req, res) => {
+  try {
+    const { clienteId, tipoCuenta } = req.body
+    const tipoBusqueda = tipoCuenta?.tipoBusqueda
+    let tiposBusqueda = { }
+    if (tipoBusqueda === 'EN') {
+      tiposBusqueda = {
+        tipo: 'Nacional',
+        isNacionalDivisas: { $ne: true },
+        $or: [
+          { tipoBanco: 'cajaChica' },
+          { tipoBanco: 'cajaPrincipal' }
+        ]
+      }
+    }
+    if (tipoBusqueda === 'ED') {
+      tiposBusqueda = {
+        $or: [
+          {
+            tipo: 'Nacional',
+            tipoBanco: 'cajaChica',
+            isNacionalDivisas: true
+          },
+          {
+            tipo: 'Nacional',
+            tipoBanco: 'cajaPrincipal',
+            isNacionalDivisas: true
+          },
+          {
+            tipo: 'Internacional',
+            tipoBanco: 'cajaPrincipal'
+          },
+          {
+            tipo: 'Internacional',
+            tipoBanco: 'cajaChica'
+          }
+        ]
+      }
+    }
+    if (tipoBusqueda === 'BN') {
+      tiposBusqueda = {
+        tipo: 'Nacional',
+        tipoBanco: 'banco',
+        isNacionalDivisas: { $ne: true }
+      }
+    }
+    if (tipoBusqueda === 'BND') {
+      tiposBusqueda = {
+        tipo: 'Nacional',
+        tipoBanco: 'banco',
+        isNacionalDivisas: true
+      }
+    }
+    if (tipoBusqueda === 'BI') {
+      tiposBusqueda = {
+        tipo: 'Internacional',
+        tipoBanco: 'banco'
+      }
+    }
+    const listCuentas = await agreggateCollectionsSD({
+      nameCollection: 'bancos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: tiposBusqueda }
+      ]
+    })
+    return res.status(200).json({ listCuentas })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar información sobre la lista de cuentas ' + e.message })
+  }
+}
+export const getDetalleCuenta = async (req, res) => {
+  try {
+    const { clienteId, mes, monedaPrincipal, cuenta, fechaTasa } = req.body
+    console.log({ clienteId, mes, monedaPrincipal, cuenta })
+    let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa, monedaPrincipal } })
+    if (!tasa) {
+      const ultimaTasa = await agreggateCollections({
+        nameCollection: 'tasas',
+        pipeline: [
+          { $sort: { fechaOperacion: -1 } },
+          { $limit: 1 }
+        ]
+      })
+      tasa = ultimaTasa[0] ? ultimaTasa[0] : null
+    }
+    const detalle = await agreggateCollectionsSD({
+      nameCollection: 'transacciones',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            $or: [
+              { caja: new ObjectId(cuenta._id) },
+              { banco: new ObjectId(cuenta._id) }
+            ]
+          }
+        },
+        {
+          $addFields: {
+            tasa: { $objectToArray: tasa }
+          }
+        },
+        { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+        { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+        {
+          $addFields: {
+            valor: { $multiply: ['$tasa.v', '$pagoSecundario'] }
+          }
+        },
+        {
+          $group: {
+            _id: null
+            
+          }
+        }
+      ]
+    })
+    return res.status(200).json({ })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar información sobre el detalle de la cuenta ' + e.message })
   }
 }

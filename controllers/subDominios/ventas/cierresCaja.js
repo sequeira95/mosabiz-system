@@ -65,6 +65,120 @@ export const getCajasBySucursal = async (req, res) => {
         { $match: query },
         {
           $lookup: {
+            from: documentosFiscalesCol,
+            localField: '_id',
+            foreignField: 'cajaId',
+            pipeline: [
+              {
+                $project: {
+                  _id: 1,
+                  cajaId: 1,
+                  tipoDocumento: 1,
+                  totalCredito: 1,
+                  totalPagado: 1
+                }
+              }
+            ],
+            as: 'documentos'
+          }
+        },
+        { $unwind: { path: '$documentos', preserveNullAndEmptyArrays: false } },
+        {
+          $facet: {
+            cajas: [
+              {
+                $group: {
+                  _id: '$_id',
+                  nombre: {
+                    $first: '$nombre'
+                  },
+                  ventas: {
+                    $sum: {
+                      $cond: {
+                        if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                        then: { $multiply: ['$documentos.totalPagado', -1] },
+                        else: '$documentos.totalPagado'
+                      }
+                    }
+                  },
+                  caja: {
+                    $sum: {
+                      $cond: {
+                        if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                        then: { $multiply: [{ $subtract: ['$documentos.totalPagado', '$documentos.totalCredito']}, -1] },
+                        else: { $subtract: ['$documentos.totalPagado', '$documentos.totalCredito'] }
+                      }
+                    }
+                  },
+                  credito: {
+                    $sum: {
+                      $cond: {
+                        if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                        then: { $multiply: ['$documentos.totalCredito', -1] },
+                        else: '$documentos.totalCredito'
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            cobros: [
+              { $match: { 'documentos.totalCredito': { $gt: 0 } } },
+              {
+                $lookup: {
+                  from: transaccionesCol,
+                  localField: 'documentos._id',
+                  foreignField: 'documentoId',
+                  pipeline: [
+                    { $match: { cierreCajaId: { $exists: false } } }
+                  ],
+                  as: 'transacciones'
+                }
+              },
+              { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: false } },
+              {
+                $group: {
+                  _id: { $ifNull: ['$transacciones.caja', '$_id'] },
+                  cobro: {
+                    $sum: {
+                      $cond: {
+                        if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                        then: { $multiply: ['$transacciones.pago', -1] },
+                        else: '$transacciones.pago'
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    })
+    const cajasData = cajas[0]?.cajas || []
+    const cobros = cajas[0]?.cobros || []
+    for (const cobro of cobros) {
+      const caja = cajasData.find(e => String(e._id) === String(cobro._id))
+      if (!caja) {
+        const cajaNombre = await getItemSD({
+          nameCollection: 'ventascajas',
+          enviromentClienteId: clienteId,
+          filters: { _id: cobro._id }
+        })
+        cajasData.push({ ...cobro, nombre: cajaNombre?.nombre })
+        continue
+      } else {
+        caja.cobro = cobro?.cobro || 0
+      }
+    }
+    /*
+      const cajas = await agreggateCollectionsSD({
+      nameCollection: 'ventascajas',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: query },
+        {
+          $lookup: {
             from: transaccionesCol,
             localField: '_id',
             foreignField: 'caja',
@@ -163,60 +277,29 @@ export const getCajasBySucursal = async (req, res) => {
                         }
                       }
                     }
-                  }
-                }
-              }
-            ],
-            as: 'transacciones'
-          }
-        }, /*
-        {
-          $lookup: {
-            from: documentosFiscalesCol,
-            localField: '_id',
-            foreignField: 'cajaId',
-            pipeline: [
-              {
-                $project: {
-                  _id: 1,
-                  cajaId: 1,
-                  tipoDocumento: 1,
-                  totalCredito: 1
-                }
-              },
-              {
-                $lookup: {
-                  from: transaccionesCol,
-                  localField: '_id',
-                  foreignField: 'documentoId',
-                  as: 'transacciones'
-                }
-              },
-              { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: false } },
-              {
-                $group: {
-                  _id: 0,
-                  cobros: {
+                  },
+                  ventas: {
                     $sum: {
                       $cond: {
-                        if: {
-                          $and: [
-                            { $gt: ['$totalCredito', 0] },
-                            { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] }
-                          ]
-                        },
-                        then: '$transacciones.pago',
-                        else: 0
+                        if: { $in: ['$tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                        then: { $multiply: ['$transacciones.pago', -1] },
+                        else: '$transacciones.pago'
                       }
                     }
                   },
-                  efectivo: {
+                  caja: {
                     $sum: {
                       $cond: {
                         if: {
                           $and: [
-                            { $eq: ['$transacciones.caja', '$cajaId'] },
-                            { $ne: [{ $type: '$transacciones.banco' }, 'objectId'] },
+                            {
+                              $or: [
+                                { $eq: ['$transacciones.caja', '$cajaId'] },
+                                { $eq: [{ $type: '$transacciones.banco' }, 'objectId'] },
+                              ]
+                            }
+                            
+                            
                             { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] }
                           ]
                         },
@@ -231,34 +314,12 @@ export const getCajasBySucursal = async (req, res) => {
                       }
                     }
                   },
-                  banco: {
-                    $sum: {
-                      $cond: {
-                        if: {
-                          $and: [
-                            { $eq: [{ $type: '$transacciones.banco' }, 'objectId'] },
-                            { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] }
-                          ]
-                        },
-                        then: '$transacciones.pago',
-                        else: {
-                          $cond: {
-                            if: { $eq: [{ $type: '$transacciones.banco' }, 'objectId'] },
-                            then: { $multiply: ['$transacciones.pago', -1] },
-                            else: 0
-                          }
-                        }
-                      }
-                    }
-                  }
                 }
               }
             ],
-            as: 'documentos'
+            as: 'transacciones'
           }
         },
-        { $unwind: { path: '$documentos', preserveNullAndEmptyArrays: true } },
-         */
         { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: true } },
         {
           $project: {
@@ -269,8 +330,9 @@ export const getCajasBySucursal = async (req, res) => {
           }
         }
       ]
-    })
-    return res.status(200).json({ cajas })
+      })
+    */
+    return res.status(200).json({ cajas: cajasData })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })

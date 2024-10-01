@@ -90,7 +90,8 @@ export const createCajas = async (req, res) => {
     cuentaId,
     numeroControl,
     useImpresoraFiscal,
-    modeloImpresoraFiscal
+    modeloImpresoraFiscal,
+    clave
   } = req.body
   if (!nombre) throw new Error('Debe un gresar un nombre y codigo valido')
   try {
@@ -120,7 +121,8 @@ export const createCajas = async (req, res) => {
             modeloImpresoraFiscal,
             sucursalId: (sucursalId && new ObjectId(sucursalId)) || null,
             usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
-            cuentaId: (cuentaId && new ObjectId(cuentaId)) || null
+            cuentaId: (cuentaId && new ObjectId(cuentaId)) || null,
+            clave: Number(clave)
           }
         }
       })
@@ -136,7 +138,8 @@ export const createCajas = async (req, res) => {
           cuentaId: (cuentaId && new ObjectId(cuentaId)) || null,
           numeroControl,
           useImpresoraFiscal,
-          modeloImpresoraFiscal
+          modeloImpresoraFiscal,
+          clave: Number(clave)
         }
       })
       caja = await getItemSD({ nameCollection: 'ventascajas', enviromentClienteId: clienteId, filters: { _id: newCaja.insertedId } })

@@ -14,6 +14,8 @@ export const getSucursalesByUser = async (req, res) => {
     })
     if (!usuario) throw new Error('Su usuario no existe en la base de datos')
     const isEmpresa = usuario.isEmpresa
+    const personasCol = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'personas' })
+
     const query = { usuarios: { $exists: true, $elemMatch: { $eq: new ObjectId(userId) } } }
     const sucursales = await agreggateCollectionsSD({
       nameCollection: 'ventassucursales',
@@ -25,9 +27,26 @@ export const getSucursalesByUser = async (req, res) => {
         {
           $project: {
             _id: 1,
-            nombre: 1
+            nombre: 1,
+            supervisor: 1
           }
-        }
+        },
+        {
+          $lookup: {
+            from: personasCol,
+            localField: 'supervisor',
+            foreignField: '_id',
+            as: 'supervisorData'
+          }
+        },
+        { $unwind: { path: '$supervisorData', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            nombre: 1,
+            supervisor: '$supervisorData.nombre'
+          }
+        },
       ]
     })
     const bancos = await agreggateCollectionsSD({
@@ -75,7 +94,8 @@ export const getCajasBySucursal = async (req, res) => {
                   cajaId: 1,
                   tipoDocumento: 1,
                   totalCredito: 1,
-                  totalPagado: 1
+                  totalPagado: 1,
+                  fechaCreacion: 1
                 }
               }
             ],
@@ -86,6 +106,7 @@ export const getCajasBySucursal = async (req, res) => {
         {
           $facet: {
             cajas: [
+              { $sort: { 'documentos.fechaCreacion': 1 } },
               {
                 $group: {
                   _id: '$_id',
@@ -117,6 +138,23 @@ export const getCajasBySucursal = async (req, res) => {
                         then: { $multiply: ['$documentos.totalCredito', -1] },
                         else: '$documentos.totalCredito'
                       }
+                    }
+                  },
+                  apertura: {
+                    $first: '$documentos.fechaCreacion'
+                  },
+                  cierre: {
+                    $last: '$documentos.fechaCreacion'
+                  }
+                }
+              },
+              {
+                $addFields: {
+                  diff: {
+                    $dateDiff: {
+                      startDate: '$apertura',
+                      endDate: '$cierre',
+                      unit: 'hour'
                     }
                   }
                 }

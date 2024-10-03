@@ -420,7 +420,7 @@ export const getCorteCaja = async (req, res) => {
                   tipoDocumento: 1,
                   totalPagado: 1,
                   totalCredito: 1,
-                  numeroControl: 1,
+                  numeroControl: 1
                 }
               },
               {
@@ -539,7 +539,7 @@ export const getCorteCaja = async (req, res) => {
                       $group: {
                         _id: {
                           doc: '$_id',
-                          cajaId: { $ifNull: ['$transacciones.caja', query._id] },
+                          cajaId: { $ifNull: ['$transacciones.caja', query._id] }
                         },
                         totalCredito: {
                           $first: '$totalCredito'
@@ -564,7 +564,7 @@ export const getCorteCaja = async (req, res) => {
                           $sum: '$pagos'
                         }
                       }
-                    },
+                    }
                   ]
                 }
               }

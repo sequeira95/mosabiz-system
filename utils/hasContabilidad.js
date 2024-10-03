@@ -105,7 +105,7 @@ export async function validMovimientoPenditeEnvio ({ clienteId, detalleMovimient
     if (listaProductos && !listaProductos[0]) {
       throw new Error('No se encontraron productos para validar la contabilidad')
     }
-    if (listaProductos && listaProductos[0] && !listaProductos.every(e => e.detalleCategoriaPorAlmacen.cuentaId && e.detalleCategoriaPorAlmacenTransito.cuentaId)) {
+    if (listaProductos && listaProductos[0] && !listaProductos.every(e => e.detalleCategoriaPorAlmacen?.cuentaId && e.detalleCategoriaPorAlmacenTransito?.cuentaId)) {
       throw new Error('Existen productos que no tienen una cuenta contable asignada en su categoria')
     }
     return false

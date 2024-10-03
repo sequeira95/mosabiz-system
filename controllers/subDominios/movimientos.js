@@ -637,7 +637,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           costoPromedio: movimientos.costoPromedio,
-          creadoPor: new ObjectId(uid)
+          creadoPor: new ObjectId(uid),
+          tipoDocumento: movimiento.tipo
         }, {
           productoId: new ObjectId(detalle.productoId),
           movimientoId: new ObjectId(detalle.movimientoId),
@@ -653,7 +654,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           costoPromedio: movimientos.costoPromedio,
-          creadoPor: new ObjectId(uid)
+          creadoPor: new ObjectId(uid),
+          tipoDocumento: movimiento.tipo
         })
         detalle.cantidad -= movimientos.cantidad
         continue
@@ -675,7 +677,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           costoPromedio: movimientos.costoPromedio,
-          creadoPor: new ObjectId(uid)
+          creadoPor: new ObjectId(uid),
+          tipoDocumento: movimiento.tipo
         },
         {
           productoId: new ObjectId(detalle.productoId),
@@ -692,7 +695,8 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           costoPromedio: movimientos.costoPromedio,
-          creadoPor: new ObjectId(uid)
+          creadoPor: new ObjectId(uid),
+          tipoDocumento: movimiento.tipo
         })
         detalle.cantidad = 0
         break
@@ -788,7 +792,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           costoPromedio: movimientos.costoPromedio,
-          creadoPor: new ObjectId(uid)
+          creadoPor: new ObjectId(uid),
+          tipoDocumento: movimiento.tipo
         })
         detallesCrear.push({
           productoId: new ObjectId(detalle.productoId),
@@ -805,7 +810,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           costoPromedio: movimientos.costoPromedio,
-          creadoPor: new ObjectId(uid)
+          creadoPor: new ObjectId(uid),
+          tipoDocumento: movimiento.tipo
         })
         continue
       }
@@ -828,7 +834,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             costoPromedio: movimientos.costoPromedio,
-            creadoPor: new ObjectId(uid)
+            creadoPor: new ObjectId(uid),
+            tipoDocumento: movimiento.tipo
           })
         }
         if (zona && zona._id) {
@@ -847,7 +854,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             costoPromedio: movimientos.costoPromedio,
-            creadoPor: new ObjectId(uid)
+            creadoPor: new ObjectId(uid),
+            tipoDocumento: movimiento.tipo
           })
         }
         detallesCrear.push({
@@ -865,7 +873,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           costoPromedio: movimientos.costoPromedio,
-          creadoPor: new ObjectId(uid)
+          creadoPor: new ObjectId(uid),
+          tipoDocumento: movimiento.tipo
         })
         detalle.cantidadRecibido -= movimientos.cantidad
         continue
@@ -887,7 +896,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             costoPromedio: movimientos.costoPromedio,
-            creadoPor: new ObjectId(uid)
+            creadoPor: new ObjectId(uid),
+            tipoDocumento: movimiento.tipo
           })
         }
         if (zona && zona._id) {
@@ -906,7 +916,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             costoPromedio: movimientos.costoPromedio,
-            creadoPor: new ObjectId(uid)
+            creadoPor: new ObjectId(uid),
+            tipoDocumento: movimiento.tipo
           })
         }
         detallesCrear.push({
@@ -924,7 +935,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           fechaMovimiento: moment().toDate(),
           costoUnitario: movimientos.costoUnitario,
           costoPromedio: movimientos.costoPromedio,
-          creadoPor: new ObjectId(uid)
+          creadoPor: new ObjectId(uid),
+          tipoDocumento: movimiento.tipo
         })
         const sumaRecibida = Number(detalle.cantidadRecibido) * movimientos.costoPromedio
         costoProductosPorAlmacen += sumaRecibida
@@ -947,7 +959,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             costoPromedio: movimientos.costoPromedio,
-            creadoPor: new ObjectId(uid)
+            creadoPor: new ObjectId(uid),
+            tipoDocumento: movimiento.tipo
           })
           detallesCrear.push({
             productoId: new ObjectId(detalle.productoId),
@@ -964,7 +977,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
             fechaMovimiento: moment().toDate(),
             costoUnitario: movimientos.costoUnitario,
             costoPromedio: movimientos.costoPromedio,
-            creadoPor: new ObjectId(uid)
+            creadoPor: new ObjectId(uid),
+            tipoDocumento: movimiento.tipo
           })
         }
         detalle.cantidadRecibido = 0
@@ -988,7 +1002,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
         lote: ultimoLote,
         fechaVencimiento: moment(ultimaFechaVencimiento).toDate(),
         fechaIngreso: moment(UltimaFechaIngreso).toDate(),
-        creadoPor: new ObjectId(uid)
+        creadoPor: new ObjectId(uid),
+        tipoDocumento: movimiento.tipo
       })
       if (almacenDestino && almacenDestino._id) {
         detallesCrear.push({
@@ -1007,7 +1022,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           lote: ultimoLote,
           fechaVencimiento: moment(ultimaFechaVencimiento).toDate(),
           fechaIngreso: moment(UltimaFechaIngreso).toDate(),
-          creadoPor: new ObjectId(uid)
+          creadoPor: new ObjectId(uid),
+          tipoDocumento: movimiento.tipo
         })
       }
       if (zona && zona._id) {
@@ -1027,7 +1043,8 @@ const updateMovimientoEntrada = async ({ detalleMovimientos, almacenOrigen, alma
           lote: ultimoLote,
           fechaVencimiento: moment(ultimaFechaVencimiento).toDate(),
           fechaIngreso: moment(UltimaFechaIngreso).toDate(),
-          creadoPor: new ObjectId(uid)
+          creadoPor: new ObjectId(uid),
+          tipoDocumento: movimiento.tipo
         })
       }
     }

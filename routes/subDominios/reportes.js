@@ -1,7 +1,7 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
 import { balanceComprobacion, comprobantes, estadoResultado, estadoSituacionFinanciera, libroDiario, libroMayor, mayorAnalitico } from '../../controllers/subDominios/reportes.js'
-import { reporteProductos, reporteRotacionInventario } from '../../controllers/subDominios/reportesInventario.js'
+import { reporteProductos, reporteRotacionInventario, reporteRotacionInventarioAlmacen } from '../../controllers/subDominios/reportesInventario.js'
 
 const router = express.Router()
 
@@ -14,4 +14,5 @@ router.post('/ESF', requireSubDominioToken, estadoSituacionFinanciera)
 router.post('/ER', requireSubDominioToken, estadoResultado)
 router.post('/inventario/productos', requireSubDominioToken, reporteProductos)
 router.post('/inventario/rotacionInventario', requireSubDominioToken, reporteRotacionInventario)
+router.post('/inventario/rotacionInventarioAlmacen', requireSubDominioToken, reporteRotacionInventarioAlmacen)
 export default router

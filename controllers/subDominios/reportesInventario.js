@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { subDominioName, tiposDocumentosFiscales } from '../../constants.js'
-import { agreggateCollectionsSD, formatCollectionName, getCollection, getItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, formatCollectionName, getCollectionSD, getItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment-timezone'
 import { momentDate } from '../../utils/momentDate.js'
 
@@ -185,7 +185,7 @@ export const reporteRotacionInventario = async (req, res) => {
       // console.log(groupMeses, projectMeses, fecha, mesesSeleccionados, addMeses.join(', '))
       const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
       // const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
-      const almacenes = await getCollection({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones', 'Transito'] } } })
+      const almacenes = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones', 'Transito'] } } })
       const almacenesInvalidSalida = almacenes.map(e => new ObjectId(e._id))
       // const tiposDocumentosParaRotacion = ['solicitudInterna', tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaDebito, tiposDocumentosFiscales.notaEntrega]
       const productsList = await agreggateCollectionsSD({
@@ -304,6 +304,276 @@ export const reporteRotacionInventario = async (req, res) => {
               totalCostoPromedioSalida: { $round: ['$detallePromedioSalida.totalCostoPromedioSalida', 2] },
               totalPromedioRotacion: { $divide: [{ $add: addMeses }, mesesSeleccionados] },
               detalleRotacion: '$detalleRotacion'
+            }
+          }
+        ]
+      })
+      return res.status(200).json({ productsList })
+    }
+    return res.status(200).json({ count: count.length ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar datos de los productos' + e.message })
+  }
+}
+export const reporteRotacionInventarioAlmacen = async (req, res) => {
+  const { clienteId, desde, hasta, timeZone, itemsPorPagina, pagina } = req.body
+  // console.log(req.body)
+  try {
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'productos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { activo: { $ne: false } } },
+        { $count: 'total' }
+      ]
+    })
+    if (itemsPorPagina || pagina) {
+      const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+      const groupMeses = {}
+      const projectMeses = {}
+      let mesesSeleccionados = 0
+      const addMeses = []
+      const fecha = momentDate(timeZone, desde).endOf('month')
+      for (let i = 0; i < meses.length; i++) {
+        if (fecha.isAfter(hasta)) break
+        // console.log({ fecha })
+        mesesSeleccionados = i + 1
+        groupMeses[meses[i] + 'Entrada'] = {
+          $sum: {
+            $cond: {
+              if: {
+                $and: [
+                  { $lte: ['$fechaMovimiento', fecha.endOf('month').toDate()] },
+                  { $eq: ['$tipoMovimiento', 'entrada'] }]
+              },
+              then: '$cantidad',
+              else: 0
+            }
+          }
+        }
+        groupMeses[meses[i] + 'Salida'] = {
+          $sum: {
+            $cond: {
+              if: {
+                $and: [
+                  { $lte: ['$fechaMovimiento', fecha.endOf('month').toDate()] },
+                  { $eq: ['$tipoMovimiento', 'salida'] }]
+              },
+              then: '$cantidad',
+              else: 0
+            }
+          }
+        }
+        groupMeses[meses[i] + 'LastCosto'] = {
+          $last: {
+            $cond: {
+              if: {
+                $and: [
+                  { $lte: ['$fechaMovimiento', fecha.endOf('month').toDate()] },
+                  { $gt: ['$costoPromedio', 0] }
+                ]
+              },
+              // if: { $lte: ['$fechaMovimiento', fecha.endOf('month').toDate()] },
+              then: '$costoPromedio',
+              else: '$costoPromedio'
+            }
+          }
+        }
+        projectMeses[meses[i] + 'Entrada'] = 1
+        projectMeses[meses[i] + 'Salida'] = 1
+        projectMeses[meses[i] + 'LastCosto'] = 1
+        projectMeses[meses[i]] = { $multiply: [{ $subtract: [`$${meses[i]}Entrada`, `$${meses[i]}Salida`] }, `$${meses[i]}LastCosto`] }
+        addMeses.push(`$detalleSalida.${meses[i]}`)
+        fecha.set('month', i + 1)
+      }
+      console.log(groupMeses, projectMeses, fecha, mesesSeleccionados, addMeses)
+      const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+      const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+      // const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
+      const almacenes = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones', 'Transito'] } } })
+      const almacenesInvalidSalida = almacenes.filter(e => e.nombre === 'Devoluciones' && e.nombre === 'Auditoria').map(i => new ObjectId(i._id))
+      // const almacenDevolucion = new ObjectId(almacenes.find(e => e.nombre === 'Devoluciones')?._id)
+      const almacenTransito = new ObjectId(almacenes.find(e => e.nombre === 'Transito')?._id)
+      // const almacenAuditoria = new ObjectId(almacenes.find(e => e.nombre === 'Auditoria')?._id)
+      // const tiposDocumentosParaRotacion = ['solicitudInterna', tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaDebito, tiposDocumentosFiscales.notaEntrega]
+      const productsList = await agreggateCollectionsSD({
+        nameCollection: 'productos',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { activo: { $ne: false } } },
+          // { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+          // { $limit: Number(itemsPorPagina) },
+          {
+            $lookup: {
+              from: productorPorAlamcenCollection,
+              localField: '_id',
+              foreignField: 'productoId',
+              pipeline: [
+                {
+                  $match: {
+                    almacenId: { $nin: almacenesInvalidSalida }
+                  }
+                },
+                {
+                  $addFields: {
+                    diferenciaSalida: {
+                      $dateDiff: {
+                        startDate: '$fechaIngreso',
+                        endDate: '$fechaMovimiento',
+                        unit: 'day',
+                        timezone: timeZone
+                      }
+                    },
+                    mes: {
+                      $month: {
+                        date: '$fechaMovimiento',
+                        timezone: timeZone
+                      }
+                    }
+                  }
+                },
+                {
+                  $group: {
+                    _id: '$almacenId',
+                    // sumDiff: { $sum: '$diferenciaSalida' },
+                    sumDiff: {
+                      $sum: {
+                        $cond: {
+                          if: {
+                            $and: [
+                              { $eq: ['$tipoMovimiento', 'salida'] },
+                              { $ne: ['$tipo', 'ajuste'] },
+                              { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                              { $lte: ['$fechaMovimiento', moment(hasta).toDate()] },
+                              { $ne: ['$almacenId', almacenTransito] },
+                              {
+                                $or: [
+                                  {
+                                    $and: [
+                                      { $ne: ['$documentoId', null] },
+                                      { $ne: ['$documentoId', undefined] },
+                                      { $ne: ['$documentoId', ''] }
+                                    ]
+                                  },
+                                  { $eq: ['$tipoDocumento', 'solicitudInterna'] }
+                                ]
+                              }
+                            ]
+                          },
+                          then: '$diferenciaSalida',
+                          else: 0
+                        }
+                      }
+                    },
+                    cantidadSalidas: {
+                      $sum: {
+                        $cond: {
+                          if: {
+                            $and: [
+                              { $eq: ['$tipoMovimiento', 'salida'] },
+                              { $ne: ['$tipo', 'ajuste'] },
+                              { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                              { $lte: ['$fechaMovimiento', moment(hasta).toDate()] },
+                              { $ne: ['$almacenId', almacenTransito] },
+                              {
+                                $or: [
+                                  {
+                                    $and: [
+                                      { $ne: ['$documentoId', null] },
+                                      { $ne: ['$documentoId', undefined] },
+                                      { $ne: ['$documentoId', ''] }
+                                    ]
+                                  },
+                                  { $eq: ['$tipoDocumento', 'solicitudInterna'] }
+                                ]
+                              }
+                            ]
+                          },
+                          then: 1,
+                          else: 0
+                        }
+                      }
+                    },
+                    // totalCostoPromedioSalida: { $sum: '$costoPromedio' }
+                    totalCostoPromedioSalida: {
+                      $sum: {
+                        $cond: {
+                          if: {
+                            $and: [
+                              { $eq: ['$tipoMovimiento', 'salida'] },
+                              { $ne: ['$tipo', 'ajuste'] },
+                              { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                              { $lte: ['$fechaMovimiento', moment(hasta).toDate()] },
+                              { $ne: ['$almacenId', almacenTransito] },
+                              {
+                                $or: [
+                                  {
+                                    $and: [
+                                      { $ne: ['$documentoId', null] },
+                                      { $ne: ['$documentoId', undefined] },
+                                      { $ne: ['$documentoId', ''] }
+                                    ]
+                                  },
+                                  { $eq: ['$tipoDocumento', 'solicitudInterna'] }
+                                ]
+                              }
+                            ]
+                          },
+                          then: '$costoPromedio',
+                          else: 0
+                        }
+                      }
+                    },
+                    ...groupMeses
+                  }
+                },
+                {
+                  $project: {
+                    ...projectMeses,
+                    sumDiff: 1,
+                    cantidadSalidas: 1,
+                    totalCostoPromedioSalida: 1
+                  }
+                }
+              ],
+              as: 'detalleSalida'
+            }
+          },
+          { $unwind: { path: '$detalleSalida', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: almacenesCollection,
+              localField: 'detalleSalida._id',
+              foreignField: '_id',
+              as: 'detalleAlmacen'
+            }
+          },
+          { $unwind: { path: '$detalleAlmacen', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              codigo: '$codigo',
+              nombre: '$nombre',
+              descripcion: '$descripcion',
+              unidad: '$unidad',
+              sumaTotalSalidas: '$detalleSalida.sumDiff',
+              cantidadSalidasTotales: '$detalleSalida.cantidadSalidas',
+              // promedioSalida: { $divide: [{ $ifNull: ['$detalleSalida.sumDiff', 0] }, { $ifNull: ['$detalleSalida.cantidadSalidas', 1] }] },
+              totalCostoPromedioSalida: { $round: ['$detalleSalida.totalCostoPromedioSalida', 2] },
+              totalPromedioRotacion: { $divide: [{ $add: addMeses }, mesesSeleccionados] },
+              detalleAlmacen: '$detalleAlmacen',
+              almacenId: '$detalleAlmacen._id',
+              almacenNombre: '$detalleAlmacen.nombre',
+              detalleSalida: '$detalleSalida'
+            }
+          },
+          {
+            $group: {
+              _id: {
+                almacenId: '$almacenId',
+                almacenNombre: '$almacenNombre'
+              },
+              productos: { $push: '$$ROOT' }
             }
           }
         ]

@@ -1189,8 +1189,20 @@ export const createPagoOrdenes = async (req, res) => {
               update: {
                 $set: {
                   estado: 'pagada',
+                  fechaUltimoPago: moment().toDate(),
                   fechaPago: moment(abono.fechaPago).toDate(),
                   pagadoPor: new ObjectId(req.uid)
+                }
+              }
+            }
+          })
+        } else {
+          updateCompraPagada.push({
+            updateOne: {
+              filter: { _id: new ObjectId(abono.documentoId) },
+              update: {
+                $set: {
+                  fechaUltimoPago: moment().toDate()
                 }
               }
             }
@@ -1213,6 +1225,7 @@ export const createPagoOrdenes = async (req, res) => {
           monedaSecundaria: abono.monedaSecundaria,
           tasa: abono.tasa,
           tipo: 'venta',
+          isCobro: true,
           creadoPor: new ObjectId(req.uid)
         })
         createHistorial.push({

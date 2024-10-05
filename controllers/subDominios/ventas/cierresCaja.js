@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollections, agreggateCollectionsSD, formatCollectionName, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, formatCollectionName, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
 import { subDominioName } from '../../../constants.js'
 
@@ -75,6 +75,18 @@ export const getCajasBySucursal = async (req, res) => {
   try {
     const query = {}
     if (filters.sucursalId) query.sucursalId = new ObjectId(filters.sucursalId)
+    const queryDocs = {}
+    const lastCierre = await agreggateCollectionsSD({
+      nameCollection: 'cierrescaja',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $sort: { fecha: -1 } },
+        { $limit: 1 }
+      ]
+    })
+    if (lastCierre[0]?.fecha) {
+      queryDocs.fechaUltimoPago = { $gte: momentDate(undefined, lastCierre[0]?.fecha).toDate() }
+    }
     const documentosFiscalesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const transaccionesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
     const cajas = await agreggateCollectionsSD({
@@ -88,6 +100,7 @@ export const getCajasBySucursal = async (req, res) => {
             localField: '_id',
             foreignField: 'cajaId',
             pipeline: [
+              { $match: queryDocs },
               {
                 $project: {
                   _id: 1,
@@ -386,7 +399,7 @@ export const getCorteCaja = async (req, res) => {
       sucursalId: new ObjectId(sucursalId),
       _id: new ObjectId(cajaId)
     }
-    const queryDocs = {}
+    const queryDocs = { cajaId: new ObjectId(cajaId) }
     const lastCierre = await agreggateCollectionsSD({
       nameCollection: 'cierrescaja',
       enviromentClienteId: clienteId,
@@ -395,13 +408,246 @@ export const getCorteCaja = async (req, res) => {
         { $limit: 1 }
       ]
     })
-    if (lastCierre.fecha) {
-      queryDocs.fecha = { $gte: momentDate(undefined, lastCierre.fecha).toDate() }
+    if (lastCierre[0]?.fecha) {
+      queryDocs.fechaUltimoPago = { $gte: momentDate(undefined, lastCierre[0]?.fecha).toDate() }
     }
     const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
     const monedaPrincipal = ajustesSistema.monedaPrincipal || 'Bs'
     const documentosFiscalesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const transaccionesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
+    const ventas = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: queryDocs },
+        {
+          $group: {
+            _id: {
+              tipoDocumento: '$tipoDocumento',
+              isFiscal: {
+                $cond: {
+                  if: { $ne: ['$numeroControl', ''] },
+                  then: true,
+                  else: false
+                }
+              }
+            },
+            monto: {
+              $sum: '$totalPagado'
+            }
+          }
+        },
+        {
+          $group: {
+            _id: '$_id.isFiscal',
+            documentos: {
+              $push: {
+                tipoDocumento: '$_id.tipoDocumento',
+                monto: '$monto'
+              }
+            },
+            totalVenta: {
+              $sum: {
+                $cond: {
+                  if: { $in: ['$_id.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: ['$monto', -1] },
+                  else: '$monto'
+                }
+              }
+            }
+          }
+        }
+      ]
+    })
+    const creditos = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            ...queryDocs,
+            totalCredito: { $ne: 0 }
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            totalCredito: 1,
+            tipoDocumento: 1
+          }
+        },
+        {
+          $lookup: {
+            from: transaccionesCol,
+            localField: '_id',
+            foreignField: 'documentoId',
+            pipeline: [
+              { $match: { cierreCajaId: { $exists: false } } },
+              { $match: { $or: [{ caja: null }, { caja: new ObjectId(cajaId) }] } },
+              { $project: { pago: 1 } }
+            ],
+            as: 'transacciones'
+          }
+        },
+        { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: '$_id',
+            totalCredito: {
+              $first: {
+                $cond: {
+                  if: { $in: ['$tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: ['$totalCredito', -1] },
+                  else: '$totalCredito'
+                }
+              }
+            },
+            totalCobrado: {
+              $sum: {
+                $cond: {
+                  if: { $in: ['$tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: ['$transacciones.pago', -1] },
+                  else: '$transacciones.pago'
+                }
+              }
+            }
+          }
+        },
+        {
+          $group: {
+            _id: 0,
+            totalCredito: {
+              $sum: '$totalCredito'
+            },
+            totalCobrado: {
+              $sum: '$totalCobrado'
+            }
+          }
+        }
+      ]
+    })
+    const efectivo = await agreggateCollectionsSD({
+      nameCollection: 'transacciones',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            cierreCajaId: { $exists: false },
+            caja: { $eq: new ObjectId(cajaId) },
+            banco: { $eq: null }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              documentoId: '$documentoId',
+              monedaSecundaria: '$monedaSecundaria'
+            },
+            pago: {
+              $sum: '$pago'
+            },
+            pagoSecundario: {
+              $sum: '$pagoSecundario'
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: documentosFiscalesCol,
+            localField: '_id.documentoId',
+            foreignField: '_id',
+            pipeline: [
+              { $project: { tipoDocumento: 1 } }
+            ],
+            as: 'documentos'
+          }
+        },
+        { $unwind: { path: '$documentos', preserveNullAndEmptyArrays: false } },
+        {
+          $group: {
+            _id: '$_id.monedaSecundaria',
+            pago: {
+              $sum: {
+                $cond: {
+                  if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: ['$pago', -1] },
+                  else: '$pago'
+                }
+              }
+            },
+            pagoSecundario: {
+              $sum: {
+                $cond: {
+                  if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: ['$pagoSecundario', -1] },
+                  else: '$pagoSecundario'
+                }
+              }
+            }
+          }
+        }
+      ]
+    })
+    const banco = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: queryDocs },
+        {
+          $lookup: {
+            from: transaccionesCol,
+            localField: '_id',
+            foreignField: 'documentoId',
+            pipeline: [
+              { $match: { cierreCajaId: { $exists: false } } },
+              { $match: { $expr: { $eq: [{ $type: '$banco' }, 'objectId'] } } },
+              {
+                $group: {
+                  _id: {
+                    monedaSecundaria: '$monedaSecundaria',
+                    banco: '$banco'
+                  },
+                  pago: {
+                    $sum: '$pago'
+                  },
+                  pagoSecundario: {
+                    $sum: '$pagoSecundario'
+                  }
+                }
+              }
+            ],
+            as: 'transacciones'
+          }
+        },
+        { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: false } },
+        {
+          $group: {
+            _id: {
+              monedaSecundaria: '$transacciones._id.monedaSecundaria',
+              banco: '$transacciones._id.banco'
+            },
+            pago: {
+              $sum: {
+                $cond: {
+                  if: { $in: ['$tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: ['$transacciones.pago', -1] },
+                  else: '$transacciones.pago'
+                }
+              }
+            },
+            pagoSecundario: {
+              $sum: {
+                $cond: {
+                  if: { $in: ['$tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: ['$transacciones.pagoSecundario', -1] },
+                  else: '$transacciones.pagoSecundario'
+                }
+              }
+            }
+          }
+        }
+      ]
+    })
     const corte = await agreggateCollectionsSD({
       nameCollection: 'ventascajas',
       enviromentClienteId: clienteId,
@@ -584,7 +830,13 @@ export const getCorteCaja = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ corte: corte[0] })
+    return res.status(200).json({
+      corte: corte[0],
+      ventas,
+      creditos,
+      efectivo,
+      banco
+    })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })

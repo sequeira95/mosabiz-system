@@ -836,7 +836,8 @@ export const saveDataInicial = async (req, res) => {
       filters: { fecha: moment(momentDate(timeZone).toDate()).toDate() },
       update: {
         $set: {
-          productoId: new ObjectId(productoId)
+          productoId: new ObjectId(productoId),
+          costoPromedio
         }
       }
     })
@@ -1435,7 +1436,8 @@ export const updateCostoPorLote = async (req, res) => {
       filters: { fecha: moment(momentDate(timeZone).toDate()).toDate() },
       update: {
         $set: {
-          productoId: new ObjectId(productoId)
+          productoId: new ObjectId(productoId),
+          costoPromedio: nuevoCostoPromedio
         }
       }
     })

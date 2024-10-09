@@ -3530,7 +3530,8 @@ export const recepcionInventarioCompra = async (req, res) => {
           ajustePrecioProducto.push({
             insertOne: {
               productoId: new ObjectId(detalle.productoId),
-              fecha: moment(momentDate(timeZone).toDate()).toDate()
+              fecha: moment(momentDate(timeZone).toDate()).toDate(),
+              costoPromedio: Number(costoPromedio.toFixed(2))
             }
           })
           updateAllCostoPromedioPoducto.push({
@@ -4317,7 +4318,8 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
           filters: { fecha: moment(momentDate(ajusteSistema.timeZone).toDate()).toDate() },
           update: {
             $set: {
-              productoId: new ObjectId(productoId)
+              productoId: new ObjectId(productoId),
+              costoPromedio: Number(nuevoCostoPromedio)
             }
           }
         })
@@ -4659,7 +4661,8 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
           filters: { fecha: moment(momentDate(ajusteSistema.timeZone).toDate()).toDate() },
           update: {
             $set: {
-              productoId: new ObjectId(productoId)
+              productoId: new ObjectId(productoId),
+              costoPromedio: Number(nuevoCostoPromedio)
             }
           }
         })

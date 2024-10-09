@@ -1,8 +1,9 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 import moment from 'moment'
 import { hasContabilidad, validAjustesContablesForAjusteProducto, validUpdateCostoPorLoteProducto } from '../../utils/hasContabilidad.js'
+import { momentDate } from '../../utils/momentDate.js'
 // import { hasContabilidad } from '../../utils/hasContabilidad.js'
 
 export const getProductos = async (req, res) => {
@@ -807,18 +808,8 @@ export const saveProductosVentas = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de guardar el producto ' + e.message })
   }
 }
-export const updatePrecioProducto = async (req, res) => {
-  const { clienteId, _id, utilidad, descuento } = req.body
-  try {
-    const productos = await getCollectionSD({ nameCollection: 'inventario', enviromentClienteId: clienteId, filters: { categoria: new ObjectId(_id) } })
-    const productosBulkWrite = []
-  } catch (e) {
-    console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de actualizar los productos ' + e.message })
-  }
-}
 export const saveDataInicial = async (req, res) => {
-  const { clienteId, cantidadPorAlmacen, productoId } = req.body
+  const { clienteId, cantidadPorAlmacen, productoId, timeZone } = req.body
   const datosParaAlmacen = []
   let costoTotal = 0
   let cantidadTotal = 0
@@ -826,6 +817,7 @@ export const saveDataInicial = async (req, res) => {
     costoTotal += Number(e.costoUnitario) * Number(e.cantidad)
     cantidadTotal += Number(e.cantidad)
   })
+  const costoPromedio = Number((costoTotal / cantidadTotal).toFixed(2))
   if (cantidadPorAlmacen[0]) {
     updateItemSD({
       nameCollection: 'productos',
@@ -834,7 +826,17 @@ export const saveDataInicial = async (req, res) => {
       update: {
         $set: {
           isDataInicial: true,
-          costoPromedio: costoTotal / cantidadTotal
+          costoPromedio// Number((costoTotal / cantidadTotal).toFixed(2))
+        }
+      }
+    })
+    upsertItemSD({
+      nameCollection: 'ajustePrecioProducto',
+      enviromentClienteId: clienteId,
+      filters: { fecha: moment(momentDate(timeZone).toDate()).toDate() },
+      update: {
+        $set: {
+          productoId: new ObjectId(productoId)
         }
       }
     })
@@ -862,7 +864,7 @@ export const saveDataInicial = async (req, res) => {
         costoUnitario: Number(cantidad.costoUnitario),
         fechaMovimiento: moment().toDate(),
         creadoPor: new ObjectId(req.uid),
-        costoPromedio: costoTotal / cantidadTotal
+        costoPromedio // : costoTotal / cantidadTotal
       })
     }
     /* const datosParaAlmacen = cantidadPorAlmacen.map(e => {
@@ -887,7 +889,7 @@ export const saveDataInicial = async (req, res) => {
   return res.status(200).json({ status: 'Datos iniciales guardados exitosamente' })
 }
 export const updateCostoPorLote = async (req, res) => {
-  const { clienteId, productoId, nuevoCostoPromedio, lote, tipoAjuste, fechaActual } = req.body
+  const { clienteId, productoId, nuevoCostoPromedio, lote, tipoAjuste, fechaActual, timeZone } = req.body
   const almacenAuditoria = await getItemSD({
     nameCollection: 'almacenes',
     enviromentClienteId: clienteId,
@@ -901,54 +903,59 @@ export const updateCostoPorLote = async (req, res) => {
         return res.status(500).json({ error: 'Error al momento de validar información contable: ' + validContabilidad.message })
       }
     }
+    const productosPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
     const productosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
     const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
     const categoriaPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categoriaPorAlmacen' })
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
     const datosMovivientoPorProducto = await agreggateCollectionsSD({
-      nameCollection: 'productosPorAlmacen',
+      nameCollection: 'productos',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { productoId: new ObjectId(productoId)/* , lote */ /* almacenId: { $ne: almacenAuditoria._id } */ } },
-        {
-          $group: {
-            _id: {
-              // costoUnitario: '$costoUnitario',
-              productoId: '$productoId',
-              almacenId: '$almacenId',
-              costoPromedio: '$costoPromedio'
-            },
-            // lote: { $first: '$lote' },
-            entrada: {
-              $sum: {
-                $cond: {
-                  if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
-                }
-              }
-            },
-            salida: {
-              $sum: {
-                $cond: {
-                  if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
-                }
-              }
-            }
-          }
-        },
+        { $match: { _id: new ObjectId(productoId) } },
         {
           $lookup: {
-            from: productosCollection,
-            localField: '_id.productoId',
-            foreignField: '_id',
-            as: 'detalleProducto'
+            from: productosPorAlmacenCollection,
+            localField: '_id',
+            foreignField: 'productoId',
+            pipeline: [
+              {
+                $group: {
+                  _id: '$almacenId',
+                  entrada: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                      }
+                    }
+                  },
+                  salida: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                $project: {
+                  cantidad: { $subtract: ['$entrada', '$salida'] }
+                }
+              }
+            ],
+            as: 'detalleProductoAlmacen'
           }
         },
-        { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$detalleProductoAlmacen', preserveNullAndEmptyArrays: true } },
+        { $match: { 'detalleProductoAlmacen.cantidad': { $gt: 0 } } },
         {
           $lookup: {
             from: almacenesCollection,
-            localField: '_id.almacenId',
+            localField: 'detalleProductoAlmacen._id',
             foreignField: '_id',
+            pipeline: [
+            ],
             as: 'detalleAlmacen'
           }
         },
@@ -956,7 +963,7 @@ export const updateCostoPorLote = async (req, res) => {
         {
           $lookup: {
             from: categoriaPorAlmacenCollection,
-            let: { categoriaId: '$detalleProducto.categoria', almacenId: '$_id.almacenId' },
+            let: { categoriaId: '$categoria', almacenId: '$detalleAlmacen._id' },
             pipeline: [
               { $match: { $expr: { $and: [{ $eq: ['$categoriaId', '$$categoriaId'] }, { $eq: ['$almacenId', '$$almacenId'] }] } } },
               { $project: { cuentaId: 1 } }
@@ -985,14 +992,12 @@ export const updateCostoPorLote = async (req, res) => {
         {
           $project: {
             _id: 0,
-            // lote: '$lote',
-            // costoUnitario: '$_id.costoUnitario',
-            costoPromedio: '$_id.costoPromedio',
-            productoId: '$_id.productoId',
-            almacenId: '$_id.almacenId',
-            cantidad: { $subtract: ['$entrada', '$salida'] }, // cantidad de producto en el almacen de origen
-            productoCategoria: '$detalleProducto.categoria',
-            productoNombre: '$detalleProducto.nombre',
+            costoUnitario: 1,
+            productoId: '$_id',
+            almacenId: '$detalleAlmacen._id',
+            cantidad: '$detalleProductoAlmacen.cantidad', // cantidad de producto en el almacen de origen
+            productoCategoria: '$categoria',
+            productoNombre: '$nombre',
             cuentaId: '$detalleCuenta._id',
             cuentaNombre: '$detalleCuenta.descripcion',
             cuentaCodigo: '$detalleCuenta.codigo',
@@ -1051,7 +1056,7 @@ export const updateCostoPorLote = async (req, res) => {
               periodoId: periodo._id,
               descripcion: `Ajuste de costo ${movimiento.productoNombre} en almacen ${movimiento.almacenNombre}`,
               fecha: moment(fechaActual).toDate(),
-              debe: Number(diferencia),
+              debe: Math.abs(Number(diferencia)),
               haber: 0,
               fechaCreacion: moment().toDate(),
               docReferenciaAux: 'AJ-COSTO-PRODUCTO',
@@ -1069,7 +1074,7 @@ export const updateCostoPorLote = async (req, res) => {
               descripcion: `Ajuste de costo ${movimiento.productoNombre} en almacen ${movimiento.almacenNombre}`,
               fecha: moment(fechaActual).toDate(),
               debe: 0,
-              haber: Number(diferencia),
+              haber: Math.abs(Number(diferencia)),
               fechaCreacion: moment().toDate(),
               docReferenciaAux: 'AJ-COSTO-PRODUCTO',
               documento: {
@@ -1093,7 +1098,7 @@ export const updateCostoPorLote = async (req, res) => {
               periodoId: periodo._id,
               descripcion: `Ajuste de costo ${movimiento.productoNombre} en almacen ${movimiento.almacenNombre}`,
               fecha: moment(fechaActual).toDate(),
-              debe: Number(diferencia),
+              debe: Math.abs(Number(diferencia)),
               haber: 0,
               fechaCreacion: moment().toDate(),
               docReferenciaAux: 'AJ-COSTO-PRODUCTO',
@@ -1111,7 +1116,7 @@ export const updateCostoPorLote = async (req, res) => {
               descripcion: `Ajuste de costo ${movimiento.productoNombre} en almacen ${movimiento.almacenNombre}`,
               fecha: moment(fechaActual).toDate(),
               debe: 0,
-              haber: Number(diferencia),
+              haber: Math.abs(Number(diferencia)),
               fechaCreacion: moment().toDate(),
               docReferenciaAux: 'AJ-COSTO-PRODUCTO',
               documento: {
@@ -1127,13 +1132,13 @@ export const updateCostoPorLote = async (req, res) => {
         nameCollection: 'productosPorAlmacen',
         enviromentClienteId: clienteId,
         pipeline: [
-          { $match: { lote, productoId: new ObjectId(productoId), almacenId: almacenAuditoria._id } },
+          { $match: { productoId: new ObjectId(productoId), almacenId: almacenAuditoria._id } },
           {
             $group: {
               _id: {
                 tipoAuditoria: '$tipoAuditoria',
                 // costoUnitario: '$costoUnitario',
-                costoPromedio: '$costoPromedio',
+                // costoPromedio: '$costoPromedio',
                 productoId: '$productoId',
                 almacenId: '$almacenId'
               },
@@ -1207,7 +1212,7 @@ export const updateCostoPorLote = async (req, res) => {
               // lote: '$lote',
               tipoAuditoria: '$_id.tipoAuditoria',
               // costoUnitario: '$_id.costoUnitario',
-              costoPromedio: '$_id.costoPromedio',
+              costoPromedio: '$detalleProducto.costoPromedio',
               productoId: '$_id.productoId',
               almacenId: '$_id.almacenId',
               cantidad: { $subtract: ['$entrada', '$salida'] }, // cantidad de producto en el almacen de origen
@@ -1404,7 +1409,7 @@ export const updateCostoPorLote = async (req, res) => {
         items: asientosContables
       })
     }
-    updateManyItemSD({
+    /* updateManyItemSD({
       nameCollection: 'productosPorAlmacen',
       enviromentClienteId: clienteId,
       filters: { lote, productoId: new ObjectId(productoId) },
@@ -1413,9 +1418,29 @@ export const updateCostoPorLote = async (req, res) => {
           costoPromedio: nuevoCostoPromedio
         }
       }
+    }) */
+    const newProducto = await updateItemSD({
+      nameCollection: 'productos',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(productoId) },
+      update: {
+        $set: {
+          costoPromedio: nuevoCostoPromedio
+        }
+      }
+    })
+    upsertItemSD({
+      nameCollection: 'ajustePrecioProducto',
+      enviromentClienteId: clienteId,
+      filters: { fecha: moment(momentDate(timeZone).toDate()).toDate() },
+      update: {
+        $set: {
+          productoId: new ObjectId(productoId)
+        }
+      }
     })
     // console.log(datosMovivientoPorProducto)
-    return res.status(200).json({ status: 'Costos del lote actualizados correctamente' })
+    return res.status(200).json({ status: 'Costos del lote actualizados correctamente', newProducto })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de actualizar el costo por lote del producto ' + e.message })

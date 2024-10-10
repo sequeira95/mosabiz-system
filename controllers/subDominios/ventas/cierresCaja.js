@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, formatCollectionName, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, formatCollectionName, getItem, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
 import { subDominioName } from '../../../constants.js'
 
@@ -63,7 +63,18 @@ export const getSucursalesByUser = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ sucursales, bancos })
+    let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: momentDate().format('DD/MM/YYYY') } })
+    if (!tasa) {
+      const ultimaTasa = await agreggateCollections({
+        nameCollection: 'tasas',
+        pipeline: [
+          { $sort: { fechaOperacion: -1 } },
+          { $limit: 1 }
+        ]
+      })
+      tasa = ultimaTasa[0] || {}
+    }
+    return res.status(200).json({ sucursales, bancos, tasa })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener datos de las sucursales' + e.message })
@@ -115,99 +126,112 @@ export const getCajasBySucursal = async (req, res) => {
             as: 'documentos'
           }
         },
-        { $unwind: { path: '$documentos', preserveNullAndEmptyArrays: false } },
+        { $unwind: { path: '$documentos', preserveNullAndEmptyArrays: true } },
         {
-          $facet: {
-            cajas: [
-              { $sort: { 'documentos.fechaCreacion': 1 } },
-              {
-                $group: {
-                  _id: '$_id',
-                  nombre: {
-                    $first: '$nombre'
-                  },
-                  ventas: {
-                    $sum: {
-                      $cond: {
-                        if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
-                        then: { $multiply: ['$documentos.totalPagado', -1] },
-                        else: '$documentos.totalPagado'
-                      }
-                    }
-                  },
-                  caja: {
-                    $sum: {
-                      $cond: {
-                        if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
-                        then: { $multiply: [{ $subtract: ['$documentos.totalPagado', '$documentos.totalCredito']}, -1] },
-                        else: { $subtract: ['$documentos.totalPagado', '$documentos.totalCredito'] }
-                      }
-                    }
-                  },
-                  credito: {
-                    $sum: {
-                      $cond: {
-                        if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
-                        then: { $multiply: ['$documentos.totalCredito', -1] },
-                        else: '$documentos.totalCredito'
-                      }
-                    }
-                  },
-                  apertura: {
-                    $first: '$documentos.fechaCreacion'
-                  },
-                  cierre: {
-                    $last: '$documentos.fechaCreacion'
-                  }
-                }
-              },
-              {
-                $addFields: {
-                  diff: {
-                    $dateDiff: {
-                      startDate: '$apertura',
-                      endDate: '$cierre',
-                      unit: 'hour'
-                    }
-                  }
+          $group: {
+            _id: '$_id',
+            nombre: {
+              $first: '$nombre'
+            },
+            ventas: {
+              $sum: {
+                $cond: {
+                  if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: ['$documentos.totalPagado', -1] },
+                  else: '$documentos.totalPagado'
                 }
               }
-            ],
-            cobros: [
-              { $match: { 'documentos.totalCredito': { $gt: 0 } } },
-              {
-                $lookup: {
-                  from: transaccionesCol,
-                  localField: 'documentos._id',
-                  foreignField: 'documentoId',
-                  pipeline: [
-                    { $match: { cierreCajaId: { $exists: false } } }
-                  ],
-                  as: 'transacciones'
-                }
-              },
-              { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: false } },
-              {
-                $group: {
-                  _id: { $ifNull: ['$transacciones.caja', '$_id'] },
-                  cobro: {
-                    $sum: {
-                      $cond: {
-                        if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
-                        then: { $multiply: ['$transacciones.pago', -1] },
-                        else: '$transacciones.pago'
-                      }
-                    }
-                  }
+            },
+            caja: {
+              $sum: {
+                $cond: {
+                  if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: [{ $subtract: ['$documentos.totalPagado', '$documentos.totalCredito']}, -1] },
+                  else: { $subtract: ['$documentos.totalPagado', '$documentos.totalCredito'] }
                 }
               }
-            ]
+            },
+            credito: {
+              $sum: {
+                $cond: {
+                  if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: ['$documentos.totalCredito', -1] },
+                  else: '$documentos.totalCredito'
+                }
+              }
+            },
+            apertura: {
+              $first: '$documentos.fechaCreacion'
+            },
+            cierre: {
+              $last: '$documentos.fechaCreacion'
+            }
+          }
+        },
+        { $sort: { nombre: 1 } },
+        {
+          $addFields: {
+            diff: {
+              $dateDiff: {
+                startDate: '$apertura',
+                endDate: '$cierre',
+                unit: 'hour'
+              }
+            }
           }
         }
       ]
     })
-    const cajasData = cajas[0]?.cajas || []
-    const cobros = cajas[0]?.cobros || []
+    const cobros = await agreggateCollectionsSD({
+      nameCollection: 'transacciones',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            $and: [
+              { cierreCajaId: { $exists: false } },
+              { isCobro: true }
+            ]
+          }
+        },
+        { $project: { pago: 1, documentoId: 1, caja: 1 } },
+        {
+          $group: {
+            _id: { documento: '$documentoId', cajaId: '$caja' },
+            pago: {
+              $sum: '$pago'
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: documentosFiscalesCol,
+            localField: '_id.documento',
+            foreignField: '_id',
+            pipeline: [
+              { $project: { tipoDocumento: 1, cajaId: 1 } }
+            ],
+            as: 'documentos'
+          }
+        },
+        { $unwind: { path: '$documentos', preserveNullAndEmptyArrays: false } },
+        {
+          $group: {
+            _id: { $ifNull: ['$_id.cajaId', '$documentos.cajaId'] },
+            cobro: {
+              $sum: {
+                $cond: {
+                  if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: ['$pago', -1] },
+                  else: '$pago'
+                }
+              }
+            }
+          }
+        }
+      ]
+    })
+    const cajasData = cajas
     for (const cobro of cobros) {
       const caja = cajasData.find(e => String(e._id) === String(cobro._id))
       if (!caja) {
@@ -222,167 +246,6 @@ export const getCajasBySucursal = async (req, res) => {
         caja.cobro = cobro?.cobro || 0
       }
     }
-    /*
-      const cajas = await agreggateCollectionsSD({
-      nameCollection: 'ventascajas',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        { $match: query },
-        {
-          $lookup: {
-            from: transaccionesCol,
-            localField: '_id',
-            foreignField: 'caja',
-            pipeline: [
-              {
-                $match: {
-                  cierreCajaId: { $exists: false }
-                }
-              },
-              {
-                $lookup: {
-                  from: documentosFiscalesCol,
-                  localField: 'documentoId',
-                  foreignField: '_id',
-                  pipeline: [
-                    {
-                      $project: {
-                        _id: 1,
-                        cajaId: 1,
-                        tipoDocumento: 1,
-                        totalCredito: 1
-                      }
-                    }
-                  ],
-                  as: 'documentos'
-                }
-              },
-              { $unwind: { path: '$documentos', preserveNullAndEmptyArrays: false } },
-              {
-                $project: {
-                  _id: '$documentos._id',
-                  cajaId: '$documentos.cajaId',
-                  tipoDocumento: '$documentos.tipoDocumento',
-                  totalCredito: '$documentos.totalCredito',
-                  transacciones: {
-                    pago: '$pago',
-                    caja: '$caja',
-                    banco: '$banco'
-                  }
-                }
-              },
-              {
-                $group: {
-                  _id: 0,
-                  cobros: {
-                    $sum: {
-                      $cond: {
-                        if: {
-                          $and: [
-                            { $gt: ['$totalCredito', 0] },
-                            { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] }
-                          ]
-                        },
-                        then: '$transacciones.pago',
-                        else: 0
-                      }
-                    }
-                  },
-                  efectivo: {
-                    $sum: {
-                      $cond: {
-                        if: {
-                          $and: [
-                            { $eq: ['$transacciones.caja', '$cajaId'] },
-                            { $ne: [{ $type: '$transacciones.banco' }, 'objectId'] },
-                            { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] }
-                          ]
-                        },
-                        then: '$transacciones.pago',
-                        else: {
-                          $cond: {
-                            if: { $ne: [{ $type: '$transacciones.banco' }, 'objectId'] },
-                            then: { $multiply: ['$transacciones.pago', -1] },
-                            else: 0
-                          }
-                        }
-                      }
-                    }
-                  },
-                  banco: {
-                    $sum: {
-                      $cond: {
-                        if: {
-                          $and: [
-                            { $eq: [{ $type: '$transacciones.banco' }, 'objectId'] },
-                            { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] }
-                          ]
-                        },
-                        then: '$transacciones.pago',
-                        else: {
-                          $cond: {
-                            if: { $eq: [{ $type: '$transacciones.banco' }, 'objectId'] },
-                            then: { $multiply: ['$transacciones.pago', -1] },
-                            else: 0
-                          }
-                        }
-                      }
-                    }
-                  },
-                  ventas: {
-                    $sum: {
-                      $cond: {
-                        if: { $in: ['$tipoDocumento', ['Nota de crédito', 'Devolución']] },
-                        then: { $multiply: ['$transacciones.pago', -1] },
-                        else: '$transacciones.pago'
-                      }
-                    }
-                  },
-                  caja: {
-                    $sum: {
-                      $cond: {
-                        if: {
-                          $and: [
-                            {
-                              $or: [
-                                { $eq: ['$transacciones.caja', '$cajaId'] },
-                                { $eq: [{ $type: '$transacciones.banco' }, 'objectId'] },
-                              ]
-                            }
-                            
-                            
-                            { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] }
-                          ]
-                        },
-                        then: '$transacciones.pago',
-                        else: {
-                          $cond: {
-                            if: { $ne: [{ $type: '$transacciones.banco' }, 'objectId'] },
-                            then: { $multiply: ['$transacciones.pago', -1] },
-                            else: 0
-                          }
-                        }
-                      }
-                    }
-                  },
-                }
-              }
-            ],
-            as: 'transacciones'
-          }
-        },
-        { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: true } },
-        {
-          $project: {
-            nombre: 1,
-            cobros: { $ifNull: ['$transacciones.cobros', 0] },
-            efectivo: { $ifNull: ['$transacciones.efectivo', 0] },
-            banco: { $ifNull: ['$transacciones.banco', 0] }
-          }
-        }
-      ]
-      })
-    */
     return res.status(200).json({ cajas: cajasData })
   } catch (e) {
     console.log(e)
@@ -395,10 +258,6 @@ export const getCorteCaja = async (req, res) => {
   try {
     if (!cajaId) throw new Error('Debe seleccionar una caja valida')
     if (!sucursalId) throw new Error('Debe seleccionar una sucursal valida')
-    const query = {
-      sucursalId: new ObjectId(sucursalId),
-      _id: new ObjectId(cajaId)
-    }
     const queryDocs = { cajaId: new ObjectId(cajaId) }
     const lastCierre = await agreggateCollectionsSD({
       nameCollection: 'cierrescaja',
@@ -411,8 +270,6 @@ export const getCorteCaja = async (req, res) => {
     if (lastCierre[0]?.fecha) {
       queryDocs.fechaUltimoPago = { $gte: momentDate(undefined, lastCierre[0]?.fecha).toDate() }
     }
-    const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
-    const monedaPrincipal = ajustesSistema.monedaPrincipal || 'Bs'
     const documentosFiscalesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const transaccionesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
     const ventas = await agreggateCollectionsSD({
@@ -501,15 +358,6 @@ export const getCorteCaja = async (req, res) => {
                   else: '$totalCredito'
                 }
               }
-            },
-            totalCobrado: {
-              $sum: {
-                $cond: {
-                  if: { $in: ['$tipoDocumento', ['Nota de crédito', 'Devolución']] },
-                  then: { $multiply: ['$transacciones.pago', -1] },
-                  else: '$transacciones.pago'
-                }
-              }
             }
           }
         },
@@ -518,9 +366,68 @@ export const getCorteCaja = async (req, res) => {
             _id: 0,
             totalCredito: {
               $sum: '$totalCredito'
-            },
-            totalCobrado: {
-              $sum: '$totalCobrado'
+            }
+          }
+        }
+      ]
+    })
+    const cobros = await agreggateCollectionsSD({
+      nameCollection: 'transacciones',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            $and: [
+              { cierreCajaId: { $exists: false } },
+              { isCobro: true },
+              {
+                $or: [
+                  { caja: null },
+                  { caja: new ObjectId(cajaId) }
+                ]
+              }
+            ]
+          }
+        },
+        { $project: { pago: 1, documentoId: 1, caja: 1 } },
+        {
+          $group: {
+            _id: { documento: '$documentoId', cajaId: '$caja' },
+            pago: {
+              $sum: '$pago'
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: documentosFiscalesCol,
+            localField: '_id.documento',
+            foreignField: '_id',
+            pipeline: [
+              { $project: { tipoDocumento: 1, cajaId: 1 } }
+            ],
+            as: 'documentos'
+          }
+        },
+        { $unwind: { path: '$documentos', preserveNullAndEmptyArrays: false } },
+        {
+          $match: {
+            $expr: {
+              $eq: [{ $ifNull: ['$_id.cajaId', '$documentos.cajaId'] }, new ObjectId(cajaId)]
+            }
+          }
+        },
+        {
+          $group: {
+            _id: 0,
+            pago: {
+              $sum: {
+                $cond: {
+                  if: { $in: ['$documentos.tipoDocumento', ['Nota de crédito', 'Devolución']] },
+                  then: { $multiply: ['$pago', -1] },
+                  else: '$pago'
+                }
+              }
             }
           }
         }
@@ -585,6 +492,12 @@ export const getCorteCaja = async (req, res) => {
               }
             }
           }
+        },
+        {
+          $project: {
+            pago: { $round: ['$pago', 2] },
+            pagoSecundario: { $round: ['$pagoSecundario', 2] }
+          }
         }
       ]
     })
@@ -648,192 +561,10 @@ export const getCorteCaja = async (req, res) => {
         }
       ]
     })
-    const corte = await agreggateCollectionsSD({
-      nameCollection: 'ventascajas',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        { $match: query },
-        {
-          $lookup: {
-            from: documentosFiscalesCol,
-            localField: '_id',
-            foreignField: 'cajaId',
-            pipeline: [
-              { $match: queryDocs },
-              {
-                $project: {
-                  _id: 1,
-                  tipoDocumento: 1,
-                  totalPagado: 1,
-                  totalCredito: 1,
-                  numeroControl: 1
-                }
-              },
-              {
-                $lookup: {
-                  from: transaccionesCol,
-                  localField: '_id',
-                  foreignField: 'documentoId',
-                  pipeline: [
-                    { $match: { cierreCajaId: { $exists: false } } }
-                  ],
-                  as: 'transacciones'
-                }
-              },
-              {
-                $facet: {
-                  venta: [
-                    // { $match: { $expr: { $ne: [{ $size: '$transacciones' }, 0] } } },
-                    {
-                      $group: {
-                        _id: '$tipoDocumento',
-                        montoZ: {
-                          $sum: {
-                            $cond: {
-                              if: { $ne: ['$numeroControl', ''] },
-                              then: '$totalPagado',
-                              else: 0
-                            }
-                          }
-                        },
-                        montoManual: {
-                          $sum: {
-                            $cond: {
-                              if: { $ne: ['$numeroControl', ''] },
-                              then: 0,
-                              else: '$totalPagado'
-                            }
-                          }
-                        }
-                      }
-                    },
-                    {
-                      $match: {
-                        $or: [
-                          { montoZ: { $ne: 0 } },
-                          { montoManual: { $ne: 0 } }
-                        ]
-                      }
-                    },
-                    { $sort: { _id: 1 } }
-                  ],
-                  cobros: [
-                    { $match: { $expr: { $ne: [{ $size: '$transacciones' }, 0] } } },
-                    // { $match: { totalCredito: { $gt: 0 } } },
-                    { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: true } },
-                    {
-                      $group: {
-                        _id: {
-                          metodo: {
-                            $cond: {
-                              if: { $eq: [{ $type: '$transacciones.banco' }, 'objectId'] },
-                              then: 'banco',
-                              else: 'caja'
-                            }
-                          },
-                          divisas: {
-                            $cond: {
-                              if: { $ne: ['$transacciones.monedaSecundaria', monedaPrincipal] },
-                              then: true,
-                              else: false
-                            }
-                          },
-                          cajaId: { $ifNull: ['$transacciones.caja', '$cajaId'] },
-                          banco: '$transacciones.banco'
-                        },
-                        monto: {
-                          $sum: {
-                            $cond: {
-                              if: { $in: ['$tipoDocumento', ['Nota de crédito', 'Devolución']] },
-                              then: { $multiply: ['$transacciones.pago', -1] },
-                              else: '$transacciones.pago'
-                            }
-                          }
-                        },
-                        montoSecundario: {
-                          $sum: {
-                            $cond: {
-                              if: { $in: ['$tipoDocumento', ['Nota de crédito', 'Devolución']] },
-                              then: { $multiply: ['$transacciones.pagoSecundario', -1] },
-                              else: '$transacciones.pagoSecundario'
-                            }
-                          }
-                        }
-                      }
-                    },
-                    {
-                      $match: {
-                        '_id.cajaId': query._id
-                      }
-                    }
-                  ],
-                  credito: [
-                    { $match: { totalCredito: { $gt: 0 } } },
-                    {
-                      $group: {
-                        _id: '$_id',
-                        totalCredito: {
-                          $first: '$totalCredito'
-                        },
-                        transacciones: {
-                          $first: '$transacciones'
-                        }
-                      }
-                    },
-                    { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: true } },
-                    {
-                      $group: {
-                        _id: {
-                          doc: '$_id',
-                          cajaId: { $ifNull: ['$transacciones.caja', query._id] }
-                        },
-                        totalCredito: {
-                          $first: '$totalCredito'
-                        },
-                        pagos: {
-                          $sum: '$transacciones.pago'
-                        }
-                      }
-                    },
-                    {
-                      $match: {
-                        '_id.cajaId': query._id
-                      }
-                    },
-                    {
-                      $group: {
-                        _id: 0,
-                        totalCredito: {
-                          $sum: '$totalCredito'
-                        },
-                        totalPagos: {
-                          $sum: '$pagos'
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            ],
-            as: 'documentos'
-          }
-        },
-        { $unwind: { path: '$documentos', preserveNullAndEmptyArrays: true } },
-        { $unwind: { path: '$documentos.credito', preserveNullAndEmptyArrays: true } },
-        {
-          $project: {
-            venta: '$documentos.venta',
-            cobros: '$documentos.cobros',
-            totalCredito: { $ifNull: ['$documentos.credito.totalCredito', 0] },
-            totalPagos: { $ifNull: ['$documentos.credito.totalPagos', 0] }
-          }
-        }
-      ]
-    })
     return res.status(200).json({
-      corte: corte[0],
       ventas,
-      creditos,
+      creditos: creditos[0]?.totalCredito || 0,
+      cobros: cobros[0]?.pago || 0,
       efectivo,
       banco
     })

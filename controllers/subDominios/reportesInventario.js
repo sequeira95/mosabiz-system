@@ -214,27 +214,8 @@ export const reporteRotacionInventario = async (req, res) => {
         { $count: 'total' }
       ]
     })
-    /* const prueba = await agreggateCollectionsSD({
-      nameCollection: 'productosPorAlmacen',
-      enviromentClienteId: clienteId,
-      pipeline: [
-        {
-          $match: {
-            productoId: new ObjectId('66b6cb89f60656537bd12960'),
-            fechaMovimiento: { $lte: momentDate(timeZone, hasta).endOf('month').toDate() },
-            almacenId: { $ne: new ObjectId(almacenes.find(e => e.nombre === 'Auditoria')?._id) }
-          }
-        },
-        {
-          $group: {
-            _id: 0,
-            lasCosto: { $last: '$costoPromedio' }
-          }
-        }
-      ]
-    }) */
     if (itemsPorPagina || pagina) {
-      const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+      // const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
       const groupMeses = {}
       const segundoGroupMeses = {}
       const projectMeses = {}
@@ -525,14 +506,17 @@ export const reporteRotacionInventarioAlmacen = async (req, res) => {
       const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
       const groupMeses = {}
       const projectMeses = {}
-      let mesesSeleccionados = 0
+      const segundoGroupMeses = {}
+      const mesesSeleccionados = moment(hasta).diff(moment(desde), 'months') + 1
+      console.log({ mesesSeleccionados })
       const addMeses = []
       const fecha = momentDate(timeZone, desde).endOf('month')
-      for (let i = 0; i < meses.length; i++) {
+      for (let i = 0; i < mesesSeleccionados; i++) {
         if (fecha.isAfter(hasta)) break
         // console.log({ fecha })
-        mesesSeleccionados = i + 1
-        groupMeses[meses[i] + 'Entrada'] = {
+        console.log({ fecha: fecha.endOf('month') })
+        console.log(`${fecha.format('YYYY-MM')}`)
+        groupMeses[`${fecha.format('YYYY-MM')}Entrada`] = {
           $sum: {
             $cond: {
               if: {
@@ -545,7 +529,7 @@ export const reporteRotacionInventarioAlmacen = async (req, res) => {
             }
           }
         }
-        groupMeses[meses[i] + 'Salida'] = {
+        groupMeses[`${fecha.format('YYYY-MM')}Salida`] = {
           $sum: {
             $cond: {
               if: {
@@ -558,7 +542,7 @@ export const reporteRotacionInventarioAlmacen = async (req, res) => {
             }
           }
         }
-        groupMeses[meses[i] + 'LastCosto'] = {
+        /* groupMeses[`${fecha.format('YYYY-MM')}LastCosto`] = {
           $last: {
             $cond: {
               if: {
@@ -572,16 +556,48 @@ export const reporteRotacionInventarioAlmacen = async (req, res) => {
               else: '$costoPromedio'
             }
           }
+        } */
+        segundoGroupMeses[`${fecha.format('YYYY-MM')}Entrada`] = {
+          $first: `$${fecha.format('YYYY-MM')}Entrada`
         }
-        projectMeses[meses[i] + 'Entrada'] = 1
-        projectMeses[meses[i] + 'Salida'] = 1
-        projectMeses[meses[i] + 'LastCosto'] = 1
-        projectMeses[meses[i]] = { $multiply: [{ $subtract: [`$${meses[i]}Entrada`, `$${meses[i]}Salida`] }, `$${meses[i]}LastCosto`] }
-        addMeses.push(`$detalleSalida.${meses[i]}`)
-        fecha.set('month', i + 1)
+        segundoGroupMeses[`${fecha.format('YYYY-MM')}Salida`] = {
+          $first: `$${fecha.format('YYYY-MM')}Salida`
+        }
+        segundoGroupMeses.sumDiff = {
+          $first: '$sumDiff'
+        }
+        segundoGroupMeses.cantidadSalidas = {
+          $first: '$cantidadSalidas'
+        }
+        segundoGroupMeses.totalCostoPromedioSalida = {
+          $first: '$totalCostoPromedioSalida'
+        }
+        segundoGroupMeses[`${fecha.format('YYYY-MM')}LastCosto`] = {
+          $sum: {
+            $cond: {
+              if: {
+                $and: [
+                  { $eq: ['$ultimoCosto.year', Number(fecha.format('YYYY'))] },
+                  { $eq: ['$ultimoCosto.month', Number(fecha.format('M'))] }
+                ]
+              },
+              then: '$ultimoCosto.ultimoCostoPromedio',
+              else: 0
+            }
+          }
+        }
+        projectMeses[`${fecha.format('YYYY-MM')}Entrada`] = 1
+        projectMeses[`${fecha.format('YYYY-MM')}Salida`] = 1
+        projectMeses[`${fecha.format('YYYY-MM')}LastCosto`] = 1
+        projectMeses[`${fecha.format('YYYY-MM')}`] = {
+          $multiply: [{ $subtract: [`$${fecha.format('YYYY-MM')}Entrada`, `$${fecha.format('YYYY-MM')}Salida`] }, `$${fecha.format('YYYY-MM')}LastCosto`]
+        }
+        addMeses.push(`$detalleRotacion.${fecha.format('YYYY-MM')}`)
+        fecha.add(1, 'month')
       }
       // console.log(groupMeses, projectMeses, fecha, mesesSeleccionados, addMeses)
       const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
+      const ajustePrecioProductoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ajustePrecioProducto' })
       const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
       // const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
       const almacenes = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones', 'Transito'] } } })
@@ -628,7 +644,10 @@ export const reporteRotacionInventarioAlmacen = async (req, res) => {
                 },
                 {
                   $group: {
-                    _id: '$almacenId',
+                    _id: {
+                      almacenId: '$almacenId',
+                      productoId: '$productoId'
+                    },
                     // sumDiff: { $sum: '$diferenciaSalida' },
                     sumDiff: {
                       $sum: {
@@ -704,6 +723,70 @@ export const reporteRotacionInventarioAlmacen = async (req, res) => {
                   }
                 },
                 {
+                  $lookup: {
+                    from: ajustePrecioProductoCollection,
+                    localField: '_id.productoId',
+                    foreignField: 'productoId',
+                    pipeline: [
+                      {
+                        $match: {
+                          fecha: { $gte: moment(desde).toDate(), $lte: moment(hasta).toDate() }
+                        }
+                      },
+                      { $sort: { fecha: 1 } },
+                      {
+                        $group: {
+                          _id: {
+                            year: { $year: '$fecha' },
+                            month: { $month: '$fecha' }
+                          },
+                          ultimoCostoPromedio: {
+                            $last: '$costoPromedio'
+                          }
+                        }
+                      },
+                      {
+                        $project: {
+                          _id: 0,
+                          formatoNombre: {
+                            $concat: [
+                              { $toString: '$_id.year' },
+                              '-',
+                              {
+                                $cond: {
+                                  if: { $gt: ['$_id.month', 9] },
+                                  then: { $toString: '$_id.month' },
+                                  else: { $concat: ['0', { $toString: '$_id.month' }] }
+                                }
+                              },
+                              'ultimoCostoPromedio'
+                            ]
+                          },
+                          year: '$_id.year',
+                          month: '$_id.month',
+                          ultimoCostoPromedio: 1
+                        }
+                      }
+                    ],
+                    as: 'ultimoCosto'
+                  }
+                },
+                { $unwind: { path: '$ultimoCosto', preserveNullAndEmptyArrays: true } },
+                {
+                  $group: {
+                    _id: {
+                      almacenId: '$_id.almacenId',
+                      productoId: '$_id.productoId'
+                    },
+                    ...segundoGroupMeses,
+                    costoRevision: {
+                      $push: {
+                        ultimoCosto: '$ultimoCosto'
+                      }
+                    }
+                  }
+                },
+                {
                   $project: {
                     ...projectMeses,
                     sumDiff: 1,
@@ -719,7 +802,7 @@ export const reporteRotacionInventarioAlmacen = async (req, res) => {
           {
             $lookup: {
               from: almacenesCollection,
-              localField: 'detalleSalida._id',
+              localField: 'detalleSalida._id.almacenId',
               foreignField: '_id',
               as: 'detalleAlmacen'
             }
@@ -936,6 +1019,8 @@ export const reporteHistoricoMovimientos = async (req, res) => {
           },
           { $unwind: { path: '$movimientos', preserveNullAndEmptyArrays: true } },
           { $match: { 'movimientos.almacenId': { $ne: 'eliminar' } } },
+          { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+          { $limit: Number(itemsPorPagina) },
           {
             $lookup: {
               from: movimientosCollection,

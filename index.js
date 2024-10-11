@@ -45,7 +45,7 @@ import proveedoresSDRouter from './routes/subDominios/proveedores.js'
 import comprasSDRouter from './routes/subDominios/compras.js'
 import tributosSDRouter from './routes/subDominios/tributos.js'
 import administracionSDRouter from './routes/subDominios/administracion.js'
-// import { getValoresBcv } from './utils/tareas.js'
+import { getValoresBcv, getValoresBcvExcel } from './utils/tareas.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
 
@@ -67,6 +67,7 @@ app.use(fileUpload({
   timezone: 'America/Caracas'
 }) */
 const PORT = process.env.PORT || 8080
+// getValoresBcvExcel()
 // midelware
 app.use(express.json({ limit: '50mb' }))
 app.use(cookieParser())

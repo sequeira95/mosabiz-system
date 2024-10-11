@@ -36,6 +36,17 @@
     "webpack-cli": "^5.1.4"
   },
   "eslintConfig": {
-    "extends": "standard"
+    "extends": "standard",
+    "rules": {
+      "no-unused-vars": "warn",
+      "no-undef": "warn",
+      "comma-dangle": ["error", {
+        "arrays": "ignore",
+        "objects": "ignore",
+        "imports": "ignore",
+        "exports": "ignore",
+        "functions": "ignore"
+    }]
+    }
   }
 }

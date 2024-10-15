@@ -149,7 +149,9 @@ export const createSucursal = async (req, res) => {
           usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
           almacenes: (almacenesArray || []).map(e => new ObjectId(e)),
           supervisor: new ObjectId(supervisor),
-          zonaId: new ObjectId(zonaId)
+          zonaId: new ObjectId(zonaId),
+          cajaNacionalId: new ObjectId(cajaNacionalId),
+          cajaDivisasId: new ObjectId(cajaDivisasId),
         }
       })
       sucursal = await getItemSD({ nameCollection: 'ventassucursales', enviromentClienteId: clienteId, filters: { _id: newSucursal.insertedId } })

@@ -1,7 +1,9 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollections, agreggateCollectionsSD, createItem, createItemSD, formatCollectionName, getItem, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, createItem, createItemSD, createManyItemsSD, formatCollectionName, getItem, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
 import { subDominioName } from '../../../constants.js'
+import { hasContabilidad } from '../../../utils/hasContabilidad.js'
+import { getOrCreateComprobante, createMovimientos } from '../../../utils/contabilidad.js'
 
 export const getSucursalesByUser = async (req, res) => {
   const { clienteId, userId } = req.body
@@ -44,6 +46,7 @@ export const getSucursalesByUser = async (req, res) => {
           $project: {
             _id: 1,
             nombre: 1,
+            supervisorId: '$supervisorData._id',
             supervisor: '$supervisorData.nombre'
           }
         },
@@ -322,7 +325,10 @@ export const getCorteCaja = async (req, res) => {
         { $match: queryDocs },
         {
           $group: {
-            _id: '$creadoPorNombre'
+            _id: '$creadoPor',
+            nombre: {
+              $first: '$creadoPorNombre'
+            }
           }
         }
       ]
@@ -344,20 +350,6 @@ export const getCorteCaja = async (req, res) => {
             tipoDocumento: 1
           }
         },
-        {
-          $lookup: {
-            from: transaccionesCol,
-            localField: '_id',
-            foreignField: 'documentoId',
-            pipeline: [
-              { $match: { cierreCajaId: { $exists: false } } },
-              { $match: { $or: [{ caja: null }, { caja: new ObjectId(cajaId) }] } },
-              { $project: { pago: 1 } }
-            ],
-            as: 'transacciones'
-          }
-        },
-        { $unwind: { path: '$transacciones', preserveNullAndEmptyArrays: true } },
         {
           $group: {
             _id: '$_id',
@@ -591,7 +583,8 @@ export const saveCorte = async (req, res) => {
     clienteId,
     cajaId,
     sucursalId,
-    corte,
+    caja,
+    sucursal,
     apertura,
     cierre,
     horasTrabajadas,
@@ -603,19 +596,37 @@ export const saveCorte = async (req, res) => {
     totalBanco,
     totalEfectivo,
     totalVenta,
-    resumen
+    observacion,
+    supervisor,
+    supervisorId,
+    cajeros,
+    fecha,
+    resumen,
+    montoCalculoEfectivo,
+    montoRealEfectivo,
+    montoNeto
   } = req.body
   try {
-    await createItemSD({
+    if (!cajaId) throw new Error('Debe seleccionar una caja')
+    if (!sucursalId) throw new Error('Debe seleccionar una sucursal')
+    let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: `cierres-caja-${cajaId}` } }))?.contador
+    if (contador) ++contador
+    if (!contador) contador = 1
+
+    // crea el cierre de caja
+    const cierreCaja = await createItemSD({
       nameCollection: 'cierrescaja',
       enviromentClienteId: clienteId,
       item: {
-        cajaId: cajaId ? new ObjectId(cajaId): null,
-        sucursalId: sucursalId ? new ObjectId(sucursalId): null,
-        corte,
-        apertura: apertura ? moment(apertura).toDate() : null,
-        cierre: cierre ? moment(cierre).toDate() : null,
+        numero: contador,
+        cajaId: cajaId ? new ObjectId(cajaId) : null,
+        sucursalId: sucursalId ? new ObjectId(sucursalId) : null,
+        apertura: apertura ? momentDate(undefined, apertura).toDate() : null,
+        cierre: cierre ? momentDate(undefined, cierre).toDate() : null,
         horasTrabajadas: horasTrabajadas ? Number(horasTrabajadas) : 0,
+        supervisorId: supervisorId ? new ObjectId(supervisorId) : null,
+        supervisor,
+        cajeros: Array.isArray(cajeros) ? cajeros.map(e => ({ _id: new ObjectId(e._id), nombre: e.nombre })) : cajeros,
         monedaPrincipal,
         efectivos,
         ventaManual,
@@ -624,19 +635,348 @@ export const saveCorte = async (req, res) => {
         totalBanco,
         totalEfectivo,
         totalVenta,
-        resumen
+        resumen,
+        sucursal,
+        caja,
+        observacion,
+        fecha: momentDate(undefined, fecha).toDate(),
+        montoNeto: montoNeto ? Number(montoNeto) : 0,
+        montoCalculoEfectivo: montoCalculoEfectivo ? Number(montoCalculoEfectivo) : 0,
+        montoRealEfectivo: montoRealEfectivo ? Number(montoRealEfectivo) : 0,
       }
     })
-    const lastCierre = await agreggateCollectionsSD({
-      nameCollection: 'cierrescaja',
+    await upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: `cierres-caja-${cajaId}` }, update: { $set: { contador } } })
+
+    // actualiza las transacciones de la caja
+    await updateManyItemSD({
+      nameCollection: 'transacciones',
+      enviromentClienteId: clienteId,
+      filters: {
+        cierreCajaId: { $exists: false },
+        caja: { $eq: new ObjectId(cajaId) },
+        banco: { $eq: null }
+      },
+      update: {
+        $set: { cierreCajaId: cierreCaja.insertedId }
+      }
+    })
+    // actualiza las transacciones de la caja que son cobros
+    const documentosFiscalesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
+
+    const cobros = await agreggateCollectionsSD({
+      nameCollection: 'transacciones',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $sort: { fecha: -1 } },
-        { $limit: 1 }
+        {
+          $match: {
+            $and: [
+              { cierreCajaId: { $exists: false } },
+              { isCobro: true },
+              { caja: null },
+            ]
+          }
+        },
+        { $project: { _id: 1, pago: 1, documentoId: 1, caja: 1 } },
+        {
+          $lookup: {
+            from: documentosFiscalesCol,
+            localField: 'documentoId',
+            foreignField: '_id',
+            pipeline: [
+              { $match: { cajaId: new ObjectId(cajaId) } },
+              { $project: { cajaId: 1 } }
+            ],
+            as: 'documentos'
+          }
+        },
+        { $unwind: { path: '$documentos', preserveNullAndEmptyArrays: false } },
+        {
+          $group: {
+            _id: 0,
+            transaccionesId: {
+              $addToSet: '$_id'
+            }
+          }
+        }
       ]
     })
-  } catch(e) {
-    console.log(`Error de servidor al momento de realizar el cierre de la caja ${caja?._id || 'Sin caja'}`, e)
+    if (cobros[0]?.transaccionesId) {
+      await updateManyItemSD({
+        nameCollection: 'transacciones',
+        enviromentClienteId: clienteId,
+        filters: { _id: { $in: cobros[0]?.transaccionesId } },
+        update: {
+          $set: { cierreCajaId: cierreCaja.insertedId }
+        }
+      })
+    }
+    const tieneContabilidad = await hasContabilidad({ clienteId })
+    if (!tieneContabilidad) return res.status(200).json({ status: 'Cierre exitoso' })
+    const ajustesSistema = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'sistema' } })
+    const ajustesVentas = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'ventas' } })
+    const mesPeriodo = momentDate(ajustesSistema.timeZone, fecha).format('YYYY/MM')
+    if (!ajustesVentas.cuentaDiferenciasCajas) {
+      throw new Error('Cierre realizado con exito pero fallo la creacion del comprobante en contabilidad: No existe cuenta de diferencias en caja')
+    }
+    let comprobante
+    try {
+      comprobante = await getOrCreateComprobante(clienteId,
+        {
+          mesPeriodo,
+          codigo: ajustesVentas.codigoComprobanteFacturacion
+        }, {
+          nombre: 'Ventas'
+        },
+        true
+      )
+    } catch (e) {
+      console.log('error al crear comprobante en el cierre de caja', e)
+    }
+    if (!comprobante) throw new Error('Cierre realizado con exito pero fallo la creacion del comprobante en contabilidad')
+    const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+
+    const [cuentaCaja] = await agreggateCollectionsSD({
+      nameCollection: 'ventascajas',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: new ObjectId(cajaId) } },
+        {
+          $lookup: {
+            from: planCuentaCollection,
+            localField: 'cuentaId',
+            foreignField: '_id',
+            as: 'detalleCuenta'
+          }
+        },
+        { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: false } },
+        {
+          $project: {
+            nombre: '$nombre',
+            descripcion: '$descripcion',
+            tipo: '$tipo',
+            cuentaId: '$cuentaId',
+            cuentaCodigo: '$detalleCuenta.codigo',
+            cuentaNombre: '$detalleCuenta.descripcion'
+          }
+        }
+      ]
+    })
+    if (!cuentaCaja) {
+      throw new Error(`Cierre realizado con exito pero fallo
+      la creacion del movimiento contable: 
+      La caja no tiene una cuenta contable asignada
+      `)
+    }
+    const sucursalData = await getItemSD({
+      nameCollection: 'ventassucursales',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(sucursalId) }
+    })
+    const [cuentaCajaPrincipalNacional] = await agreggateCollectionsSD({
+      nameCollection: 'bancos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: sucursalData.cajaNacionalId } },
+        {
+          $lookup: {
+            from: planCuentaCollection,
+            localField: 'cuentaId',
+            foreignField: '_id',
+            as: 'detalleCuenta'
+          }
+        },
+        { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: false } },
+        {
+          $project: {
+            nombre: '$nombre',
+            descripcion: '$descripcion',
+            tipo: '$tipo',
+            cuentaId: '$cuentaId',
+            cuentaCodigo: '$detalleCuenta.codigo',
+            cuentaNombre: '$detalleCuenta.descripcion'
+          }
+        }
+      ]
+    })
+    if (!cuentaCajaPrincipalNacional) {
+      throw new Error(`Cierre realizado con exito pero fallo
+      la creacion del movimiento contable: 
+      La caja no tiene una cuenta contable asignada
+      `)
+    }
+    const [cuentaCajaPrincipalDivisas] = await agreggateCollectionsSD({
+      nameCollection: 'bancos',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: sucursalData.cajaDivisasId } },
+        {
+          $lookup: {
+            from: planCuentaCollection,
+            localField: 'cuentaId',
+            foreignField: '_id',
+            as: 'detalleCuenta'
+          }
+        },
+        { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: false } },
+        {
+          $project: {
+            nombre: '$nombre',
+            descripcion: '$descripcion',
+            tipo: '$tipo',
+            cuentaId: '$cuentaId',
+            cuentaCodigo: '$detalleCuenta.codigo',
+            cuentaNombre: '$detalleCuenta.descripcion'
+          }
+        }
+      ]
+    })
+    if (!cuentaCajaPrincipalDivisas) {
+      throw new Error(`Cierre realizado con exito pero fallo
+      la creacion del movimiento contable: 
+      La caja no tiene una cuenta contable asignada
+      `)
+    }
+    const movimientoDefault = {
+      comprobanteId: comprobante._id,
+      periodoId: comprobante.periodoId,
+      descripcion: `Cierre caja N° ${contador} ${cuentaCaja.nombre}`,
+      fecha: momentDate(ajustesSistema.timeZone, fecha).toDate(),
+      fechaCreacion: momentDate().toDate(),
+      docReferenciaAux: `Cierre caja N° ${contador} ${cuentaCaja.nombre}`,
+      documento: {
+        docReferencia: `Cierre caja N° ${contador} ${cuentaCaja.nombre}`,
+        docFecha: momentDate(ajustesSistema.timeZone, fecha).toDate()
+      },
+      debe: 0,
+      haber: 0
+    }
+    // fecha creacion movimientos
+    const fechaCreacion = momentDate()
+    let addSeconds = 1
+    // movimientos contables
+    let movimientos = []
+    // transacciones hacia la caja principal
+    const transacciones = []
+    // agregar movimiento de la caja
+    movimientos.push({
+      ...movimientoDefault,
+      cuentaId: cuentaCaja.cuentaId,
+      cuentaCodigo: cuentaCaja.cuentaCodigo,
+      cuentaNombre: cuentaCaja.cuentaNombre,
+      haber: montoCalculoEfectivo > 0 ? montoCalculoEfectivo : 0,
+      debe: montoCalculoEfectivo < 0 ? Math.abs(montoCalculoEfectivo) : 0
+    })
+    // agregar movimientos de la caja principal
+    const montoMonedaPrincipal = Number((resumen.dataMonedaPrincipal?.montoShow || 0).toFixed(2))
+    // agregar transaccion moneda principal
+    transacciones.push({
+      clienteId: new ObjectId(clienteId),
+      cierreCajaId: cierreCaja.insertedId,
+      metodo: 'caja', // caja, banco
+      pago: montoMonedaPrincipal,
+      pagoSecundario: montoMonedaPrincipal,
+      fechaPago: momentDate(undefined, fecha).toDate(),
+      caja: cuentaCajaPrincipalNacional._id,
+      porcentajeIgtf: 0,
+      pagoIgtf: 0,
+      moneda: ajustesSistema.monedaPrincipal,
+      monedaSecundaria: ajustesSistema.monedaPrincipal,
+      tasa: 1,
+      tipo: 'cierre',
+      creadoPor: new ObjectId(req.uid),
+      fechaCreacion: momentDate().toDate()
+    })
+    let montoMonedaDivisas = 0
+    let diferenciaMontos = montoCalculoEfectivo - Number((resumen.dataMonedaPrincipal?.montoShow || 0).toFixed(2))
+    for (const dataByMoneda of resumen.dataDivisas) {
+      montoMonedaDivisas += Number((dataByMoneda?.montoShow || 0).toFixed(2))
+      diferenciaMontos -= Number((dataByMoneda?.montoShow || 0).toFixed(2))
+      transacciones.push({
+        cierreCajaId: cierreCaja.insertedId,
+        clienteId: new ObjectId(clienteId),
+        metodo: 'caja', // caja, banco
+        pago: Number((dataByMoneda?.montoShow || 0).toFixed(2)),
+        pagoSecundario: Number((dataByMoneda?.totalReal || 0).toFixed(2)),
+        fechaPago: momentDate(undefined, fecha).toDate(),
+        caja: cuentaCajaPrincipalNacional._id,
+        porcentajeIgtf: 0,
+        pagoIgtf: 0,
+        moneda: ajustesSistema.monedaPrincipal,
+        monedaSecundaria: dataByMoneda.monedaSecundaria,
+        tasa: dataByMoneda.tasa,
+        tipo: 'cierre',
+        creadoPor: new ObjectId(req.uid),
+        fechaCreacion: momentDate().toDate()
+      })
+    }
+    movimientos.push({
+      ...movimientoDefault,
+      cuentaId: cuentaCajaPrincipalNacional.cuentaId,
+      cuentaCodigo: cuentaCajaPrincipalNacional.cuentaCodigo,
+      cuentaNombre: cuentaCajaPrincipalNacional.cuentaNombre,
+      debe: montoMonedaPrincipal > 0 ? montoMonedaPrincipal : 0,
+      haber: montoMonedaPrincipal < 0 ? Math.abs(montoMonedaPrincipal) : 0
+    })
+    if (resumen.dataDivisas.length > 0) {
+      movimientos.push({
+        ...movimientoDefault,
+        cuentaId: cuentaCajaPrincipalDivisas.cuentaId,
+        cuentaCodigo: cuentaCajaPrincipalDivisas.cuentaCodigo,
+        cuentaNombre: cuentaCajaPrincipalDivisas.cuentaNombre,
+        debe: montoMonedaDivisas > 0 ? montoMonedaDivisas : 0,
+        haber: montoMonedaDivisas < 0 ? Math.abs(montoMonedaDivisas) : 0
+      })
+    }
+    const cuentaDifCajas = await getItemSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      filters: {
+        _id: ajustesVentas.cuentaDiferenciasCajas
+      }
+    })
+    if (diferenciaMontos > 0) {
+      movimientos.push({
+        ...movimientoDefault,
+        cuentaId: cuentaDifCajas._id,
+        cuentaCodigo: cuentaDifCajas.codigo,
+        cuentaNombre: cuentaDifCajas.descripcion,
+        debe: diferenciaMontos || 0
+      })
+    } else if (diferenciaMontos < 0) {
+      movimientos.push({
+        ...movimientoDefault,
+        cuentaId: cuentaDifCajas._id,
+        cuentaCodigo: cuentaDifCajas.codigo,
+        cuentaNombre: cuentaDifCajas.descripcion,
+        haber: Math.abs(diferenciaMontos) || 0
+      })
+    }
+    movimientos = movimientos.sort((a, b) => b.debe > 0 ? 1 : -1).map(e => {
+      addSeconds += 2
+      return {
+        ...e,
+        fechaCreacion: momentDate(undefined, fechaCreacion).add(addSeconds, 'milliseconds').toDate()
+      }
+    })
+
+    // crear transaccion
+    if (transacciones && transacciones[0]) {
+      createManyItemsSD({
+        nameCollection: 'transacciones',
+        enviromentClienteId: clienteId,
+        items: transacciones
+      })
+    }
+    // crear movimientos de contabilidad
+    if (transacciones && transacciones[0]) {
+      await createMovimientos({
+        clienteId,
+        movimientos
+      })
+    }
+    return res.status(200).json({ status: 'Cierre exitoso' })
+  } catch (e) {
+    console.log(`Error de servidor al momento de realizar el cierre de la caja ${caja || 'Sin caja'}`, e)
     return res.status(500).json({ error: `Error de servidor al momento de realizar el cierre de la caja ${caja?.nombre || 'Sin nombre'}: ${e.message}` })
   }
 }

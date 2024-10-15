@@ -98,6 +98,17 @@ export const ListIndexesClient = [
     ]
   }
 ]
+export const tipoMovimientos = {
+  solicitudInterna: 'solicitudInterna',
+  solicitudCompra: 'solicitudCompra',
+  transferencia: 'transferencia',
+  Ajuste: 'Ajuste',
+  devolucion: 'devolucion',
+  recepcion: 'recepcion',
+  'despacho-ventas': 'despacho-ventas',
+  'devolucion-ventas': 'devolucion-ventas',
+  dataInit: 'dataInit'
+}
 export const tipoMovimientosShort = {
   solicitudInterna: 'SI',
   solicitudCompra: 'SC',

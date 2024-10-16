@@ -93,6 +93,7 @@ export const agregateDetalleComprobante = async ({ clienteId, comprobanteId, ite
           enviromentClienteId: clienteId,
           pipeline: [
             { $match: configMatch },
+            { $sort: { fechaCreacion: 1, debe: -1 } },
             {
               $group: {
                 _id: null,

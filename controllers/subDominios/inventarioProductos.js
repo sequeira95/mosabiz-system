@@ -841,6 +841,21 @@ export const saveDataInicial = async (req, res) => {
         }
       }
     })
+    const newMovimientoInit = await createItemSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      item: {
+        fecha: moment().toDate(),
+        fechaVencimiento: moment().toDate(),
+        tipo: 'dataInit',
+        almacenOrigen: null,
+        estado: 'init',
+        almacenDestino: null,
+        zona: null,
+        // numeroMovimiento: contador,
+        creadoPor: new ObjectId(req.uid)
+      }
+    })
     let validarLote = ''
     for (const cantidad of cantidadPorAlmacen) {
       if (cantidad.lote === validarLote) return res.status(400).json({ error: 'Existen lotes repetidos, por favor verifique' })
@@ -858,6 +873,7 @@ export const saveDataInicial = async (req, res) => {
         almacenId: cantidad.almacen._id ? new ObjectId(cantidad.almacen._id) : null,
         tipo: 'inicial',
         lote: cantidad.lote,
+        movimientoId: new ObjectId(newMovimientoInit.insertedId),
         tipoMovimiento: 'entrada',
         productoId: new ObjectId(productoId),
         fechaVencimiento: moment(cantidad.fechaVencimiento).toDate(),
@@ -868,23 +884,6 @@ export const saveDataInicial = async (req, res) => {
         costoPromedio // : costoTotal / cantidadTotal
       })
     }
-    /* const datosParaAlmacen = cantidadPorAlmacen.map(e => {
-      return {
-        cantidad: Number(e.cantidad),
-        almacenDestino: e.almacen._id ? new ObjectId(e.almacen._id) : null,
-        almacenDestinoNombre: e.almacen._id ? e.almacen.nombre : null,
-        almacenId: e.almacen._id ? new ObjectId(e.almacen._id) : null,
-        tipo: 'inicial',
-        lote: e.lote,
-        tipoMovimiento: 'entrada',
-        productoId: new ObjectId(productoId),
-        fechaVencimiento: moment(e.fechaVencimiento).toDate(),
-        fechaIngreso: moment(e.fechaIngreso).toDate(),
-        costoUnitario: Number(e.costoUnitario),
-        fechaMovimiento: moment().toDate(),
-        creadoPor: new ObjectId(req.uid)
-      }
-    }) */
     await createManyItemsSD({ nameCollection: 'productosPorAlmacen', enviromentClienteId: clienteId, items: datosParaAlmacen })
   }
   return res.status(200).json({ status: 'Datos iniciales guardados exitosamente' })

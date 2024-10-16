@@ -140,31 +140,4 @@ export async function getValoresBcvExcel () {
   }
   console.log({ tasas })
   console.log('Finalizando tarea de buscar las tasas diarias')
-  return
-  const browser = await chromium.launch()
-  /* const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
-  }) */
-  // console.log({ browser })
-  // abrimos una nueva pagina en el navegador
-  const page = await browser.newPage()
-
-  // URL que queremos ir
-  await page.goto('https://www.bcv.org.ve/estadisticas/tipo-cambio-de-referencia-smc', { timeout: 0 })
-  await page.screenshot({ path: 'screenshot.png' })
-  // console.log({ page })
-  // evaluamos la pagina y buscamos los datos de interes
-  const data = await page.evaluate(() => {
-    const dolar = document.querySelectorAll('#dolar')
-    return dolar
-    /* const valorDolar = [...dolar].map(dato => {
-      const nombre = dato.querySelector('span').innerText
-      const valor = dato.querySelector('strong').innerText
-      return { nombre, valor }
-      })m */
-  })
-  console.log({ data })
-  // cerramos el navegador
-  await browser.close()
-  console.log('Finalizando tarea de buscar las tasas diarias')
 }

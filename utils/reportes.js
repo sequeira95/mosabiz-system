@@ -70,6 +70,8 @@ export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order
                       descripcion: '$descripcion',
                       debe: '$debe',
                       haber: '$haber',
+                      monedasUsar: '$monedasUsar',
+                      cantidad: '$cantidad',
                       terceroId: '$terceroId',
                       terceroNombre: '$terceroNombre'
                     }
@@ -205,6 +207,8 @@ export async function mayorAnaliticosAgrupado ({ fechaDesde, fechaHasta, order, 
                       comprobanteId: '$comprobanteId',
                       documento: '$docReferenciaAux',
                       descripcion: '$descripcion',
+                      monedasUsar: '$monedasUsar',
+                      cantidad: '$cantidad',
                       debe: '$debe',
                       haber: '$haber'
                     }

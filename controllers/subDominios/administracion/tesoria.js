@@ -1,6 +1,7 @@
 import { ObjectId } from 'mongodb'
 import { subDominioName, tiposDocumentosFiscales } from '../../../constants.js'
-import { agreggateCollections, agreggateCollectionsSD, formatCollectionName, getItem } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, createItemSD, formatCollectionName, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
+import moment from 'moment-timezone'
 
 export const getTotalesTransaciones = async (req, res) => {
   const { clienteId, fechaTasa, monedaPrincipal, fecha } = req.body
@@ -457,8 +458,8 @@ export const getListTiposcuentas = async (req, res) => {
 }
 export const getDetalleCuenta = async (req, res) => {
   try {
-    const { clienteId, mes, monedaPrincipal, cuenta, fechaTasa } = req.body
-    console.log({ clienteId, mes, monedaPrincipal, cuenta })
+    const { clienteId, mes, monedaPrincipal, cuenta, fechaTasa, year, desde, hasta } = req.body
+    console.log({ clienteId, mes, monedaPrincipal, cuenta, year, desde, hasta })
     let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa, monedaPrincipal } })
     if (!tasa) {
       const ultimaTasa = await agreggateCollections({
@@ -470,12 +471,18 @@ export const getDetalleCuenta = async (req, res) => {
       })
       tasa = ultimaTasa[0] ? ultimaTasa[0] : null
     }
-    const detalle = await agreggateCollectionsSD({
+    let conciliacionTesoreria = await getItemSD({
+      nameCollection: 'conciliacionTesoreria',
+      enviromentClienteId: clienteId,
+      filters: { year: Number(year), mes: mes.value + 1 }
+    })
+    let [detalle] = await agreggateCollectionsSD({
       nameCollection: 'transacciones',
       enviromentClienteId: clienteId,
       pipeline: [
         {
           $match: {
+            fechaPago: { $gte: moment(desde).toDate(), $lte: moment(hasta).toDate() },
             $or: [
               { caja: new ObjectId(cuenta._id) },
               { banco: new ObjectId(cuenta._id) }
@@ -496,13 +503,215 @@ export const getDetalleCuenta = async (req, res) => {
         },
         {
           $group: {
-            _id: null
-            
+            _id: null,
+            ingresos: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      {
+                        $or: [
+                          { $eq: ['$tipo', 'venta'] },
+                          { $eq: ['$tipo', 'ingreso'] },
+                          { $eq: ['$tipo', 'cierre'] },
+                        ],
+                      },
+                      { $ne: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                      { $ne: ['$tipoDocumento', tiposDocumentosFiscales.devolucion] },
+                    ]
+                  },
+                  then: '$valor',
+                  else: 0
+                }
+              }
+            },
+            egresos: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      {
+                        $or: [
+                          { $eq: ['$tipo', 'compra'] },
+                          { $eq: ['$tipo', 'egreso'] },
+                          {
+                            $and: [
+                              { $eq: ['$tipo', 'venta'] },
+                              { $or: [{ $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.devolucion] }] }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  then: '$valor',
+                  else: 0
+                }
+              }
+            },
+            detalle: { $push: '$$ROOT' }
           }
-        }
+        },
       ]
     })
-    return res.status(200).json({ })
+    console.log({ detalle })
+    if (!detalle) detalle = {}
+    if (!conciliacionTesoreria) {
+      const [saldosIniciales] = await agreggateCollectionsSD({
+        nameCollection: 'transacciones',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          {
+            $match: {
+              fechaPago: { $lt: moment(desde).toDate() },
+              $or: [
+                { caja: new ObjectId(cuenta._id) },
+                { banco: new ObjectId(cuenta._id) }
+              ]
+            }
+          },
+          {
+            $addFields: {
+              tasa: { $objectToArray: tasa }
+            }
+          },
+          { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+          { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+          {
+            $addFields: {
+              valor: { $multiply: ['$tasa.v', '$pagoSecundario'] }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              ingresos: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        {
+                          $or: [
+                            { $eq: ['$tipo', 'venta'] },
+                            { $eq: ['$tipo', 'ingreso'] },
+                            { $eq: ['$tipo', 'cierre'] },
+                          ],
+                        },
+                        { $ne: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                        { $ne: ['$tipoDocumento', tiposDocumentosFiscales.devolucion] },
+                      ]
+                    },
+                    then: '$valor',
+                    else: 0
+                  }
+                }
+              },
+              egresos: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        {
+                          $or: [
+                            { $eq: ['$tipo', 'compra'] },
+                            { $eq: ['$tipo', 'egreso'] },
+                            {
+                              $and: [
+                                { $eq: ['$tipo', 'venta'] },
+                                { $or: [{ $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] }, { $eq: ['$tipoDocumento', tiposDocumentosFiscales.devolucion] }] }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    then: '$valor',
+                    else: 0
+                  }
+                }
+              },
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              ingresos: 1,
+              egresos: 1,
+              saldo: { $subtract: ['$ingresos', '$egresos'] }
+            }
+          }
+        ]
+      })
+      console.log({ saldosIniciales })
+      const saldoFinal = Number(((saldosIniciales?.saldo || 0) + (detalle?.ingresos || 0) - (detalle?.egresos || 0)).toFixed(2))
+      conciliacionTesoreria = await upsertItemSD({
+        nameCollection: 'conciliacionTesoreria',
+        enviromentClienteId: clienteId,
+        filters: { year: Number(year), mes: mes.value + 1, cajaBancoId: new ObjectId(cuenta._id) },
+        update: {
+          $set: {
+            // year,
+            // mes: mes.value + 1,
+            ingresos: Number((detalle?.ingresos || 0)?.toFixed(2)),
+            egresos: Number((detalle?.egresos || 0)?.toFixed(2)),
+            saldoInicial: Number((saldosIniciales?.saldo || 0)?.toFixed(2)),
+            saldoFinal,
+            ingresosReal: 0,
+            egresosReal: 0,
+            saldoInicialReal: 0,
+            saldoFinalReal: 0,
+            estado: 'noConciliado'
+          }
+        }
+      })
+      detalle.saldoInicial = conciliacionTesoreria?.saldoInicial || 0
+      detalle.saldoFinal = Number(((conciliacionTesoreria?.saldoInicial || 0) + (detalle?.ingresos || 0) - (detalle?.egresos || 0)).toFixed(2))
+      createItemSD({
+        nameCollection: 'conciliacionTesoreria',
+        enviromentClienteId: clienteId,
+        item: {
+          saldoInicial: saldoFinal,
+          year: mes + 2 === 13 ? Number(year) + 1 : Number(year),
+          mes: mes.value + 2 === 13 ? 1 : mes.value + 2,
+          cajaBancoId: new ObjectId(cuenta._id)
+        }
+      })
+    } else {
+      detalle.saldoInicial = conciliacionTesoreria?.saldoInicial || 0
+      detalle.saldoFinal = Number(((conciliacionTesoreria?.saldoInicial || 0) + (detalle?.ingresos || 0) - (detalle?.egresos || 0)).toFixed(2))
+      if (conciliacionTesoreria.saldoFinalReal !== detalle.saldoFinal) {
+        updateItemSD({
+          nameCollection: 'conciliacionTesoreria',
+          enviromentClienteId: clienteId,
+          filters: { year: Number(year), mes: mes.value + 1, cajaBancoId: new ObjectId(cuenta._id) },
+          update: {
+            $set: {
+              ingresos: Number((detalle?.ingresos || 0)?.toFixed(2)),
+              egresos: Number((detalle?.egresos || 0)?.toFixed(2)),
+              saldoInicial: Number((detalle?.saldoInicial || 0)?.toFixed(2)),
+              saldoFinal: Number((detalle?.saldoFinal || 0)?.toFixed(2)),
+              estado: 'noConciliado',
+              ingresosReal: 0,
+              egresosReal: 0,
+              saldoInicialReal: 0,
+              saldoFinalReal: 0,
+            }
+          }
+        })
+        updateItemSD({
+          nameCollection: 'conciliacionTesoreria',
+          enviromentClienteId: clienteId,
+          filters: { year: mes + 2 === 13 ? Number(year) + 1 : Number(year), mes: mes.value + 2 === 13 ? 1 : mes.value + 2, cajaBancoId: new ObjectId(cuenta._id) },
+          update: {
+            $set: {
+              saldoInicial: Number((detalle?.saldoFinal || 0)?.toFixed(2)),
+            }
+          }
+        })
+      }
+    }
+    console.log({ detalle })
+    return res.status(200).json({ detalle })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar información sobre el detalle de la cuenta ' + e.message })

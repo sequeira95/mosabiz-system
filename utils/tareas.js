@@ -140,4 +140,5 @@ export async function getValoresBcvExcel () {
   }
   console.log({ tasas })
   console.log('Finalizando tarea de buscar las tasas diarias')
+  return tasas
 }

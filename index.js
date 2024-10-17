@@ -1,5 +1,5 @@
 import 'dotenv/config'
-// import cron from 'node-cron'
+import cron from 'node-cron'
 import database from './database/connectdb.js'
 import express from 'express'
 import cookieParser from 'cookie-parser'
@@ -45,7 +45,7 @@ import proveedoresSDRouter from './routes/subDominios/proveedores.js'
 import comprasSDRouter from './routes/subDominios/compras.js'
 import tributosSDRouter from './routes/subDominios/tributos.js'
 import administracionSDRouter from './routes/subDominios/administracion.js'
-import { getValoresBcv, getValoresBcvExcel } from './utils/tareas.js'
+import { getValoresBcvExcel } from './utils/tareas.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
 
@@ -60,12 +60,12 @@ app.use(fileUpload({
   tempFileDir: './uploads' */
 }))
 // tareas segundo plano
-/* cron.schedule('30 8 * * *', () => {
-  getValoresBcv()
+cron.schedule('30 8 * * *', () => {
+  getValoresBcvExcel()
 }, {
   scheduled: true,
   timezone: 'America/Caracas'
-}) */
+})
 const PORT = process.env.PORT || 8080
 // getValoresBcvExcel()
 // midelware

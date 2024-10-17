@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb'
 import moment from 'moment'
-import { agreggateCollections, deleteItem, getCollection, getItem, upsertItem, createItems } from '../utils/dataBaseConfing.js'
+import { agreggateCollections, deleteItem, getCollection, getItem, upsertItem, bulkWrite } from '../utils/dataBaseConfing.js'
 import { getValoresBcvExcel } from '../utils/tareas.js'
 
 export const getMonedas = async (req, res) => {
@@ -51,7 +51,7 @@ export const getTasas = async (req, res) => {
     const tasas = await agreggateCollections({
       nameCollection: 'tasas',
       pipeline: [
-        { $sort: { fechaValor: 1 } },
+        { $sort: { fechaValor: -1 } },
         { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
         { $limit: Number(itemsPorPagina) }
       ]
@@ -148,8 +148,8 @@ export const saveTasas = async (req, res) => {
         }
       }
     })
-    await createItems({ nameCollection: 'tasas', pipeline: bulkWritePipeline })
-    await createItems({ nameCollection: 'monedas', pipeline: monedasUpdate })
+    await bulkWrite({ nameCollection: 'tasas', pipeline: bulkWritePipeline })
+    await bulkWrite({ nameCollection: 'monedas', pipeline: monedasUpdate })
     return res.status(200).json({ status: 'Tasas guardadas con exito' })
   } catch (e) {
     console.log(e)
@@ -191,6 +191,7 @@ export const scrapingTasas = async (req, res) => {
   try {
     // console.log(fechaDia)
     const tasas = await getValoresBcvExcel()
+    console.log({ tasas })
     return res.status(200).json({ tasas })
   } catch (e) {
     console.log(e)

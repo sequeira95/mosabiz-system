@@ -62,7 +62,7 @@ export const collectionNameClient = [
   'ajustes', 'periodos', 'planCuenta', 'planCuentaRespaldo', 'comprobantes', 'detallesComprobantes', 'terceros', 'estadoBancarios', 'categorias',
   'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos', 'contadores', 'movimientos', 'detalleMovimientos',
   'productosPorAlmacen', 'retencionISLR', 'bancos', 'clientes', 'servicios', 'iva', 'proveedores', 'metodosPagos', 'compras', 'detalleCompra', 'transacciones',
-  'documentosFiscales', 'detalleDocumentosFiscales', 'ventassucursales', 'ventaszonas', 'zonasPorSucursales', 'declaraciones'
+  'documentosFiscales', 'detalleDocumentosFiscales', 'ventassucursales', 'ventaszonas', 'zonasPorSucursales', 'declaraciones', 'ajustePrecioProducto', 'conciliacionTesoreria'
 ]
 export const collectionNameAIbiz = [
   'islr', 'iva', 'bancos', 'retIva'
@@ -98,6 +98,17 @@ export const ListIndexesClient = [
     ]
   }
 ]
+export const tipoMovimientos = {
+  solicitudInterna: 'solicitudInterna',
+  solicitudCompra: 'solicitudCompra',
+  transferencia: 'transferencia',
+  Ajuste: 'Ajuste',
+  devolucion: 'devolucion',
+  recepcion: 'recepcion',
+  'despacho-ventas': 'despacho-ventas',
+  'devolucion-ventas': 'devolucion-ventas',
+  dataInit: 'dataInit'
+}
 export const tipoMovimientosShort = {
   solicitudInterna: 'SI',
   solicitudCompra: 'SC',

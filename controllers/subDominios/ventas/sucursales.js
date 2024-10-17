@@ -52,7 +52,7 @@ export const getSucursales = async (req, res) => {
 }
 
 export const createSucursal = async (req, res) => {
-  const { _id, zonaId, codigo, nombre, rif, logo: logoRef, direccion, usuarios, almacenes, cajaNacionalId, cajaDivisasId, clienteId } = req.body
+  const { _id, zonaId, codigo, nombre, rif, logo: logoRef, direccion, usuarios, supervisor, almacenes, cajaNacionalId, cajaDivisasId, clienteId } = req.body
   const file = req.files?.logo
   if (!codigo || !nombre) throw new Error('Debe un gresar un nombre y codigo valido')
   try {
@@ -131,6 +131,7 @@ export const createSucursal = async (req, res) => {
             zonaId: new ObjectId(zonaId),
             cajaNacionalId: new ObjectId(cajaNacionalId),
             cajaDivisasId: new ObjectId(cajaDivisasId),
+            supervisor: new ObjectId(supervisor),
             ...logo
           }
         }
@@ -147,7 +148,10 @@ export const createSucursal = async (req, res) => {
           direccion,
           usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
           almacenes: (almacenesArray || []).map(e => new ObjectId(e)),
-          zonaId: new ObjectId(zonaId)
+          supervisor: new ObjectId(supervisor),
+          zonaId: new ObjectId(zonaId),
+          cajaNacionalId: new ObjectId(cajaNacionalId),
+          cajaDivisasId: new ObjectId(cajaDivisasId),
         }
       })
       sucursal = await getItemSD({ nameCollection: 'ventassucursales', enviromentClienteId: clienteId, filters: { _id: newSucursal.insertedId } })

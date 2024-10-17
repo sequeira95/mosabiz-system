@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollections, agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollection, getCollectionSD, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, createItemSD, createManyItemsSD, formatCollectionName, getCollection, getCollectionSD, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
 import { subDominioName, documentosVentas } from '../../../constants.js'
 import moment from 'moment-timezone'
@@ -1726,6 +1726,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       totalAbonado: 0,
       // estado como primero filtro antes de buscar las que estan pagadas
       estado: Number(ventaInfo.totalPagado.totalCredito || 0) === 0 ? 'pagada' : 'pendiente',
+      fechaUltimoPago: moment().toDate(),
       // este es un arreglo que tiene el texto del total de los IVA por porcentaje
       ivasTotales: ventaInfo.ivasTotales,
       ...ventaInfo.ivas,

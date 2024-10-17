@@ -1726,7 +1726,12 @@ export const reporteInventarios = async (req, res) => {
                   $cond: {
                     if: {
                       $and: [
-                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.recepcion] },
+                        {
+                          $or: [
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.recepcion] },
+                            { $eq: ['$tipo', 'inicial'] }
+                          ]
+                        },
                         { $eq: ['$tipoMovimiento', 'entrada'] },
                         { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
                         { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
@@ -2078,35 +2083,7 @@ export const reporteInventarios = async (req, res) => {
                     else: 0
                   }
                 }
-              },
-              saldosfinalesEntradas: {
-                $sum: {
-                  $cond: {
-                    if: {
-                      $and: [
-                        { $eq: ['$tipoMovimiento', 'entrada'] },
-                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
-                      ]
-                    },
-                    then: '$cantidad',
-                    else: 0
-                  }
-                }
-              },
-              saldosfinalesSalidas: {
-                $sum: {
-                  $cond: {
-                    if: {
-                      $and: [
-                        { $eq: ['$tipoMovimiento', 'salida'] },
-                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
-                      ]
-                    },
-                    then: '$cantidad',
-                    else: 0
-                  }
-                }
-              },
+              }
             }
           },
           {
@@ -2188,8 +2165,6 @@ export const reporteInventarios = async (req, res) => {
               ajustesSalida: 1,
               costoAjustesSalida: 1,
               costoPromedio: '$detalleProducto.costoPromedio',
-              saldosfinalesEntradas: 1,
-              saldosfinalesSalidas: 1
             }
           }
         ]
@@ -2282,6 +2257,572 @@ export const reporteInventarios = async (req, res) => {
           { $unwind: { path: '$detallePorAlmacen', preserveNullAndEmptyArrays: true } },
         ]
       }) */
+      return res.status(200).json({ productos })
+    }
+    return res.status(200).json({ count: count.length ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar datos del inventario' + e.message })
+  }
+}
+export const reporteInventariosAlmacen = async (req, res) => {
+  const { clienteId, desde, hasta, itemsPorPagina, pagina } = req.body
+  const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
+  const ajustePrecioProductoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ajustePrecioProducto' })
+  const productosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
+  const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
+  const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
+  const almacenes = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Devoluciones', 'Transito', 'Auditoria'] } } })
+  const almacenesInvalid = almacenes.map(e => e._id)
+  try {
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            fechaMovimiento: { $lte: moment(hasta).toDate() },
+            $and: [
+              { almacenId: { $nin: almacenesInvalid } },
+              { almacenId: { $exists: true } }
+            ]
+          }
+        },
+        {
+          $group: {
+            _id: '$productoId'
+          }
+        },
+        { $count: 'total' }
+      ]
+    })
+    if (itemsPorPagina || pagina) {
+      const productos = await agreggateCollectionsSD({
+        nameCollection: 'productosPorAlmacen',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          {
+            $match: {
+              fechaMovimiento: { $lte: moment(hasta).toDate() },
+              $and: [
+                { almacenId: { $nin: almacenesInvalid } },
+                { almacenId: { $exists: true } }
+              ]
+            }
+          },
+          {
+            $lookup: {
+              from: movimientosCollection,
+              localField: 'movimientoId',
+              foreignField: '_id',
+              as: 'detalleMovimiento'
+            },
+          },
+          { $unwind: { path: '$detalleMovimiento', preserveNullAndEmptyArrays: true } },
+          {
+            $group: {
+              _id: {
+                productoId: '$productoId',
+                almacenId: '$almacenId'
+              },
+              saldosInicialesEntradas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$tipoMovimiento', 'entrada'] },
+                        { $lt: ['$fechaMovimiento', moment(desde).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              saldosInicialesSalidas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$tipoMovimiento', 'salida'] },
+                        { $lt: ['$fechaMovimiento', moment(desde).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              entradasCompras: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        {
+                          $or: [
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.recepcion] },
+                            { $eq: ['$tipo', 'inicial'] }
+                          ]
+                        },
+                        { $eq: ['$tipoMovimiento', 'entrada'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              costosEntradasCompras: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.recepcion] },
+                        { $eq: ['$tipoMovimiento', 'entrada'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: { $multiply: ['$costoUnitario', '$cantidad'] },
+                    else: 0
+                  }
+                }
+              },
+              devolucionEntradaCompra: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.devolucion] },
+                        { $eq: ['$tipo', 'ajuste'] },
+                        { $eq: ['$tipoMovimiento', 'entrada'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              costoDevolucionEntradaCompra: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.devolucion] },
+                        { $eq: ['$tipo', 'ajuste'] },
+                        { $eq: ['$tipoMovimiento', 'entrada'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: { $multiply: ['$costoUnitario', '$cantidad'] },
+                    else: 0
+                  }
+                }
+              },
+              devolucionSalidaCompra: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.devolucion] },
+                        { $eq: ['$tipo', 'ajuste'] },
+                        { $eq: ['$tipoMovimiento', 'salida'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              costoDevolucionSalidaCompra: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.devolucion] },
+                        { $eq: ['$tipo', 'ajuste'] },
+                        { $eq: ['$tipoMovimiento', 'salida'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: { $multiply: ['$costoUnitario', '$cantidad'] },
+                    else: 0
+                  }
+                }
+              },
+              salidasVentas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        {
+                          $or: [
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos['despacho-ventas']] },
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.solicitudInterna] },
+                          ]
+                        },
+                        { $eq: ['$tipoMovimiento', 'salida'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              costoSalidasVentas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        {
+                          $or: [
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos['despacho-ventas']] },
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.solicitudInterna] },
+                          ]
+                        },
+                        { $eq: ['$tipoMovimiento', 'salida'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: { $multiply: ['$costoUnitario', '$cantidad'] },
+                    else: 0
+                  }
+                }
+              },
+              devolucionEntradaVentas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        {
+                          $or: [
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos['despacho-ventas']] },
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.solicitudInterna] },
+                          ]
+                        },
+                        { $eq: ['$tipo', 'ajuste'] },
+                        { $eq: ['$tipoMovimiento', 'entrada'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              costoDevolucionEntradaCompras: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        {
+                          $or: [
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos['despacho-ventas']] },
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.solicitudInterna] },
+                          ]
+                        },
+                        { $eq: ['$tipo', 'ajuste'] },
+                        { $eq: ['$tipoMovimiento', 'entrada'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: { $multiply: ['$costoUnitario', '$cantidad'] },
+                    else: 0
+                  }
+                }
+              },
+              devolucionSalidaVentas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        {
+                          $or: [
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos['despacho-ventas']] },
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.solicitudInterna] },
+                          ]
+                        },
+                        { $eq: ['$tipo', 'ajuste'] },
+                        { $eq: ['$tipoMovimiento', 'salida'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              costoDevolucionSalidaVentas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        {
+                          $or: [
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos['despacho-ventas']] },
+                            { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.solicitudInterna] },
+                          ]
+                        },
+                        { $eq: ['$tipo', 'ajuste'] },
+                        { $eq: ['$tipoMovimiento', 'salida'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: { $multiply: ['$costoUnitario', '$cantidad'] },
+                    else: 0
+                  }
+                }
+              },
+              transferenciasEntradas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.transferencia] },
+                        { $eq: ['$tipoMovimiento', 'entrada'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              costoTransferenciasEntradas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.transferencia] },
+                        { $eq: ['$tipoMovimiento', 'entrada'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: { $multiply: ['$costoUnitario', '$cantidad'] },
+                    else: 0
+                  }
+                }
+              },
+              transferenciasSalidas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.transferencia] },
+                        { $eq: ['$tipoMovimiento', 'salida'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              costosTransferenciasSalidas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.transferencia] },
+                        { $eq: ['$tipoMovimiento', 'salida'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: { $multiply: ['$costoUnitario', '$cantidad'] },
+                    else: 0
+                  }
+                }
+              },
+              ajustesEntradas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.Ajuste] },
+                        { $eq: ['$tipoMovimiento', 'entrada'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              costoAjustesEntradas: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.Ajuste] },
+                        { $eq: ['$tipoMovimiento', 'entrada'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: { $multiply: ['$costoUnitario', '$cantidad'] },
+                    else: 0
+                  }
+                }
+              },
+              ajustesSalida: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.Ajuste] },
+                        { $eq: ['$tipoMovimiento', 'salida'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: '$cantidad',
+                    else: 0
+                  }
+                }
+              },
+              costoAjustesSalida: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $eq: ['$detalleMovimiento.tipo', tipoMovimientos.Ajuste] },
+                        { $eq: ['$tipoMovimiento', 'salida'] },
+                        { $gte: ['$fechaMovimiento', moment(desde).toDate()] },
+                        { $lte: ['$fechaMovimiento', moment(hasta).toDate()] }
+                      ]
+                    },
+                    then: { $multiply: ['$costoUnitario', '$cantidad'] },
+                    else: 0
+                  }
+                }
+              }
+            }
+          },
+          {
+            $lookup: {
+              from: ajustePrecioProductoCollection,
+              localField: '_id.productoId',
+              foreignField: 'productoId',
+              pipeline: [
+                { $match: { fecha: { $lte: moment(desde).toDate() } } },
+                { $sort: { fecha: -1 } },
+                { $limit: 1 }
+              ],
+              as: 'costoPromedioSaldosIniciales'
+            },
+          },
+          { $unwind: { path: '$costoPromedioSaldosIniciales', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: productosCollection,
+              localField: '_id.productoId',
+              foreignField: '_id',
+              pipeline: [
+                {
+                  $lookup: {
+                    from: categoriasCollection,
+                    localField: 'categoria',
+                    foreignField: '_id',
+                    pipeline: [
+                      {
+                        $project: {
+                          _id: 1,
+                          nombre: 1
+                        }
+                      }
+                    ],
+                    as: 'detalleCategoria'
+                  },
+                },
+                { $unwind: { path: '$detalleCategoria', preserveNullAndEmptyArrays: true } },
+                {
+                  $project: {
+                    _id: 1,
+                    codigo: 1,
+                    nombre: 1,
+                    unidad: 1,
+                    categoria: '$detalleCategoria.nombre',
+                    costoPromedio: '$costoPromedio'
+                  }
+                }
+              ],
+              as: 'detalleProducto'
+            },
+          },
+          { $unwind: { path: '$detalleProducto', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: almacenesCollection,
+              localField: '_id.almacenId',
+              foreignField: '_id',
+              as: 'detalleAlmacen'
+            },
+          },
+          { $unwind: { path: '$detalleAlmacen', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              productoId: '$_id.productoId',
+              almacenId: '$_id.almacenId',
+              almacenNombre: '$detalleAlmacen.nombre',
+              costoPromedioSaldosIniciales: '$costoPromedioSaldosIniciales.costoPromedio',
+              codigo: '$detalleProducto.codigo',
+              nombre: '$detalleProducto.nombre',
+              categoria: '$detalleProducto.categoria',
+              unidad: '$detalleProducto.unidad',
+              saldosInicialesEntradas: 1,
+              saldosInicialesSalidas: 1,
+              entradasCompras: 1,
+              costosEntradasCompras: 1,
+              devolucionEntradaCompras: 1,
+              devolucionSalidaCompra: 1,
+              costoDevolucionSalidaCompra: 1,
+              costoDevolucionEntradaCompras: 1,
+              devolucionSalidaVentas: 1,
+              costoDevolucionSalidaVentas: 1,
+              transferenciasEntradas: 1,
+              costoTransferenciasEntradas: 1,
+              transferenciasSalidas: 1,
+              costosTransferenciasSalidas: 1,
+              ajustesEntradas: 1,
+              costoAjustesEntradas: 1,
+              ajustesSalida: 1,
+              costoAjustesSalida: 1,
+              costoPromedio: '$detalleProducto.costoPromedio',
+            }
+          },
+          {
+            $group: {
+              _id: {
+                almacenId: '$almacenId',
+                almacenNombre: '$almacenNombre'
+              },
+              productos: {
+                $push: '$$ROOT'
+              }
+            }
+          }
+        ]
+      })
       return res.status(200).json({ productos })
     }
     return res.status(200).json({ count: count.length ? count[0].total : 0 })

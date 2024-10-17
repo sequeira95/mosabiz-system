@@ -1,6 +1,7 @@
 import { ObjectId } from 'mongodb'
 import moment from 'moment'
 import { agreggateCollections, deleteItem, getCollection, getItem, upsertItem, createItems } from '../utils/dataBaseConfing.js'
+import { getValoresBcvExcel } from '../utils/tareas.js'
 
 export const getMonedas = async (req, res) => {
   try {
@@ -181,6 +182,16 @@ export const getTasaByDay = async (req, res) => {
       tasa = ultimaTasa[0] ? ultimaTasa[0] : null
     }
     return res.status(200).json({ tasa })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar tasas monetarias' + e.message })
+  }
+}
+export const scrapingTasas = async (req, res) => {
+  try {
+    // console.log(fechaDia)
+    const tasas = await getValoresBcvExcel()
+    return res.status(200).json({ tasas })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar tasas monetarias' + e.message })

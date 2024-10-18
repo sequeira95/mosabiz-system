@@ -42,7 +42,7 @@ export async function createItem ({ nameCollection, item = {} }) {
   const collection = await db.collection(nameCollection)
   return await collection.insertOne(item)
 }
-export async function createItems ({ nameCollection, pipeline = [] }) {
+export async function bulkWrite ({ nameCollection, pipeline = [] }) {
   const db = await accessToDataBase(dataBasePrincipal)
   const collection = await db.collection(nameCollection)
   return await collection.bulkWrite(pipeline)

@@ -189,7 +189,10 @@ export const getDetalleTransacciones = async (req, res) => {
             saldoInicialReal: '$detalleConciliacion.saldoInicialReal',
             saldoFinalReal: '$detalleConciliacion.saldoFinalReal',
             ingresosReal: '$detalleConciliacion.ingresosReal',
-            egresosReal: '$detalleConciliacion.egresosReal'
+            egresosReal: '$detalleConciliacion.egresosReal',
+            year: '$detalleConciliacion.year',
+            mes: '$detalleConciliacion.mes',
+            conciliacionId: '$detalleConciliacion._id'
           }
         }
       ]
@@ -701,6 +704,49 @@ export const deleteTransaccion = async (req, res) => {
       }
     })
     return res.status(200).json({ transaccion })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar la transaccion ' + e.message })
+  }
+}
+export const saveConciliacion = async (req, res) => {
+  try {
+    const {
+      clienteId,
+      saldoInicialReal,
+      saldoFinalReal,
+      ingresosReal,
+      egresosReal,
+      conciliacionId,
+      ingresos,
+      egresos,
+      saldoInicial,
+      saldoFinal
+    } = req.body
+    console.log(req.body)
+    let estado = 'noConciliado'
+    if (ingresos !== 0 && ingresos === ingresosReal &&
+      egresos !== 0 && egresos === egresosReal &&
+      saldoInicial !== 0 && saldoInicial === saldoInicialReal &&
+      saldoFinal !== 0 && saldoFinal === saldoFinalReal) {
+      estado = 'conciliado'
+    }
+    const conciliacion = await updateItemSD({
+      nameCollection: 'conciliacionTesoreria',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(conciliacionId) },
+      update: {
+        $set: {
+          ingresosReal: Number(ingresosReal?.toFixed(2)),
+          egresosReal: Number(egresosReal?.toFixed(2)),
+          saldoInicialReal: Number(saldoInicialReal?.toFixed(2)),
+          saldoFinalReal: Number(saldoFinalReal?.toFixed(2)),
+          estado
+        }
+      }
+    })
+    console.log({ conciliacion })
+    return res.status(200).json({ conciliacion })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la transaccion ' + e.message })

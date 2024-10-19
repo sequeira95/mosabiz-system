@@ -59,13 +59,15 @@ app.use(fileUpload({
   /* useTempFiles: true,
   tempFileDir: './uploads' */
 }))
-// tareas segundo plano
-/* cron.schedule('30 8 * * *', () => {
-  getValoresBcvExcel()
-}, {
-  scheduled: true,
-  timezone: 'America/Caracas'
-}) */
+if (process.env.ambiente !== 'beta') {
+  // tareas segundo plano
+  cron.schedule('30 8 * * *', () => {
+    getValoresBcvExcel()
+  }, {
+    scheduled: true,
+    timezone: 'America/Caracas'
+  })
+}
 const PORT = process.env.PORT || 8080
 // getValoresBcvExcel()
 // midelware

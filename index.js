@@ -61,7 +61,7 @@ app.use(fileUpload({
 }))
 if (process.env.ambiente !== 'beta') {
   // tareas segundo plano
-  cron.schedule('30 8 * * *', () => {
+  cron.schedule('* 0 * * *', () => {
     getValoresBcvExcel()
   }, {
     scheduled: true,

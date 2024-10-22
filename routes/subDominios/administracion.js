@@ -1,6 +1,6 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { getTotalesCuenta, getDetalleTransacciones, getListTiposcuentas, getTotalesTransaciones, getDetalleCuenta, saveTransaccion, deleteTransaccion, saveConciliacion } from '../../controllers/subDominios/administracion/tesoria.js'
+import { getTotalesCuenta, getDetalleTransacciones, getListTiposcuentas, getTotalesTransaciones, getDetalleCuenta, saveTransaccion, deleteTransaccion, saveConciliacion, saveTransaccionToArray } from '../../controllers/subDominios/administracion/tesoria.js'
 
 const router = express.Router()
 
@@ -12,4 +12,5 @@ router.post('/get/detalleCuentas', requireSubDominioToken, getDetalleCuenta)
 router.post('/save/transaccion', requireSubDominioToken, saveTransaccion)
 router.post('/delete/transaccion', requireSubDominioToken, deleteTransaccion)
 router.post('/save/consiliacionTesoreria', requireSubDominioToken, saveConciliacion)
+router.post('/transacciones/saveToArray', requireSubDominioToken, saveTransaccionToArray)
 export default router

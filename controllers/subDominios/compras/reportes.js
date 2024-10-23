@@ -271,3 +271,157 @@ export const dataReportePorPagar = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar las retenciones de ISLR ' + e.message })
   }
 }
+export const listadoCompras = async (req, res) => {
+  const { clienteId, itemsPorPagina, pagina, desde, hasta } = req.body
+  try {
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match:
+          {
+            tipoMovimiento: 'compra',
+            fecha: { $gte: moment(desde).toDate(), $lte: moment(hasta).toDate() }
+          }
+        },
+        { $count: 'total' }
+      ]
+    })
+    if (itemsPorPagina && pagina) {
+      const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+      const comprasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'compras' })
+      const listadoCompras = await agreggateCollectionsSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          {
+            $match:
+            {
+              tipoMovimiento: 'compra',
+              fecha: { $gte: moment(desde).toDate(), $lte: moment(hasta).toDate() }
+            }
+          },
+          { $sort: { fecha: 1 } },
+          { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+          { $limit: Number(itemsPorPagina) },
+          {
+            $lookup: {
+              from: comprasCollection,
+              localField: 'ordenCompraId',
+              foreignField: '_id',
+              as: 'ordenCompraDetalle'
+            }
+          },
+          { $unwind: { path: '$ordenCompraDetalle', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: proveedoresCollection,
+              localField: 'proveedorId',
+              foreignField: '_id',
+              as: 'proveedor'
+            }
+          },
+          { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } }
+        ]
+      })
+      // console.log(productsList)
+      return res.status(200).json({ listadoCompras })
+    }
+    return res.status(200).json({ count: count[0] ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las retenciones de ISLR ' + e.message })
+  }
+}
+export const listadoComprasDetallada = async (req, res) => {
+  const { clienteId, itemsPorPagina, pagina, desde, hasta } = req.body
+  try {
+    const count = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match:
+          {
+            tipoMovimiento: 'compra',
+            fecha: { $gte: moment(desde).toDate(), $lte: moment(hasta).toDate() }
+          }
+        },
+        { $count: 'total' }
+      ]
+    })
+    if (itemsPorPagina && pagina) {
+      const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+      const comprasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'compras' })
+      const detalleDocumentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleDocumentosFiscales' })
+      const listadoCompras = await agreggateCollectionsSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          {
+            $match:
+            {
+              tipoMovimiento: 'compra',
+              fecha: { $gte: moment(desde).toDate(), $lte: moment(hasta).toDate() }
+            }
+          },
+          { $sort: { fecha: 1 } },
+          { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+          { $limit: Number(itemsPorPagina) },
+          {
+            $lookup: {
+              from: comprasCollection,
+              localField: 'ordenCompraId',
+              foreignField: '_id',
+              as: 'ordenCompraDetalle'
+            }
+          },
+          { $unwind: { path: '$ordenCompraDetalle', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: proveedoresCollection,
+              localField: 'proveedorId',
+              foreignField: '_id',
+              as: 'proveedor'
+            }
+          },
+          { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: detalleDocumentosFiscalesCollection,
+              localField: '_id',
+              foreignField: 'facturaId',
+              as: 'detalleDocumento'
+            }
+          },
+          { $unwind: { path: '$detalleDocumento', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              proveedoRazonSocial: '$proveedor.razonSocial',
+              proveedorDocumento: { $concat: ['$proveedor.tipoDocumento', '-', '$proveedor.documentoIdentidad'] },
+              numeroOrden: '$ordenCompraDetalle.numeroOrden',
+              fechaOrden: '$ordenCompraDetalle.fecha',
+              fecha: 1,
+              numeroFactura: 1,
+              codigoProducto: '$detalleDocumento.codigo',
+              nombreProducto: '$detalleDocumento.nombre',
+              costoUnitario: '$detalleDocumento.costoUnitario',
+              cantidad: '$detalleDocumento.cantidad',
+              baseImponible: '$detalleDocumento.baseImponible',
+              montoIva: '$detalleDocumento.montoIva',
+              iva: '$detalleDocumento.iva',
+              costoTotal: '$detalleDocumento.costoTotal',
+            }
+          }
+        ]
+      })
+      // console.log(productsList)
+      return res.status(200).json({ listadoCompras })
+    }
+    return res.status(200).json({ count: count[0] ? count[0].total : 0 })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar las retenciones de ISLR ' + e.message })
+  }
+}

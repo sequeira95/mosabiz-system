@@ -25,7 +25,7 @@ import {
   getSolicitudesInventario,
   saveEditFactura
 } from '../../controllers/subDominios/compras/compras.js'
-import { dataReportePorPagar } from '../../controllers/subDominios/compras/reportes.js'
+import { dataReportePorPagar, listadoCompras, listadoComprasDetallada } from '../../controllers/subDominios/compras/reportes.js'
 
 const router = express.Router()
 
@@ -50,9 +50,13 @@ router.post('/save/factura', requireSubDominioToken, createFacturas)
 router.post('/get/listadoFacturas', requireSubDominioToken, getFacturas)
 router.post('/delete/img', requireSubDominioToken, deleteImgCompras)
 router.post('/add/img', requireSubDominioToken, addImagenCompras)
-router.post('/getDataReportePorPagar', requireSubDominioToken, dataReportePorPagar)
 router.post('/get/listadoFacturasPagadas', requireSubDominioToken, getFacturasPagadas)
 router.post('/save/EditFactura', requireSubDominioToken, saveEditFactura)
 router.post('/anular/documento', requireSubDominioToken, anularDocumento)
 router.post('/get/ordenesCompra/historial', requireSubDominioToken, getHistorialOrdenes)
+
+// REPORTES
+router.post('/getDataReportePorPagar', requireSubDominioToken, dataReportePorPagar)
+router.post('/reportes/ListadoCompras', requireSubDominioToken, listadoCompras)
+router.post('/reportes/ListadoComprasDetallado', requireSubDominioToken, listadoComprasDetallada)
 export default router

@@ -74,6 +74,7 @@ export const upsertAjusteCliente = async (req, res) => {
   if (ajuste.accesoFacturacionFija && ajuste.accesoFacturacionFija[0]) ajuste.accesoFacturacionFija = ajuste.accesoFacturacionFija.map(accesoFacturacionFija => new ObjectId(accesoFacturacionFija._id))
   if (ajuste.puedeCrearEditarFacturacionFija && ajuste.puedeCrearEditarFacturacionFija[0]) ajuste.puedeCrearEditarFacturacionFija = ajuste.puedeCrearEditarFacturacionFija.map(puedeCrearEditarFacturacionFija => new ObjectId(puedeCrearEditarFacturacionFija._id))
   if (ajuste.numeroFacturaInicial) ajuste.numeroFacturaInicial = Number(ajuste.numeroFacturaInicial)
+  if (ajuste.puedeConciliar && ajuste.puedeConciliar[0]) ajuste.puedeConciliar = ajuste.puedeConciliar.map(puedeConciliar => new ObjectId(puedeConciliar._id))
   if (ajuste.numeroRetIslrInicial || ajuste.numeroRetIvaInicial) {
     const verificarNumeros = await getItemSD({
       enviromentClienteId: clienteId,

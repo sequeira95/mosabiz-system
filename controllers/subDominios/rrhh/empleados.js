@@ -23,8 +23,8 @@ export const getEmpleados = async (req, res) => {
     if (filters.fechaContrato) {
       query.fechaContrato = { $gte: momentDate(undefined, filters.fechaContrato).toDate() }
     }
-    if (filters.activo) {
-      query.activo = filters.activo
+    if (filters.inactivo) {
+      query.activo = !filters.inactivo
     }
 
     const empleados = await agreggateCollectionsSD({
@@ -123,7 +123,7 @@ export const saveEmpleados = async (req, res) => {
         nombre: empleado.nombre,
         email: empleado.email,
         telefono: empleado.telefono,
-        fechaNacimiento: fechaNacimiento.fechaNacimiento ? momentDate(undefined, empleado.fechaNacimiento).toDate(): undefined,
+        fechaNacimiento: empleado.fechaNacimiento ? momentDate(undefined, empleado.fechaNacimiento).toDate() : undefined,
         foto: empleado.foto,
         pais: empleado.pais,
         ciudad: empleado.ciudad,

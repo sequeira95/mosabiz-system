@@ -176,6 +176,7 @@ export const getTasaByDay = async (req, res) => {
         nameCollection: 'tasas',
         pipeline: [
           { $sort: { fechaOperacion: -1 } },
+          { $match: { fechaValor: { $lte: moment(fechaDia, 'DD/MM/YYYY').toDate() } } },
           { $limit: 1 }
         ]
       })

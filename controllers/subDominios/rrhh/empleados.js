@@ -89,7 +89,7 @@ export const upsertEmpleados = async (req, res) => {
       tipo,
       tiempoContrato,
       cargo,
-      perfiles,
+      perfiles: (perfiles || []).map(e => new ObjectId(e)),
       observacion,
       activo
     }
@@ -98,7 +98,7 @@ export const upsertEmpleados = async (req, res) => {
       nameCollection: 'empleados',
       filters: { codigo: objEmpleado.codigo, activo: true },
     })
-    if (existeEmpleado?._id && _id && existeEmpleado._id !== _id) throw new Error(`El codigo del empleado ya existe y pertenece a ${existeEmpleado.nombre || 'Sin nombre'}`)
+    if (existeEmpleado?._id && _id && String(existeEmpleado._id) !== _id) throw new Error(`El codigo del empleado ya existe y pertenece a ${existeEmpleado.nombre || 'Sin nombre'}`)
     if (!_id && existeEmpleado?._id) throw new Error(`El codigo del empleado ya existe y pertenece a ${existeEmpleado.nombre || 'Sin nombre'}`)
     if (_id) {
       await updateItemSD({
@@ -123,9 +123,6 @@ export const upsertEmpleados = async (req, res) => {
           }
         ]
 
-      })
-      await createItemSD({
-        item: { ...objEmpleado, creadoPor: new ObjectId(creadoPor) }
       })
     }
     return res.status(200).json({ status: 'Empleado creado exitosamente' })
@@ -157,7 +154,7 @@ export const saveEmpleados = async (req, res) => {
         tipo: empleado.tipo,
         tiempoContrato: empleado.tiempoContrato,
         cargo: empleado.cargo,
-        perfiles: empleado.perfiles,
+        perfiles: (empleado.perfiles || []).map(e => new ObjectId(e)),
         observacion: empleado.observacion,
         activo: empleado.activo,
         actualizadoPor: new ObjectId(creadoPor)

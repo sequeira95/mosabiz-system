@@ -215,7 +215,7 @@ export const saveSucursales = async (req, res) => {
     }
   } catch (e) {
     console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de eliminar la sucursal' + e.message })
+    return res.status(500).json({ error: 'Error de servidor al momento de guardar las sucursales' + e.message })
   }
   return res.status(200).json({ status: 'Sucursales guardados exitosamente' })
 }

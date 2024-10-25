@@ -33,6 +33,7 @@ import zonasSDRouter from './routes/subDominios/zonas.js'
 import activoFijosSDRouter from './routes/subDominios/activosFijos.js'
 import almacenSDRouter from './routes/subDominios/almacen.js'
 import ventasSDRouter from './routes/subDominios/ventas.js'
+import rrhhSDRouter from './routes/subDominios/rrhh.js'
 import historialSDRouter from './routes/subDominios/historial.js'
 import productosSDRouter from './routes/subDominios/inventarioProducto.js'
 import movimientosSDRouter from './routes/subDominios/movimientos.js'
@@ -101,6 +102,8 @@ app.use('/v1/sub-dominio/zonas', zonasSDRouter)
 app.use('/v1/sub-dominio/activosFijo', activoFijosSDRouter)
 app.use('/v1/sub-dominio/almacen', almacenSDRouter)
 app.use('/v1/sub-dominio/ventas', ventasSDRouter)
+app.use('/v1/sub-dominio/rrhh', rrhhSDRouter)
+
 app.use('/v1/sub-dominio/productos', productosSDRouter)
 app.use('/v1/sub-dominio/movimientos', movimientosSDRouter)
 app.use('/v1/sub-dominio/historial', historialSDRouter)

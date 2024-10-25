@@ -7,11 +7,12 @@ export const getCategorias = async (req, res) => {
   const { clienteId, tipo } = req.body
   try {
     const activosFijosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'activosFijos' })
+    const productosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productos' })
     const categorias = await agreggateCollectionsSD({
       nameCollection: 'categorias',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipo } },
+        { $match: { tipo, activo: { $ne: false } } },
         {
           $lookup: {
             from: activosFijosCollection,
@@ -21,11 +22,21 @@ export const getCategorias = async (req, res) => {
           }
         },
         {
+          $lookup: {
+            from: productosCollection,
+            localField: '_id',
+            foreignField: 'categoria',
+            pipeline: [{ $limit: 1 }],
+            as: 'detalleProducto'
+          }
+        },
+        {
           $project: {
             nombre: 1,
             tipo: 1,
             vidaUtil: 1,
             observacion: 1,
+            hasProducto: { $size: '$detalleProducto' },
             hasActivo: { $size: '$detalleActivoFijo' }
           }
         }
@@ -44,14 +55,14 @@ export const getCategoriasForVentas = async (req, res) => {
       nameCollection: 'categorias',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipo: 'inventario' } }
+        { $match: { tipo: 'inventario', activo: { $ne: false } } }
       ]
     })
     const categoriasServicios = await agreggateCollectionsSD({
       nameCollection: 'categorias',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipo: 'servicios' } }
+        { $match: { tipo: 'servicios', activo: { $ne: false } } }
       ]
     })
     return res.status(200).json({ categoriasProductos, categoriasServicios })
@@ -63,15 +74,18 @@ export const getCategoriasForVentas = async (req, res) => {
 export const getCategoriasForCompras = async (req, res) => {
   const { clienteId, tipo } = req.body
   try {
+    console.log(req.body)
     let matchConfig = { tipo: { $in: ['compras/proveedor', 'compras/servicio'] } }
     if (tipo === 'compras/proveedor') matchConfig = { tipo: 'compras/proveedor' }
     if (tipo === 'compras/servicio') matchConfig = { tipo: 'compras/servicio' }
     const planCuentaCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const serviciosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'servicios' })
     const categorias = await agreggateCollectionsSD({
       nameCollection: 'categorias',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: matchConfig },
+        { $match: { ...matchConfig, activo: { $ne: false } } },
         {
           $lookup: {
             from: planCuentaCollection,
@@ -90,6 +104,28 @@ export const getCategoriasForCompras = async (req, res) => {
         },
         { $unwind: { path: '$detalleCuenta', preserveNullAndEmptyArrays: true } },
         {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: '_id',
+            foreignField: 'categoria',
+            pipeline: [
+              { $limit: 1 }
+            ],
+            as: 'detalleProveedor'
+          }
+        },
+        {
+          $lookup: {
+            from: serviciosCollection,
+            localField: '_id',
+            foreignField: 'categoria',
+            pipeline: [
+              { $limit: 1 }
+            ],
+            as: 'detalleServicio'
+          }
+        },
+        {
           $project: {
             nombre: 1,
             tipo: 1,
@@ -97,7 +133,9 @@ export const getCategoriasForCompras = async (req, res) => {
             cuentaCodigo: '$detalleCuenta.codigo',
             cuentaDescripcion: '$detalleCuenta.descripcion',
             observacion: 1,
-            tiposRetencion: 1
+            tiposRetencion: 1,
+            hasProveedor: { $size: '$detalleProveedor' },
+            hasServicio: { $size: '$detalleServicio' }
           }
         }
       ]
@@ -364,13 +402,23 @@ export const saveCategoriaToArray = async (req, res) => {
 export const deleteCategorias = async (req, res) => {
   const { _id, clienteId } = req.body
   try {
-    await deleteItemSD({
+    await updateItemSD({
+      nameCollection: 'categorias',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: {
+        $set: {
+          estado: 'inactivo'
+        }
+      }
+    })
+    /* await deleteItemSD({
       nameCollection: 'categorias',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) }
     })
     deleteManyItemsSD({ nameCollection: 'categoriaPorAlmacen', enviromentClienteId: clienteId, filters: { categoriaId: new ObjectId(_id) } })
-    deleteManyItemsSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, filters: { categoriaId: new ObjectId(_id) } })
+    deleteManyItemsSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, filters: { categoriaId: new ObjectId(_id) } }) */
     return res.status(200).json({ status: 'categoría eliminada exitosamente' })
   } catch (e) {
     console.log(e)

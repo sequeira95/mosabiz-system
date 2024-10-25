@@ -11,7 +11,7 @@ export const getServicios = async (req, res) => {
       nameCollection: 'servicios',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipo } },
+        { $match: { tipo, activo: { $ne: false } } },
         {
           $lookup: {
             from: categoriaCollection,
@@ -163,7 +163,8 @@ export const saveToArray = async (req, res) => {
 export const deleteServicio = async (req, res) => {
   const { clienteId, _id } = req.body
   try {
-    await deleteItemSD({ nameCollection: 'servicios', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
+    await updateItemSD({ nameCollection: 'servicios', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) }, update: { $set: { activo: false } } })
+    // await deleteItemSD({ nameCollection: 'servicios', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
     return res.status(200).json({ status: 'Servicio eliminado exitosamente' })
   } catch (e) {
     console.log(e)

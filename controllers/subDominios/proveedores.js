@@ -13,6 +13,7 @@ export const getProveedores = async (req, res) => {
       nameCollection: 'proveedores',
       enviromentClienteId: clienteId,
       pipeline: [
+        { $match: { activo: { $ne: false } } },
         {
           $lookup: {
             from: metodosPagosCollection,
@@ -216,8 +217,9 @@ export const saveToArray = async (req, res) => {
 export const deleteProveedor = async (req, res) => {
   const { clienteId, _id } = req.body
   try {
-    await deleteItemSD({ nameCollection: 'proveedores', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
-    deleteManyItemsSD({ nameCollection: 'metodosPagos', enviromentClienteId: clienteId, filters: { proveedorId: new ObjectId(_id) } })
+    await updateItemSD({ nameCollection: 'proveedores', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) }, update: { $set: { activo: false } } })
+    /* await deleteItemSD({ nameCollection: 'proveedores', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
+    deleteManyItemsSD({ nameCollection: 'metodosPagos', enviromentClienteId: clienteId, filters: { proveedorId: new ObjectId(_id) } }) */
     return res.status(200).json({ status: 'Proveedor eliminado exitosamente' })
   } catch (e) {
     console.log(e)

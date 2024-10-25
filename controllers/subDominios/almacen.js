@@ -11,7 +11,7 @@ export const getAlmacenes = async (req, res) => {
       nameCollection: 'almacenes',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { ...matchTipo } },
+        { $match: { ...matchTipo, activo: { $ne: false } } },
         {
           $lookup: {
             from: productorPorAlamcenCollection,
@@ -836,11 +836,22 @@ export const addImagenToAlmacen = async (req, res) => {
   }
 }
 export const deleteAlmacen = async (req, res) => {
-  const { clienteId, _id } = req.body
+  const { clienteId, _id, documentosAdjuntos } = req.body
   try {
-    await deleteItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
-    deleteManyItemsSD({ nameCollection: 'categoriaPorAlmacen', enviromentClienteId: clienteId, filters: { almacenId: new ObjectId(_id) } })
-    return res.status(200).json({ status: 'almacen eliminado exitosamente' })
+    if (documentosAdjuntos[0]) {
+      for (const documento of documentosAdjuntos) {
+        await deleteImg(documento.fileId)
+      }
+    }
+    await updateItemSD({
+      nameCollection: 'almacenes',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: { $set: { activo: false } }
+    })
+    // await deleteItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
+    // deleteManyItemsSD({ nameCollection: 'categoriaPorAlmacen', enviromentClienteId: clienteId, filters: { almacenId: new ObjectId(_id) } })
+    return res.status(200).json({ status: 'almacen desactivado exitosamente' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar el activo' + e.message })

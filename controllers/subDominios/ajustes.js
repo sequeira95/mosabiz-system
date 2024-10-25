@@ -59,6 +59,10 @@ export const upsertAjusteCliente = async (req, res) => {
   if (ajuste.puedeDesbloquearComprobantes) {
     ajuste.puedeDesbloquearComprobantes = ajuste.puedeDesbloquearComprobantes.map(userId => new ObjectId(userId))
   }
+  if (ajuste.puedeEditarAuditoria && ajuste.puedeEditarAuditoria[0]) ajuste.puedeEditarAuditoria = ajuste.puedeEditarAuditoria.map(puedeEditarAuditoria => new ObjectId(puedeEditarAuditoria._id))
+  if (ajuste.puedeEditarDevoluciones && ajuste.puedeEditarDevoluciones[0]) ajuste.puedeEditarDevoluciones = ajuste.puedeEditarDevoluciones.map(puedeEditarDevoluciones => new ObjectId(puedeEditarDevoluciones._id))
+  if (ajuste.puedeEditarAlmacenes && ajuste.puedeEditarAlmacenes[0]) ajuste.puedeEditarAlmacenes = ajuste.puedeEditarAlmacenes.map(puedeEditarAlmacenes => new ObjectId(puedeEditarAlmacenes._id))
+  if (ajuste.puedeDesactivarProductos && ajuste.puedeDesactivarProductos[0]) ajuste.puedeDesactivarProductos = ajuste.puedeDesactivarProductos.map(puedeDesactivarProductos => new ObjectId(puedeDesactivarProductos._id))
   if (ajuste.puedeRecibir && ajuste.puedeRecibir[0]) ajuste.puedeRecibir = ajuste.puedeRecibir.map(puedeRecibir => new ObjectId(puedeRecibir._id))
   if (ajuste.puedeCrear && ajuste.puedeCrear[0]) ajuste.puedeCrear = ajuste.puedeCrear.map(puedeCrear => new ObjectId(puedeCrear._id))
   if (ajuste.puedeCrearProductos && ajuste.puedeCrearProductos[0]) ajuste.puedeCrearProductos = ajuste.puedeCrearProductos.map(puedeCrearProductos => new ObjectId(puedeCrearProductos._id))
@@ -75,6 +79,13 @@ export const upsertAjusteCliente = async (req, res) => {
   if (ajuste.puedeCrearEditarFacturacionFija && ajuste.puedeCrearEditarFacturacionFija[0]) ajuste.puedeCrearEditarFacturacionFija = ajuste.puedeCrearEditarFacturacionFija.map(puedeCrearEditarFacturacionFija => new ObjectId(puedeCrearEditarFacturacionFija._id))
   if (ajuste.numeroFacturaInicial) ajuste.numeroFacturaInicial = Number(ajuste.numeroFacturaInicial)
   if (ajuste.puedeConciliar && ajuste.puedeConciliar[0]) ajuste.puedeConciliar = ajuste.puedeConciliar.map(puedeConciliar => new ObjectId(puedeConciliar._id))
+  if (ajuste.puedeRealizarCobrosDocumentos && ajuste.puedeRealizarCobrosDocumentos[0]) ajuste.puedeRealizarCobrosDocumentos = ajuste.puedeRealizarCobrosDocumentos.map(puedeRealizarCobrosDocumentos => new ObjectId(puedeRealizarCobrosDocumentos._id))
+  if (ajuste.puedeRealizarPagosDocumentos && ajuste.puedeRealizarPagosDocumentos[0]) ajuste.puedeRealizarPagosDocumentos = ajuste.puedeRealizarPagosDocumentos.map(puedeRealizarPagosDocumentos => new ObjectId(puedeRealizarPagosDocumentos._id))
+  if (ajuste.puedeEditarTransacciones && ajuste.puedeEditarTransacciones[0]) ajuste.puedeEditarTransacciones = ajuste.puedeEditarTransacciones.map(puedeEditarTransacciones => new ObjectId(puedeEditarTransacciones._id))
+  if (ajuste.puedeRealizarPagosDocumentosCompras && ajuste.puedeRealizarPagosDocumentosCompras[0]) ajuste.puedeRealizarPagosDocumentosCompras = ajuste.puedeRealizarPagosDocumentosCompras.map(puedeRealizarPagosDocumentosCompras => new ObjectId(puedeRealizarPagosDocumentosCompras._id))
+  if (ajuste.puedeEditarDocumentosFiscales && ajuste.puedeEditarDocumentosFiscales[0]) ajuste.puedeEditarDocumentosFiscales = ajuste.puedeEditarDocumentosFiscales.map(puedeEditarDocumentosFiscales => new ObjectId(puedeEditarDocumentosFiscales._id))
+  if (ajuste.puedeAprobarPagosOrdenes && ajuste.puedeAprobarPagosOrdenes[0]) ajuste.puedeAprobarPagosOrdenes = ajuste.puedeAprobarPagosOrdenes.map(puedeAprobarPagosOrdenes => new ObjectId(puedeAprobarPagosOrdenes._id))
+  if (ajuste.puedeAprobarOrdenesCompra && ajuste.puedeAprobarOrdenesCompra[0]) ajuste.puedeAprobarOrdenesCompra = ajuste.puedeAprobarOrdenesCompra.map(puedeAprobarOrdenesCompra => new ObjectId(puedeAprobarOrdenesCompra._id))
   if (ajuste.numeroRetIslrInicial || ajuste.numeroRetIvaInicial) {
     const verificarNumeros = await getItemSD({
       enviromentClienteId: clienteId,
@@ -94,6 +105,9 @@ export const upsertAjusteCliente = async (req, res) => {
       }
     }
   }
+  if (ajuste.puedeImportarCompras && ajuste.puedeImportarCompras[0]) ajuste.puedeImportarCompras = ajuste.puedeImportarCompras.map(puedeImportarCompras => new ObjectId(puedeImportarCompras._id))
+  if (ajuste.puedeImportarVentas && ajuste.puedeImportarVentas[0]) ajuste.puedeImportarVentas = ajuste.puedeImportarVentas.map(puedeImportarVentas => new ObjectId(puedeImportarVentas._id))
+
   if (!clienteId) return res.status(400).json({ error: 'Falta el cliente' })
   try {
     if (!ajuste.fechaCreacion) ajuste.fechaCreacion = moment().toDate()

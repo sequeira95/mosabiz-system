@@ -2993,7 +2993,7 @@ export const getDevoluciones = async (req, res) => {
   }
 }
 export const getComprasForRecepcion = async (req, res) => {
-  const { clienteId, pagina, itemsPorPagina } = req.body
+  const { clienteId, pagina, itemsPorPagina, estado } = req.body
   try {
     console.log(itemsPorPagina)
     const pagination = []
@@ -3003,13 +3003,14 @@ export const getComprasForRecepcion = async (req, res) => {
         { $limit: Number(itemsPorPagina) }
       )
     }
+    const matchEstado = estado ? { estado: { $eq: estado } } : { estado: { $ne: 'recibido' } }
     const detalleMovimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detalleMovimientos' })
     const almacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
     const comprasPendienteRecepcion = await agreggateCollectionsSD({
       nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipo: 'recepcion' } },
+        { $match: { tipo: 'recepcion', ...matchEstado } },
         {
           $lookup: {
             from: detalleMovimientosCollection,
@@ -3033,10 +3034,10 @@ export const getComprasForRecepcion = async (req, res) => {
       ]
     })
     const count = await agreggateCollectionsSD({
-      nameCollection: 'compras',
+      nameCollection: 'movimientos',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipo: 'recepcion' } },
+        { $match: { tipo: 'recepcion', ...matchEstado } },
         { $count: 'total' }
       ]
     })

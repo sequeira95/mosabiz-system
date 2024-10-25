@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateManyItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment'
 import { subDominioName } from '../../constants.js'
 
@@ -13,7 +13,7 @@ export const getZonas = async (req, res) => {
       nameCollection: 'zonas',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { tipo } },
+        { $match: { tipo, activo: { $ne: false } } },
         {
           $lookup: {
             from: activosFijosCollection,
@@ -194,12 +194,20 @@ export const saveZonasToArray = async (req, res) => {
 export const deleteZonas = async (req, res) => {
   const { _id, clienteId } = req.body
   try {
-    await deleteItemSD({
+    await updateItemSD({
+      nameCollection: 'zonas',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: {
+        $set: { activo: false }
+      }
+    })
+    /* await deleteItemSD({
       nameCollection: 'zonas',
       enviromentClienteId: clienteId,
       filters: { _id: new ObjectId(_id) }
-    })
-    deleteManyItemsSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, filters: { zonaId: new ObjectId(_id) } })
+    }) */
+    // deleteManyItemsSD({ nameCollection: 'categoriaPorZona', enviromentClienteId: clienteId, filters: { zonaId: new ObjectId(_id) } })
     return res.status(200).json({ status: 'Zona eliminada exitosamente' })
   } catch (e) {
     console.log(e)

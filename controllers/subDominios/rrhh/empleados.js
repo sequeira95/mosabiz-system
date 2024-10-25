@@ -5,7 +5,7 @@ import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
 import { subDominioName } from '../../../constants.js'
 
 export const getEmpleados = async (req, res) => {
-  const { clienteId, filters } = req.body
+  const { clienteId, filters, itemsPorPagina, pagina } = req.body
   const query = {}
   try {
     if (filters.nombre) {
@@ -31,10 +31,20 @@ export const getEmpleados = async (req, res) => {
       nameCollection: 'empleados',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: query }
+        { $match: query },
+        { $skip: ((pagina || 1) - 1) * (itemsPorPagina || 10) },
+        { $limit: itemsPorPagina || 10 },
       ]
     })
-    return res.status(200).json({ empleados })
+    const cantidad = await agreggateCollectionsSD({
+      nameCollection: 'empleados',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: query },
+        { $count: 'total' }
+      ]
+    })
+    return res.status(200).json({ empleados, cantidad: cantidad[0]?.total || 0 })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener la lista de empleados: ' + e.message })
@@ -49,6 +59,7 @@ export const upsertEmpleados = async (req, res) => {
       email,
       telefono,
       fechaNacimiento,
+      fechaContrato,
       foto,
       pais,
       ciudad,
@@ -70,6 +81,7 @@ export const upsertEmpleados = async (req, res) => {
       email,
       telefono,
       fechaNacimiento: momentDate(undefined, fechaNacimiento).toDate(),
+      fechaContrato: momentDate(undefined, fechaContrato).toDate(),
       foto,
       pais,
       ciudad,
@@ -87,6 +99,7 @@ export const upsertEmpleados = async (req, res) => {
       filters: { codigo: objEmpleado.codigo, activo: true },
     })
     if (existeEmpleado?._id && _id && existeEmpleado._id !== _id) throw new Error(`El codigo del empleado ya existe y pertenece a ${existeEmpleado.nombre || 'Sin nombre'}`)
+    if (!_id && existeEmpleado?._id) throw new Error(`El codigo del empleado ya existe y pertenece a ${existeEmpleado.nombre || 'Sin nombre'}`)
     if (_id) {
       await updateItemSD({
         enviromentClienteId: clienteId,
@@ -97,9 +110,21 @@ export const upsertEmpleados = async (req, res) => {
         }
       })
     } else {
-      await createItemSD({
+      await upsertItemSD({
         enviromentClienteId: clienteId,
         nameCollection: 'empleados',
+        filters: { codigo: objEmpleado.codigo, activo: true },
+        update: [
+          {
+            $set: {
+              ...objEmpleado,
+              creadoPor: { $ifNull: ['$creadoPor', new ObjectId(creadoPor)] }
+            }
+          }
+        ]
+
+      })
+      await createItemSD({
         item: { ...objEmpleado, creadoPor: new ObjectId(creadoPor) }
       })
     }
@@ -124,6 +149,7 @@ export const saveEmpleados = async (req, res) => {
         email: empleado.email,
         telefono: empleado.telefono,
         fechaNacimiento: empleado.fechaNacimiento ? momentDate(undefined, empleado.fechaNacimiento).toDate() : undefined,
+        fechaContrato: empleado.fechaContrato ? momentDate(undefined, empleado.fechaContrato).toDate() : undefined,
         foto: empleado.foto,
         pais: empleado.pais,
         ciudad: empleado.ciudad,
@@ -134,23 +160,26 @@ export const saveEmpleados = async (req, res) => {
         perfiles: empleado.perfiles,
         observacion: empleado.observacion,
         activo: empleado.activo,
-        actualizadoPor: creadoPor
+        actualizadoPor: new ObjectId(creadoPor)
       }
       await upsertItemSD({
         enviromentClienteId: clienteId,
         nameCollection: 'empleados',
         filters: { codigo: empleado.codigo },
-        update: {
-          $set: {
-            ...objEmpleado,
-            creadoPor: { $ifNull: ['$creadoPor', creadoPor] }
+        update: [
+          {
+            $set: {
+              ...objEmpleado,
+              creadoPor: { $ifNull: ['$creadoPor', new ObjectId(creadoPor)] }
+            }
           }
-        }
+        ]
       })
     }
+    return res.status(200).json({ status: 'Empleados creados exitosamente' })
   } catch (e) {
     console.log(e)
-    return res.status(500).json({ error: `Error de servidor al momento de guardar los empleados, ultima linea: ${index}, error: ${e.message} ` })
+    return res.status(500).json({ error: `Error de servidor al momento de guardar los empleados, linea: ${index}, error: ${e.message} ` })
   }
 }
 export const deleteEmpleado = async (req, res) => {

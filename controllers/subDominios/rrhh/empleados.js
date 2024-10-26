@@ -69,7 +69,10 @@ export const upsertEmpleados = async (req, res) => {
       cargo,
       perfiles,
       observacion,
-      activo
+      activo,
+      aplicaRetencion,
+      retencionPerfiles,
+      retencion
     },
     uid: creadoPor
   } = req.body
@@ -91,7 +94,10 @@ export const upsertEmpleados = async (req, res) => {
       cargo,
       perfiles: (perfiles || []).map(e => new ObjectId(e)),
       observacion,
-      activo
+      activo: !!activo,
+      aplicaRetencion: !!aplicaRetencion,
+      retencionPerfiles: (retencionPerfiles || []).map(e => new ObjectId(e)),
+      retencion: Number(retencion)
     }
     const existeEmpleado = await getItemSD({
       enviromentClienteId: clienteId,
@@ -125,7 +131,7 @@ export const upsertEmpleados = async (req, res) => {
 
       })
     }
-    return res.status(200).json({ status: 'Empleado creado exitosamente' })
+    return res.status(200).json({ status: 'Empleado guardado exitosamente' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar el empleado: ' + e.message })
@@ -140,6 +146,7 @@ export const saveEmpleados = async (req, res) => {
     for (const empleado of empleados) {
       index++
       if (!empleado.codigo) throw new Error(`La linea ${index} no tiene codigo`)
+      // los campos comentados no son del excel para subir empleados
       const objEmpleado = {
         // codigo: empleado.codigo,
         nombre: empleado.nombre,
@@ -147,17 +154,22 @@ export const saveEmpleados = async (req, res) => {
         telefono: empleado.telefono,
         fechaNacimiento: empleado.fechaNacimiento ? momentDate(undefined, empleado.fechaNacimiento).toDate() : undefined,
         fechaContrato: empleado.fechaContrato ? momentDate(undefined, empleado.fechaContrato).toDate() : undefined,
-        foto: empleado.foto,
+        // foto: empleado.foto,
         pais: empleado.pais,
         ciudad: empleado.ciudad,
         direccion: empleado.direccion,
         tipo: empleado.tipo,
         tiempoContrato: empleado.tiempoContrato,
         cargo: empleado.cargo,
-        perfiles: (empleado.perfiles || []).map(e => new ObjectId(e)),
+        // perfiles: (empleado.perfiles || []).map(e => new ObjectId(e)),
         observacion: empleado.observacion,
         activo: empleado.activo,
-        actualizadoPor: new ObjectId(creadoPor)
+        actualizadoPor: new ObjectId(creadoPor),
+        /*
+          aplicaRetencion: !!empleado.aplicaRetencion,
+          retencionPerfiles: (empleado.retencionPerfiles || []).map(e => new ObjectId(e)),
+          retencion: Number(empleado.retencion || 0)
+        */
       }
       await upsertItemSD({
         enviromentClienteId: clienteId,

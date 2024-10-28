@@ -124,7 +124,8 @@ export const upsertEmpleados = async (req, res) => {
           {
             $set: {
               ...objEmpleado,
-              creadoPor: { $ifNull: ['$creadoPor', new ObjectId(creadoPor)] }
+              creadoPor: { $ifNull: ['$creadoPor', new ObjectId(creadoPor)] },
+              fechaCreacion: { $ifNull: ['$fechaCreacion', momentDate().toDate()] }
             }
           }
         ]
@@ -179,7 +180,8 @@ export const saveEmpleados = async (req, res) => {
           {
             $set: {
               ...objEmpleado,
-              creadoPor: { $ifNull: ['$creadoPor', new ObjectId(creadoPor)] }
+              creadoPor: { $ifNull: ['$creadoPor', new ObjectId(creadoPor)] },
+              fechaCreacion: { $ifNull: ['$fechaCreacion', momentDate().toDate()] }
             }
           }
         ]

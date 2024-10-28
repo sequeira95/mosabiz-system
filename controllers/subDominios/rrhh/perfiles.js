@@ -5,8 +5,37 @@ import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
 import { subDominioName } from '../../../constants.js'
 
 export const getPerfiles = async (req, res) => {
-  const { clienteId } = req.body
+  const { clienteId, withEmpleados, countEmpleados } = req.body
   try {
+    const lookupEmpleados = []
+    if (withEmpleados) {
+      const empleadosCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'empleados' })
+      lookupEmpleados.push({
+        $lookup: {
+          from: empleadosCol,
+          localField: '_id',
+          foreignField: 'perfiles',
+          as: 'empleados'
+        }
+      })
+    }
+    if (countEmpleados) {
+      const empleadosCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'empleados' })
+      lookupEmpleados.push(
+        {
+          $lookup: {
+            from: empleadosCol,
+            localField: '_id',
+            foreignField: 'perfiles',
+            pipeline: [
+              { $count: 'total' }
+            ],
+            as: 'empleados'
+          }
+        },
+        { $unwind: { path: '$empleados', preserveNullAndEmptyArrays: true } },
+      )
+    }
     const perfiles = await agreggateCollectionsSD({
       nameCollection: 'perfiles',
       enviromentClienteId: clienteId,
@@ -52,7 +81,8 @@ export const getPerfiles = async (req, res) => {
               }
             },
           }
-        }
+        },
+        ...lookupEmpleados
       ]
     })
     return res.status(200).json({ perfiles })
@@ -125,7 +155,8 @@ export const upsertPerfiles = async (req, res) => {
           {
             $set: {
               ...objPerfil,
-              creadoPor: { $ifNull: ['$creadoPor', new ObjectId(creadoPor)] }
+              creadoPor: { $ifNull: ['$creadoPor', new ObjectId(creadoPor)] },
+              fechaCreacion: { $ifNull: ['$fechaCreacion', momentDate().toDate()] }
             }
           }
         ]

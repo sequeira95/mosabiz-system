@@ -5,7 +5,9 @@ import { mayorAnaliticosAgrupado, mayorAnaliticosSinAgrupar, dataBalanceComproba
 export const mayorAnalitico = async (req, res) => {
   const { fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, agruparTerceros, cuentaDesde, cuentaHasta } = req.body
   try {
+    console.log(req.body)
     if (agruparTerceros) {
+      console.log('entro a agruparTerceros')
       const { dataCuentas } = await mayorAnaliticosAgrupado({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta })
       const listComprobante = await agreggateCollectionsSD({
         nameCollection: 'comprobantes',

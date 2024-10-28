@@ -163,8 +163,9 @@ export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order
   }
 }
 export async function mayorAnaliticosAgrupado ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta }) {
-  const fechaInit = moment(fechaDesde).startOf('day').toDate()
-  const fechaEnd = moment(fechaHasta).endOf('day').toDate()
+  console.log('entro a mayorAnaliticosAgrupado')
+  const fechaInit = moment(fechaDesde).toDate()/* .startOf('day').toDate() */
+  const fechaEnd = moment(fechaHasta).toDate() /* .endOf('day').toDate() */
   const sort = order === 'documento' ? { $sort: { documento: 1 } } : { $sort: { fecha: 1 } }
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   const matchCuentasMovimientos = cuentaSinMovimientos ? {} : { $match: { dataCuentaSize: { $gt: 0 } } }
@@ -277,7 +278,8 @@ export async function mayorAnaliticosAgrupado ({ fechaDesde, fechaHasta, order, 
                   saldoAnteriorTercero: { $subtract: ['$saldoAnteriorTercero.debe', '$saldoAnteriorTercero.haber'] },
                   saldosInicialesTercero: { $subtract: ['$saldosInicialesTercero.debe', '$saldosInicialesTercero.haber'] }
                 }
-              }
+              },
+              { $sort: { tercero: 1 } }
             ],
             as: 'detalleComprobantes'
           }

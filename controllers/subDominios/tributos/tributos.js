@@ -4399,13 +4399,122 @@ export const getResumenIslr = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de bucar los comprobantes de retencion ISLR ' + e.message })
   }
 }
-
 export const deleteDocumentoPorDeclarar = async (req, res) => {
   const { clienteId, documentoId } = req.body
   try {
     deleteItemSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, filters: { _id: new ObjectId(documentoId) } })
     deleteManyItemsSD({ nameCollection: 'documentosFiscales', enviromentClienteId: clienteId, filters: { facturaAsociada: new ObjectId(documentoId) } })
     return res.status(200).json({ status: 'Documento eliminado correctamente' })
+  } catch (e) {
+    console.log(e)
+  }
+}
+export const getDataXmlIslr = async (req, res) => {
+  const { clienteId, periodoSelect, itemsPorPagina, paginasComprobantes, paginasEmpleados } = req.body
+  try {
+    console.log({ clienteId, periodoSelect })
+    const countComprobantes = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoMovimiento: 'compra',
+            tipoDocumento: tiposDocumentosFiscales.retIslr,
+            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
+            // estado: { $ne: 'anulado' }
+          }
+        },
+        { $count: 'total' }
+      ]
+    })
+    const countEmpleados = await agreggateCollectionsSD({
+      nameCollection: 'empleados',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { activo: true } },
+        { $count: 'total' }
+      ]
+    })
+    if (itemsPorPagina && paginasComprobantes) {
+      const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+      const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
+      const comprobantes = await agreggateCollectionsSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          {
+            $match: {
+              tipoMovimiento: 'compra',
+              tipoDocumento: tiposDocumentosFiscales.retIslr,
+              fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
+              // estado: { $ne: 'anulado' }
+            }
+          },
+          { $skip: (Number(paginasComprobantes) - 1) * Number(itemsPorPagina) },
+          { $limit: Number(itemsPorPagina) },
+          // { $skip: (pagina - 1) * itemsPorPagina },
+          // { $limit: itemsPorPagina },
+          {
+            $lookup: {
+              from: proveedoresCollection,
+              localField: 'proveedorId',
+              foreignField: '_id',
+              as: 'proveedor'
+            }
+          },
+          { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: documentosFiscalesCollection,
+              localField: 'facturaAsociada',
+              foreignField: '_id',
+              as: 'factura'
+            }
+          },
+          { $unwind: { path: '$factura', preserveNullAndEmptyArrays: true } }
+        ]
+      })
+      return res.status(200).json({ comprobantes })
+    }
+    if (itemsPorPagina && paginasEmpleados) {
+      const perfilesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'perfiles' })
+      const empleados = await agreggateCollectionsSD({
+        nameCollection: 'empleados',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { activo: true } },
+          { $skip: (Number(paginasEmpleados) - 1) * Number(itemsPorPagina) },
+          { $limit: Number(itemsPorPagina) },
+          { $unwind: { path: '$retencionPerfiles', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: perfilesCollection,
+              localField: 'retencionPerfiles',
+              foreignField: '_id',
+              as: 'detallePerfil'
+            }
+          },
+          { $unwind: { path: '$detallePerfil', preserveNullAndEmptyArrays: true } },
+          {
+            $group: {
+              _id: '$_id',
+              aplicaRetencion: { $first: '$aplicaRetencion' },
+              nombre: { $first: '$nombre' },
+              tipoDocumento: { $first: '$tipoDocumento' },
+              documentoIdentidad: { $first: '$documentoIdentidad' },
+              salarios: { $sum: '$detallePerfil.monto' },
+              porcentajeRet: { $first: '$retencion' },
+              total: { $sum: { $multiply: ['$detallePerfil.monto', { $divide: ['$retencion', 100] }] } }
+            }
+          }
+          // { $skip: ((pagina || 1) - 1) * (itemsPorPagina || 10) },
+          // { $limit: itemsPorPagina || 10 },
+        ]
+      })
+      return res.status(200).json({ empleados })
+    }
+    return res.status(200).json({ countComprobantes: countComprobantes.length ? countComprobantes[0].total : 0, countEmpleados: countEmpleados.length ? countEmpleados[0].total : 0 })
   } catch (e) {
     console.log(e)
   }

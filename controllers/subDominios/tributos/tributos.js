@@ -4487,11 +4487,69 @@ export const getDataXmlIslr = async (req, res) => {
           { $skip: (Number(paginasEmpleados) - 1) * Number(itemsPorPagina) },
           { $limit: Number(itemsPorPagina) },
           { $unwind: { path: '$retencionPerfiles', preserveNullAndEmptyArrays: true } },
+          // { $unwind: { path: '$perfiles', preserveNullAndEmptyArrays: true } },
           {
             $lookup: {
               from: perfilesCollection,
               localField: 'retencionPerfiles',
               foreignField: '_id',
+              /* let: { perfil: '$perfiles', perfilRetencion: '$retencionPerfiles', aplicaIslr: '$aplicaRetencion' },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $or: [
+                        { $eq: ['$_id', '$$perfil'] },
+                        { $eq: ['$_id', '$$perfilRetencion'] },
+                      ]
+                    }
+                  }
+                },
+                {
+                  $project: {
+                    montoRet: {
+                      $cond: {
+                        if: { $eq: ['$$aplicaIslr', true] },
+                        then: '$monto',
+                        else: 0
+                      }
+                    },
+                    monto: {
+                      $cond: {
+                        if: { $ne: ['$$aplicaIslr', true] },
+                        then: '$monto',
+                        else: 0
+                      }
+                    }
+                  }
+                }
+              ], */
+              as: 'detallePerfilRetencion'
+            }
+          },
+          { $unwind: { path: '$detallePerfilRetencion', preserveNullAndEmptyArrays: true } },
+          {
+            $group: {
+              _id: '$_id',
+              aplicaRetencion: { $first: '$aplicaRetencion' },
+              nombre: { $first: '$nombre' },
+              tipoDocumento: { $first: '$tipoDocumento' },
+              documentoIdentidad: { $first: '$documentoIdentidad' },
+              salariosRetencion: { $sum: '$detallePerfilRetencion.monto' },
+              // salarios: { $sum: '$detallePerfil.monto' },
+              porcentajeRet: { $first: '$retencion' },
+              perfiles: { $first: '$perfiles' },
+            }
+          },
+          { $unwind: { path: '$perfiles', preserveNullAndEmptyArrays: true } },
+          {
+            $lookup: {
+              from: perfilesCollection,
+              localField: 'perfiles',
+              foreignField: '_id',
+              pipeline: [
+                { $match: { tipo: 'Sueldo Base' } }
+              ],
               as: 'detallePerfil'
             }
           },
@@ -4503,11 +4561,24 @@ export const getDataXmlIslr = async (req, res) => {
               nombre: { $first: '$nombre' },
               tipoDocumento: { $first: '$tipoDocumento' },
               documentoIdentidad: { $first: '$documentoIdentidad' },
+              salariosRetencion: { $first: '$salariosRetencion' },
+              salarios: { $sum: '$detallePerfil.monto' },
+              porcentajeRet: { $first: '$porcentajeRet' },
+            }
+          },
+          /* {
+            $group: {
+              _id: '$_id',
+              aplicaRetencion: { $first: '$aplicaRetencion' },
+              nombre: { $first: '$nombre' },
+              tipoDocumento: { $first: '$tipoDocumento' },
+              documentoIdentidad: { $first: '$documentoIdentidad' },
+              salariosRetencion: { $sum: '$detallePerfilRetenncion.monto' },
               salarios: { $sum: '$detallePerfil.monto' },
               porcentajeRet: { $first: '$retencion' },
-              total: { $sum: { $multiply: ['$detallePerfil.monto', { $divide: ['$retencion', 100] }] } }
+              total: { $sum: { $multiply: ['$detallePerfilRetenncion.monto', { $divide: ['$retencion', 100] }] } }
             }
-          }
+          } */
           // { $skip: ((pagina || 1) - 1) * (itemsPorPagina || 10) },
           // { $limit: itemsPorPagina || 10 },
         ]

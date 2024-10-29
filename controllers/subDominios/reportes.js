@@ -7,7 +7,6 @@ export const mayorAnalitico = async (req, res) => {
   try {
     console.log(req.body)
     if (agruparTerceros) {
-      console.log('entro a agruparTerceros')
       const { dataCuentas } = await mayorAnaliticosAgrupado({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta })
       const listComprobante = await agreggateCollectionsSD({
         nameCollection: 'comprobantes',
@@ -22,6 +21,7 @@ export const mayorAnalitico = async (req, res) => {
       })
       return res.status(200).json({ mayorAnalitico: dataCuentas, listComprobante })
     }
+    console.log('sin agrupar')
     const { dataCuentas } = await mayorAnaliticosSinAgrupar({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta })
     const listComprobante = await agreggateCollectionsSD({
       nameCollection: 'comprobantes',

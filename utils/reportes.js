@@ -4,8 +4,8 @@ import { subDominioName, getParentCode } from '../constants.js'
 import { ObjectId } from 'mongodb'
 
 export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta }) {
-  const fechaInit = moment(fechaDesde).startOf('day').toDate()
-  const fechaEnd = moment(fechaHasta).endOf('day').toDate()
+  const fechaInit = moment(fechaDesde).toDate()
+  const fechaEnd = moment(fechaHasta).toDate()
   const sort = order === 'documento' ? { $sort: { documento: 1 } } : { $sort: { fecha: 1 } }
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   const addFieldCondition = { $addFields: { codigoToInt: { $convert: { input: '$codigo', to: 'double' } } } }

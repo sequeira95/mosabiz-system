@@ -5,32 +5,55 @@ import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
 import { subDominioName } from '../../../constants.js'
 
 export const getEmpleadosByPerfiles = async (req, res) => {
-  const { clienteId, perfiles, excluirPerfiles } = req.body
+  const { clienteId, perfiles, excluirPerfiles, empleados, excluirEmpleados } = req.body
   try {
-    const query = {}
-    if (excluirPerfiles[0]) {
-      query.perfiles = { $not: { $elemMatch: { $in: excluirPerfiles.map(e => new ObjectId(e)) } } }
+    const query = {
+      $or: [
+        {
+          $and: [
+            // and de perfiles, excluirPerfiles, excluirEmpleados
+          ]
+        },
+      ]
     }
-    if (!perfiles[0]) {
-      throw new Error('Debe agregar al menos un perfil')
-    } else {
-      query.$or = perfiles.map(e => {
+    if (excluirPerfiles[0]) {
+      query.$or[0].$and.push({
+        perfiles: { $not: { $elemMatch: { $in: excluirPerfiles.map(e => new ObjectId(e)) } } }
+      })
+      // query.perfiles = { $not: { $elemMatch: { $in: excluirPerfiles.map(e => new ObjectId(e)) } } }
+    }
+    if (perfiles[0]) {
+      query.$or[0].$and.push(...perfiles.map(e => {
         return {
           perfiles: { $elemMatch: { $eq: new ObjectId(e) } }
         }
+      }))
+    }
+    if (excluirEmpleados[0]) {
+      query.$or[0].$and.push({
+        _id: { $nin: excluirEmpleados.map(e => new ObjectId(e)) }
       })
     }
+    if (empleados[0]) {
+      query.$or.push({
+        _id: { $in: empleados.map(e => new ObjectId(e)) }
+      })
+    }
+    if (!query.$or[0].$and[0]) {
+      query.$or.splice(0, 1)
+    }
 
-    const empleados = await agreggateCollectionsSD({
+    const [empleadosCount] = await agreggateCollectionsSD({
       nameCollection: 'empleados',
       enviromentClienteId: clienteId,
       pipeline: [
         {
           $match: query
-        }
+        },
+        { $count: 'total' }
       ]
     })
-    return res.status(200).json({ empleados })
+    return res.status(200).json({ empleados: empleadosCount })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener la lista de empleados: ' + e.message })
@@ -89,7 +112,7 @@ export const getNominas = async (req, res) => {
         ...lookupEmpleados
       ]
     })
-    return res.status(200).json({ perfiles })
+    return res.status(200).json({ nominas })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtener la lista de perfiles: ' + e.message })

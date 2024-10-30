@@ -60,58 +60,161 @@ export const getEmpleadosByPerfiles = async (req, res) => {
   }
 }
 
-export const getNominas = async (req, res) => {
-  const { clienteId } = req.body
+export const getEmpleadosBySelected = async (req, res) => {
+  const { clienteId, empleadosId } = req.body
   try {
+    const empleadosSelected = await agreggateCollectionsSD({
+      nameCollection: 'empleados',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        { $match: { _id: { $in: empleadosId.map(e => new ObjectId(e)) } } }
+      ]
+    })
+    return res.status(200).json({ empleados: empleadosSelected })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de obtener la lista de empleados: ' + e.message })
+  }
+}
+
+export const getNominas = async (req, res) => {
+  const { clienteId, itemsPorPagina, pagina } = req.body
+  try {
+    const ajustesRRHH = await getItemSD({ enviromentClienteId: clienteId, nameCollection: 'ajustes', filters: { tipo: 'rrhh' } })
+    if (!ajustesRRHH?.horasBase) throw new Error('Se necesita el ajuste de la cantidad de horas laborales por dia')
+    const perfilesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'perfiles' })
+
     const nominas = await agreggateCollectionsSD({
       nameCollection: 'nominas',
       enviromentClienteId: clienteId,
       pipeline: [
-        {
-          $addFields: {
-            montoBase: {
-              $cond: {
-                if: { $eq: ['$tipo', 'Bono'] },
-                then: 0,
-                else: '$monto'
-              }
-            },
-            montoBono: {
-              $cond: {
-                if: { $eq: ['$tipo', 'Bono'] },
-                then: '$monto',
-                else: 0
-              }
-            },
-            montoDeducciones: {
-              $reduce: {
-                input: {
-                  $map: {
-                    input: '$deducciones',
-                    as: 'deduccion',
-                    in: {
+        { $skip: ((pagina || 1) - 1) * (itemsPorPagina || 10) },
+        { $limit: itemsPorPagina || 10 },
+      ]
+    })
+    for (const nomina of nominas) {
+      const query = {
+        $or: [
+          {
+            $and: [
+              // and de perfiles, excluirPerfiles, excluirEmpleados
+            ]
+          },
+        ]
+      }
+      if (nomina.excluirPerfiles[0]) {
+        query.$or[0].$and.push({
+          perfiles: { $not: { $elemMatch: { $in: nomina.excluirPerfiles.map(e => new ObjectId(e)) } } }
+        })
+        // query.perfiles = { $not: { $elemMatch: { $in: excluirPerfiles.map(e => new ObjectId(e)) } } }
+      }
+      if (nomina.perfiles[0]) {
+        query.$or[0].$and.push(...nomina.perfiles.map(e => {
+          return {
+            perfiles: { $elemMatch: { $eq: new ObjectId(e) } }
+          }
+        }))
+      }
+      if (nomina.excluirEmpleados[0]) {
+        query.$or[0].$and.push({
+          _id: { $nin: nomina.excluirEmpleados.map(e => new ObjectId(e)) }
+        })
+      }
+      if (nomina.empleados[0]) {
+        query.$or.push({
+          _id: { $in: nomina.empleados.map(e => new ObjectId(e)) }
+        })
+      }
+      if (!query.$or[0].$and[0]) {
+        query.$or.splice(0, 1)
+      }
+      const [empleados] = await agreggateCollectionsSD({
+        nameCollection: 'empleados',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          {
+            $match: query
+          },
+          {
+            $lookup: {
+              from: perfilesCol,
+              localField: 'perfiles',
+              foreignField: '_id',
+              pipeline: [
+                { $match: { isNomina: true } },
+                {
+                  $addFields: {
+                    montoBase: {
                       $cond: {
-                        if: { $gt: ['$$deduccion.monto', 0] },
-                        then: '$$deduccion.monto',
-                        else: {
-                          $multiply: [
-                            { $divide: ['$$deduccion.porcentaje', 100] },
-                            '$monto'
-                          ]
-                        }
+                        if: { $ne: ['$tipo', 'Bono'] },
+                        then: '$monto',
+                        else: 0
+                      }
+                    },
+                    montoBono: {
+                      $cond: {
+                        if: { $eq: ['$tipo', 'Bono'] },
+                        then: '$monto',
+                        else: 0
+                      }
+                    },
+                    montoDeducciones: {
+                      $reduce: {
+                        input: {
+                          $map: {
+                            input: '$deducciones',
+                            as: 'deduccion',
+                            in: {
+                              $cond: {
+                                if: { $gt: ['$$deduccion.monto', 0] },
+                                then: '$$deduccion.monto',
+                                else: {
+                                  $multiply: [
+                                    { $divide: ['$$deduccion.porcentaje', 100] },
+                                    '$monto'
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        },
+                        initialValue: 0,
+                        in: { $add: ['$$value', '$$this'] }
+                      }
+                    },
+                  }
+                },
+                {
+                  $group: {
+                    _id: 0,
+                    salario: {
+                      $sum: {
+                        $subtract: [{ $add: ['$montoBase', '$montoBono'] }, '$montoDeducciones']
                       }
                     }
                   }
-                },
-                initialValue: 0,
-                in: { $add: ['$$value', '$$this'] }
+                }
+              ],
+              as: 'perfilesSalario'
+            }
+          },
+          { $unwind: { path: '$perfilesSalario', preserveNullAndEmptyArrays: true } },
+          {
+            $group: {
+              _id: 0,
+              total: {
+                $sum: 1
+              },
+              monto: {
+                $sum: '$perfilesSalario.salario'
               }
-            },
+            }
           }
-        },
-        ...lookupEmpleados
-      ]
-    })
+        ]
+      })
+      nomina.monto = empleados.monto
+      nomina.empleadosCount = empleados.total
+    }
     return res.status(200).json({ nominas })
   } catch (e) {
     console.log(e)
@@ -124,7 +227,9 @@ export const upsertNomina = async (req, res) => {
     clienteId, nomina: {
       _id,
       nombre,
+      observacion,
       perfiles,
+      empleados,
       excluirPerfiles,
       excluirEmpleados
     },
@@ -140,7 +245,9 @@ export const upsertNomina = async (req, res) => {
         update: {
           $set: {
             nombre,
+            observacion,
             perfiles: perfiles.map(e => new ObjectId(e)) || [],
+            empleados: empleados.map(e => new ObjectId(e)) || [],
             excluirPerfiles: excluirPerfiles.map(e => new ObjectId(e)) || [],
             excluirEmpleados: excluirEmpleados.map(e => new ObjectId(e)) || [],
             actualizadoPor: new ObjectId(creadoPor)
@@ -153,7 +260,9 @@ export const upsertNomina = async (req, res) => {
         enviromentClienteId: clienteId,
         item: {
           nombre,
+          observacion,
           perfiles: perfiles.map(e => new ObjectId(e)) || [],
+          empleados: empleados.map(e => new ObjectId(e)) || [],
           excluirPerfiles: excluirPerfiles.map(e => new ObjectId(e)) || [],
           excluirEmpleados: excluirEmpleados.map(e => new ObjectId(e)) || [],
           creadoPor: new ObjectId(creadoPor),

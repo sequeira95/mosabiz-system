@@ -135,7 +135,7 @@ export const upsertPerfiles = async (req, res) => {
       nameCollection: 'perfiles',
       filters: { nombre: objPerfil.nombre },
     })
-    if (existePerfil?._id && _id && existePerfil._id !== _id) throw new Error('El nombre del perfil ya existe')
+    if (existePerfil?._id && _id && String(existePerfil._id) !== _id) throw new Error('El nombre del perfil ya existe')
     if (!_id && existePerfil?._id) throw new Error('El nombre del perfil ya existe')
     if (_id) {
       await updateItemSD({

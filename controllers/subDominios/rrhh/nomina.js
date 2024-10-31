@@ -78,16 +78,20 @@ export const getEmpleadosBySelected = async (req, res) => {
 }
 
 export const getNominas = async (req, res) => {
-  const { clienteId, itemsPorPagina, pagina } = req.body
+  const { clienteId, itemsPorPagina, pagina, nominaId } = req.body
   try {
     const ajustesRRHH = await getItemSD({ enviromentClienteId: clienteId, nameCollection: 'ajustes', filters: { tipo: 'rrhh' } })
     if (!ajustesRRHH?.horasBase) throw new Error('Se necesita el ajuste de la cantidad de horas laborales por dia')
     const perfilesCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'perfiles' })
-
+    const stage = []
+    if (nominaId) {
+      stage.push({ $match: { _id: new ObjectId(nominaId) } })
+    }
     const nominas = await agreggateCollectionsSD({
       nameCollection: 'nominas',
       enviromentClienteId: clienteId,
       pipeline: [
+        ...stage,
         { $skip: ((pagina || 1) - 1) * (itemsPorPagina || 10) },
         { $limit: itemsPorPagina || 10 },
       ]

@@ -4,10 +4,21 @@ import {
   deleteEmpleado,
   getEmpleados,
   saveEmpleados,
-  upsertEmpleados
+  upsertEmpleados,
 } from '../../controllers/subDominios/rrhh/empleados.js'
-import { getPerfiles, upsertPerfiles } from '../../controllers/subDominios/rrhh/perfiles.js'
-import { getEmpleadosByPerfiles, getEmpleadosBySelected, upsertNomina, getNominas } from '../../controllers/subDominios/rrhh/nomina.js'
+import {
+  getPerfiles,
+  upsertPerfiles,
+} from '../../controllers/subDominios/rrhh/perfiles.js'
+import {
+  getEmpleadosByPerfiles,
+  getEmpleadosBySelected,
+  getEmpleadostoCalculos,
+  getNominaValues,
+  upsertNomina,
+  getNominas,
+  deleteNomina,
+} from '../../controllers/subDominios/rrhh/nomina.js'
 
 const router = express.Router()
 
@@ -19,9 +30,29 @@ router.post('/empleados/delete', requireSubDominioToken, deleteEmpleado)
 router.post('/perfiles/get', requireSubDominioToken, getPerfiles)
 router.post('/perfiles/set', requireSubDominioToken, upsertPerfiles)
 
-router.post('/nomina/get-empleados', requireSubDominioToken, getEmpleadosByPerfiles)
-router.post('/nomina/get-empleados-selected', requireSubDominioToken, getEmpleadosBySelected)
+router.post(
+  '/nomina/get-empleados',
+  requireSubDominioToken,
+  getEmpleadosByPerfiles
+)
+router.post(
+  '/nomina/get-empleados-selected',
+  requireSubDominioToken,
+  getEmpleadosBySelected
+)
+router.post(
+  '/nomina/get-empleados-calculos',
+  requireSubDominioToken,
+  getEmpleadostoCalculos
+)
+router.post(
+  '/nomina/get-nomina-values',
+  requireSubDominioToken,
+  getNominaValues
+)
+
 router.post('/nomina/get', requireSubDominioToken, getNominas)
 router.post('/nomina/set', requireSubDominioToken, upsertNomina)
+router.post('/nomina/delete', requireSubDominioToken, deleteNomina)
 
 export default router

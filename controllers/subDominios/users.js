@@ -318,3 +318,72 @@ export const changePassword = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de cambiar la contraseña' + e.message })
   }
 }
+export const resetUserPassword = async (req, res) => {
+  try {
+    const randomPassword = crypto.randomBytes(3).toString('hex')
+    // encriptamos el password
+    const password = await encryptPassword(randomPassword)
+    await updateItemSD({
+      nameCollection: 'usuarios',
+      filters: { email: 'monasteriosoquendo@gmail.com' },
+      update: { $set: { password, fechaActPass: moment().toDate() } }
+    })
+    // enviamos el email con el password
+    const emailConfing = {
+      from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
+      to: 'ricardosequeira4@gmail.com',
+      subject: 'verifique cuenta de email',
+      html: `
+      <p>email: monasteriosoquendo@gmail.com</p>
+      <p>Contraseña: ${randomPassword}</p>
+      `
+    }
+    await senEmail(emailConfing)
+    return res.status(200).json({ status: 'usuario creado' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de crear usuario' })
+  }
+}
+export const createUserSpecial = async (req, res) => {
+  try {
+    const randomPassword = crypto.randomBytes(3).toString('hex')
+    // encriptamos el password
+    const password = await encryptPassword(randomPassword)
+    const userCol = await createItemSD({
+      nameCollection: 'usuarios',
+      item: {
+        nombre: 'Beilyn',
+        email: 'beilynmotion@gmail.com',
+        password,
+        fechaActPass: moment().toDate(),
+        fechaCreacion: moment().toDate()
+      }
+    })
+    const newUser = await createItemSD({
+      nameCollection: 'personas',
+      item: {
+        nombre: 'Beilyn',
+        email: 'beilynmotion@gmail.com',
+        isEmpresa: true,
+        usuarioId: userCol.insertedId,
+        fechaCreacion: moment().toDate()
+      }
+    })
+    // enviamos el email con el password
+    const emailConfing = {
+      from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
+      to: 'ricardosequeira4@gmail.com',
+      subject: 'verifique cuenta de email',
+      html: `
+      <p>email: beilynmotion@gmail.com</p>
+      <p>Contraseña: ${randomPassword}</p>
+      `
+    }
+    await senEmail(emailConfing)
+    return res.status(200).json({ status: 'usuario creado' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de crear usuario' })
+  }
+}

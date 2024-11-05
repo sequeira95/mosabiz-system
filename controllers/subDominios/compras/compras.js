@@ -853,13 +853,12 @@ export const getDataOrdenesComprasPorPagar = async (req, res) => {
         nameCollection: 'tasas',
         pipeline: [
           { $sort: { fechaOperacion: -1 } },
+          { $match: { fechaValor: { $lte: moment(fechaTasa, 'DD/MM/YYYY').toDate() } } },
           { $limit: 1 }
         ]
       })
       tasa = ultimaTasa[0] ? ultimaTasa[0] : null
     }
-    console.log({ fechaTasa, tasa })
-    console.log({ fechaActual })
     const conteosPendientesPorPago = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,

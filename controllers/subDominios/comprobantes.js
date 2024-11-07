@@ -1,8 +1,9 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, getItemSD, updateItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, getItemSD, updateItemSD, updateManyItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { agregateDetalleComprobante } from '../../utils/agregateComprobantes.js'
 import { deleteImg, uploadImg } from '../../utils/cloudImage.js'
+import { checkPeriodo } from '../../utils/contabilidad.js'
 
 export const getListComprobantes = async (req, res) => {
   const { clienteId, periodoId, nombre } = req.body
@@ -250,7 +251,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
               cCosto: e.cCosto,
               terceroId: e.terceroId ? new ObjectId(e.terceroId) : '',
               terceroNombre: e?.terceroNombre,
-              fechaCreacion: e.fechaCreacion ? moment(e.fechaCreacion).toDate() : moment().toDate(),
+              // fechaCreacion: e.fechaCreacion ? moment(e.fechaCreacion).toDate() : moment().toDate(),
               docReferenciaAux: e.documento.docReferencia,
               documento: {
                 docReferencia: e.documento.docReferencia,
@@ -366,5 +367,81 @@ export const deleteDetalleComprobante = async (req, res) => {
   } catch (e) {
     console.log(e.message)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar el detalle del comprobante' + e.message })
+  }
+}
+export const addLineDetalleComprobante = async (req, res) => {
+  const { clienteId, comprobanteId, periodoId, movimientoId } = req.body
+  try {
+    const { status: periodoValido } = await checkPeriodo({
+      clienteId,
+      periodoId: new ObjectId(periodoId),
+      isCierre: false
+    })
+    if (!periodoValido) throw new Error('El periodo esta cerrado')
+    const comprobante = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'comprobantes',
+      filters: { _id: new ObjectId(comprobanteId) }
+    })
+    if (!comprobante) throw new Error('El comprobante no existe')
+    const detalle = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'detallesComprobantes',
+      filters: { _id: new ObjectId(movimientoId) }
+    })
+    if (!detalle) throw new Error('No se contro el movimiento de referencia')
+    const newfechaCreacion = moment(detalle.fechaCreacion).add(1, 'millisecond').toDate()
+    const datosDetalle = {
+      cuentaId: '',
+      cuentaCodigo: '',
+      cuentaNombre: '',
+      comprobanteId: new ObjectId(comprobanteId),
+      periodoId: new ObjectId(periodoId),
+      descripcion: 'Nueva linea insertada',
+      fecha: moment(detalle.fecha).toDate(),
+      debe: 0,
+      haber: 0,
+      terceroId: '',
+      fechaCreacion: newfechaCreacion,
+      docReferenciaAux: '',
+      documento: {
+        docReferencia: '',
+        docFecha: moment(detalle.fecha).toDate(),
+        docTipo: '',
+        docObservacion: ''
+      }
+    }
+    await updateManyItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'detallesComprobantes',
+      filters: { fechaCreacion: { $gt: moment(detalle.fechaCreacion).toDate() } },
+      update: [
+        {
+          $set: {
+            fechaCreacion: {
+              $dateAdd: {
+                startDate: '$fechaCreacion',
+                unit: 'millisecond',
+                amount: 2,
+              }
+            }
+          }
+        }
+      ]
+    })
+    const nuevaLinea = await createItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'detallesComprobantes',
+      item: datosDetalle
+    })
+    const movimientoNuevo = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'detallesComprobantes',
+      filters: { _id: nuevaLinea.insertedId }
+    })
+    return res.status(200).json({ movimiento: movimientoNuevo })
+  } catch (e) {
+    console.log(e.message)
+    return res.status(500).json({ error: 'Error de servidor al momento de agregar la nueva linea: ' + e.message })
   }
 }

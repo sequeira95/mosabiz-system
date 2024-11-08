@@ -1,6 +1,6 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { addImagenPlanillaIva, anularComprobante, deleteDocumentoPorDeclarar, deleteImgPlanillas, deletePeriodoFactura, eliminarDocumentos, getCajasSucursalList, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIVA, getComprobantesRetencionIVAVenta, getDataIva, getDataXmlIslr, getFacturasPorDeclarar, getFacturasPorDeclararIva, getListClientes, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, getResumenIslr, getResumenIvaCompra, getSucursalesList, saveComprobanteRetIslrCompras, saveComprobanteRetIvaCompras, saveComprobanteRetIvaVentas, saveDeclaracionIslr, saveDeclaracionIva, saveDocumentosfiscalesToArray, savePeriodoFactura, savePlanillaIva, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
+import { addImagenPlanillaIva, anularComprobante, anularComprobanteVentas, deleteDocumentoPorDeclarar, deleteImgPlanillas, deletePeriodoFactura, eliminarDocumentos, getCajasSucursalList, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIslrVentas, getComprobantesRetencionIVA, getComprobantesRetencionIVAVenta, getDataIva, getDataXmlIslr, getFacturasPorDeclarar, getFacturasPorDeclararIva, getListClientes, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, getResumenIslr, getResumenIvaCompra, getSucursalesList, saveComprobanteRetIslrCompras, saveComprobanteRetIslrVentas, saveComprobanteRetIvaCompras, saveComprobanteRetIvaVentas, saveDeclaracionIslr, saveDeclaracionIva, saveDocumentosfiscalesToArray, savePeriodoFactura, savePlanillaIva, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
 import { getLibroCompra, getLibroVenta } from '../../controllers/subDominios/tributos/reportes.js'
 
 const router = express.Router()
@@ -14,13 +14,16 @@ router.post('/get/proveedores', requireSubDominioToken, getListProveedores)
 router.post('/save/retIslrCompras', requireSubDominioToken, saveComprobanteRetIslrCompras)
 router.post('/get/retIslrCompra', requireSubDominioToken, getComprobantesRetencionIslr)
 router.post('/anular/comprobante', requireSubDominioToken, anularComprobante)
+router.post('/anular/comprobante/venta', requireSubDominioToken, anularComprobanteVentas)
 router.post('/save/declaracionISLR', requireSubDominioToken, saveDeclaracionIslr)
 router.post('/save/retIvaCompras', requireSubDominioToken, saveComprobanteRetIvaCompras)
 router.post('/get/retIvaCompra', requireSubDominioToken, getComprobantesRetencionIVA)
 router.post('/save/declaracionIva', requireSubDominioToken, saveDeclaracionIva)
 router.post('/get/dataIva', requireSubDominioToken, getDataIva)
+router.post('/get/retIslrVentas', requireSubDominioToken, getComprobantesRetencionIslrVentas)
 router.post('/get/retIvaVenta', requireSubDominioToken, getComprobantesRetencionIVAVenta)
 router.post('/save/retIvaVenta', requireSubDominioToken, saveComprobanteRetIvaVentas)
+router.post('/save/retIslrVentas', requireSubDominioToken, saveComprobanteRetIslrVentas)
 router.post('/get/clientesVentas', requireSubDominioToken, getListClientes)
 router.post('/get/facturas/porDeclarar/iva', requireSubDominioToken, getFacturasPorDeclararIva)
 router.post('/save/periodoFactura', requireSubDominioToken, savePeriodoFactura)

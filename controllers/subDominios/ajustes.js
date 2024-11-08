@@ -33,6 +33,7 @@ export const upsertAjusteCliente = async (req, res) => {
   const ajuste = req.body.ajuste
   const clienteId = req.body.clienteId
   console.log({ ajuste })
+  if (ajuste.cuentaRetIslrVentas && ajuste.cuentaRetIslrVentas._id) ajuste.cuentaRetIslrVentas = new ObjectId(ajuste.cuentaRetIslrVentas._id)
   if (ajuste.cuentaSuperAvitAcum && ajuste.cuentaSuperAvitAcum._id) ajuste.cuentaSuperAvitAcum = new ObjectId(ajuste.cuentaSuperAvitAcum._id)
   if (ajuste.cuentaPerdidaAcum && ajuste.cuentaPerdidaAcum._id) ajuste.cuentaPerdidaAcum = new ObjectId(ajuste.cuentaPerdidaAcum._id)
   if (ajuste.cuentaSuperAvitOperdidaActual && ajuste.cuentaSuperAvitOperdidaActual._id) ajuste.cuentaSuperAvitOperdidaActual = new ObjectId(ajuste.cuentaSuperAvitOperdidaActual._id)

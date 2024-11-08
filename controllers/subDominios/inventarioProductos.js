@@ -123,7 +123,7 @@ export const getProductos = async (req, res) => {
         { $count: 'total' }
       ]
     })
-    return res.status(200).json({ productos, cantidad: cantidad[0]?.total || 0 })
+    return res.status(200).json({ productos, count: cantidad[0]?.total || 0 })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de obtner datos de los productos' + e.message })

@@ -189,7 +189,7 @@ const datosRangoFechas = async ({ rangoFechaVencimiento, clienteId, tasa, fechaA
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              { $match: { tipoDocumento: { $eq: tiposDocumentosFiscales.retIva } } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.retIva, tiposDocumentosFiscales.retIslr] } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -250,7 +250,8 @@ const datosRangoFechas = async ({ rangoFechaVencimiento, clienteId, tasa, fechaA
                     { $ifNull: ['$detalleTransacciones.totalAbono', 0] },
                     { $ifNull: ['$creditoDebito.totalNotaCredito', 0] },
                     { $ifNull: ['$devoluciones.totalDevolucion', 0] },
-                    { $ifNull: ['$totalRetenciones.totalRetIva', 0] }
+                    { $ifNull: ['$totalRetenciones.totalRetIva', 0] },
+                    { $ifNull: ['$totalRetenciones.totalRetIslr', 0] }
                   ]
                 }
               ]
@@ -440,7 +441,7 @@ const datosGrupoClientes = async ({ clienteId, tasa, fechaActual, timeZone, item
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.retIva] } } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.retIva, tiposDocumentosFiscales.retIslr] } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -541,6 +542,7 @@ const datosGrupoClientes = async ({ clienteId, tasa, fechaActual, timeZone, item
             totalNotaCreditoPrincipal: { $sum: '$creditoDebito.totalNotaCreditoPrincipal' },
             totalNotaCreditoSecundario: { $sum: '$creditoDebito.totalNotaCreditoSecundario' },
             totalRetIva: { $sum: '$totalRetenciones.totalRetIva' },
+            totalRetIslr: { $sum: '$totalRetenciones.totalRetIslr' },
             totalDevolucion: { $sum: '$devoluciones.totalDevolucion' }
           }
         },
@@ -562,7 +564,7 @@ const datosGrupoClientes = async ({ clienteId, tasa, fechaActual, timeZone, item
             documentoIdentidad: { $concat: ['$cliente.tipoDocumento', '-', '$cliente.documentoIdentidad'] },
             costoTotal2: '$costoTotal',
             totalAbono: '$totalAbono',
-            porCobrar: { $subtract: [{ $add: ['$costoTotal', { $ifNull: ['$totalNotaDebito', 0] }] }, { $add: ['$totalAbono', '$totalNotaCredito', '$totalRetIva', '$totalDevolucion'] }] },
+            porCobrar: { $subtract: [{ $add: ['$costoTotal', { $ifNull: ['$totalNotaDebito', 0] }] }, { $add: ['$totalAbono', '$totalNotaCredito', '$totalRetIva', '$totalDevolucion', '$totalRetIslr'] }] },
             totalAbonoPrincipal: 'totalAbonoPrincipal',
             totalAbonoSecundario: 'totalAbonoSecundario',
             fechaVencimiento: '$fechaVencimiento',
@@ -572,7 +574,7 @@ const datosGrupoClientes = async ({ clienteId, tasa, fechaActual, timeZone, item
             creditoTotal: {
               $subtract: [
                 { $add: ['$costoTotal', { $ifNull: ['$totalNotaDebito', 0] }] },
-                { $add: ['$totalNotaCredito', '$totalRetIva', '$totalDevolucion'] }
+                { $add: ['$totalNotaCredito', '$totalRetIva', '$totalDevolucion', '$totalRetIslr'] }
               ]
             },
             diffFechaVencimiento:
@@ -621,6 +623,7 @@ export const getDetalleVentas = async (req, res) => {
         nameCollection: 'tasas',
         pipeline: [
           { $sort: { fechaOperacion: -1 } },
+          { $match: { fechaValor: { $lte: moment(fechaTasa, 'DD/MM/YYYY').toDate() } } },
           { $limit: 1 }
         ]
       })
@@ -758,7 +761,7 @@ export const getDetalleVentas = async (req, res) => {
             localField: '_id',
             foreignField: 'facturaAsociada',
             pipeline: [
-              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.retIva] } } },
+              { $match: { tipoDocumento: { $in: [tiposDocumentosFiscales.retIva, tiposDocumentosFiscales.retIslr] } } },
               {
                 $addFields: {
                   tasa: { $objectToArray: tasa }
@@ -774,6 +777,15 @@ export const getDetalleVentas = async (req, res) => {
               {
                 $group: {
                   _id: 0,
+                  totalRetIslr: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIslr] },
+                        then: '$valor',
+                        else: 0
+                      }
+                    }
+                  },
                   totalRetIva: {
                     $sum: {
                       $cond: {
@@ -860,7 +872,7 @@ export const getDetalleVentas = async (req, res) => {
                     { $add: ['$valor', { $ifNull: ['$creditoDebito.totalNotaDebito', 0] }] },
                     {
                       $add: [{ $ifNull: ['$detalleTransacciones.totalAbono', 0] }, { $ifNull: ['$creditoDebito.totalNotaCredito', 0] },
-                        { $ifNull: ['$totalRetenciones.totalRetIva', 0] }, { $ifNull: ['$devoluciones.totalDevolucion', 0] }]
+                        { $ifNull: ['$totalRetenciones.totalRetIva', 0] }, { $ifNull: ['$totalRetenciones.totalRetIslr', 0] }, { $ifNull: ['$devoluciones.totalDevolucion', 0] }]
                     }
                   ]
                 }, 2]
@@ -892,7 +904,7 @@ export const getDetalleVentas = async (req, res) => {
                   },
                   {
                     $add: [{ $ifNull: ['$detalleTransacciones.totalAbono', 0] }, { $ifNull: ['$creditoDebito.totalNotaCredito', 0] },
-                      { $ifNull: ['$totalRetenciones.totalRetIva', 0] }, { $ifNull: ['$devoluciones.totalDevolucion', 0] }]
+                      { $ifNull: ['$totalRetenciones.totalRetIva', 0] }, { $ifNull: ['$devoluciones.totalDevolucion', 0] }, { $ifNull: ['$totalRetenciones.totalRetIslr', 0] }]
                   }
                 ]
               }, 2]

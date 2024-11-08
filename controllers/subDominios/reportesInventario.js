@@ -1,8 +1,9 @@
 import { ObjectId } from 'mongodb'
 import { subDominioName, tipoMovimientos } from '../../constants.js'
-import { agreggateCollectionsSD, formatCollectionName, getCollectionSD, getItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, createItemSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItem, getItemSD, updateItem, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment-timezone'
 import { momentDate } from '../../utils/momentDate.js'
+import { generateKeySync, randomBytes } from 'node:crypto'
 
 export const reporteProductos = async (req, res) => {
   const { clienteId, itemsPorPagina, pagina } = req.body
@@ -2830,4 +2831,856 @@ export const reporteInventariosAlmacen = async (req, res) => {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar datos del inventario' + e.message })
   }
+}
+// estas funciones son para pruebas de cargas por excel borrar despues de verificar
+export const savePoductosExcel = async (req, res) => {
+  const { clienteId, productos } = req.body
+  try {
+    const categoria = await getItemSD({
+      nameCollection: 'categorias',
+      enviromentClienteId: clienteId,
+      filters: { nombre: 'cat 1' }
+    })
+    const almacenPrincipal = await getItemSD({
+      nameCollection: 'almacenes',
+      enviromentClienteId: clienteId,
+      filters: { nombre: 'Almacen 1' }
+    })
+    const ajusteSistema = await getItemSD({
+      nameCollection: 'ajustes',
+      enviromentClienteId: clienteId,
+      filters: { tipo: 'sistema' }
+    })
+    const fecha = momentDate(ajusteSistema.timeZone || 'America/Caracas', '2024/01/01').toDate()
+    console.log({ fecha })
+    for (const producto of productos) {
+      // creamos el producto se le coloca una categoria defecto y una variable borrar para borrar masivamente
+      const newProducto = await upsertItemSD({
+        nameCollection: 'productos',
+        enviromentClienteId: clienteId,
+        filters: { codigo: producto.codigo },
+        update: {
+          $set: {
+            nombre: producto.nombre,
+            categoria: new ObjectId(categoria._id),
+            costoPromedio: producto.costoUnitario,
+            borrar: true
+          }
+        }
+      })
+      // creamos el movimiento de data inicial y usamos la variable borrar
+      const movimientoInit = await createItemSD({
+        nameCollection: 'movimientos',
+        enviromentClienteId: clienteId,
+        item: {
+          fecha,
+          fechaVencimiento: moment().toDate(),
+          tipo: 'dataInit',
+          almacenOrigen: null,
+          estado: 'init',
+          almacenDestino: null,
+          zona: null,
+          creadoPor: new ObjectId(req.uid),
+          borrar: true,
+          fechaCreacion: moment().toDate()
+        }
+      })
+      // creamos el movimiento por almacen con la variable borrar
+      await createItemSD({
+        nameCollection: 'productosPorAlmacen',
+        enviromentClienteId: clienteId,
+        item: {
+          cantidad: Number(producto.cantidad),
+          almacenDestino: almacenPrincipal._id,
+          almacenDestinoNombre: almacenPrincipal.nombre,
+          almacenId: almacenPrincipal._id,
+          tipo: 'inicial',
+          lote: producto.lote,
+          movimientoId: new ObjectId(movimientoInit.insertedId),
+          tipoMovimiento: 'entrada',
+          productoId: new ObjectId(newProducto._id),
+          fechaVencimiento: moment().toDate(),
+          fechaIngreso: fecha,
+          costoUnitario: Number(producto.costoUnitario),
+          fechaMovimiento: fecha,
+          creadoPor: new ObjectId(req.uid),
+          costoPromedio: Number(producto.costoUnitario),
+          borrar: true,
+          fechaCreacion: moment().toDate()
+        }
+      })
+    }
+    return res.status(200).json({ status: 'Productos guardados' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor ' + e.message })
+  }
+}
+export const saveComprasExcel = async (req, res) => {
+  const { clienteId, items } = req.body
+  try {
+    const groupDocumento = items.reduce((acc, row) => {
+      const documento = row.documento
+      const fecha = row.fecha
+      // Buscar si ya existe un grupo con el mismo documento
+      let group = acc.find(g => g.documento === documento)
+      // Si no existe, crear un nuevo grupo con documento, fecha e items vacíos
+      if (!group) {
+        group = { documento, fecha, items: [] }
+        acc.push(group)
+      }
+      // Agregar la fila al array de items del grupo correspondiente
+      group.items.push(row)
+      return acc
+    }, [])
+    const almacenPrincipal = await getItemSD({
+      nameCollection: 'almacenes',
+      enviromentClienteId: clienteId,
+      filters: { nombre: 'Almacen 1' }
+    })
+    const ajusteSistema = await getItemSD({
+      nameCollection: 'ajustes',
+      enviromentClienteId: clienteId,
+      filters: { tipo: 'sistema' }
+    })
+    const proveedor = await getItemSD({
+      nameCollection: 'proveedores',
+      enviromentClienteId: clienteId,
+      filters: { razonSocial: 'CLUB NAUTICO DE MARACAIBO, SOCIEDAD CIVIL' }
+    })
+    const ivaData = await getItem({
+      nameCollection: 'iva',
+      filters: { tipo: 'General' }
+    })
+    const banco = await getItemSD({
+      nameCollection: 'bancos',
+      enviromentClienteId: clienteId,
+      filters: { tipo: 'Nacional', tipoBanco: 'banco' }
+    })
+    // console.log({ ivaData, proveedor, banco, almacenSecundario, almacenPrincipal })
+    const dataProductoAlmace = []
+    const detalleMovimientoInventario = []
+    const detalleOrdenCompra = []
+    const detalleCompra = []
+    for (const item of groupDocumento) {
+      const fecha = momentDate(ajusteSistema.timeZone || 'America/Caracas', item.fecha).toDate()
+      // console.log(item)
+      let contadorOrden = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'compra' } }))?.contador
+      if (contadorOrden) ++contadorOrden
+      if (!contadorOrden) contadorOrden = 1
+      const baseImponible = item.items.reduce((acc, row) => acc + Number(row.costoTotal), 0)
+      const iva = Number((baseImponible * (ivaData.iva || 0) / 100).toFixed(2))
+      // console.log({ baseImponible })
+      const newOrdenCompra = await createItemSD({
+        nameCollection: 'compras',
+        enviromentClienteId: clienteId,
+        item: {
+          borrar: true,
+          tipoMovimiento: 'compra',
+          fecha,
+          fechaVencimiento: fecha,
+          tipo: 'factura',
+          statusInventario: 'Recibido',
+          estado: 'porRecibir',
+          fechaAprobacionPagos: fecha,
+          numeroOrden: contadorOrden,
+          proveedorId: new ObjectId(proveedor._id),
+          moneda: 'Bs',
+          monedaSecundaria: 'Bs',
+          baseImponible: Number(baseImponible.toFixed(2)),
+          iva,
+          total: baseImponible + iva,
+          baseImponibleSecundaria: baseImponible,
+          ivaSecundaria: iva,
+          totalSecundaria: baseImponible + iva,
+          sinDerechoCredito: 0,
+          noSujeto: 0,
+          exonerado: 0,
+          totalExento: 0,
+          sinDerechoCreditoSecundaria: 0,
+          noSujetoSecundaria: 0,
+          exoneradoSecundaria: 0,
+          exentoSecundaria: 0,
+          totalExentoSecundaria: 0,
+          creadoPor: new ObjectId(req.uid),
+          metodoPago: proveedor.metodoPago,
+          formaPago: 'Contado',
+          credito: null,
+          duracionCredito: null,
+          almacenDestino: null,
+          tasaDia: 1,
+          solicitudCompraId: null,
+          fechaCreacion: moment().toDate()
+        }
+      })
+      let contadorInventario = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'recepcion' } }))?.contador
+      if (contadorInventario) ++contadorInventario
+      if (!contadorInventario) contadorInventario = 1
+      const movimientoInventario = await createItemSD({
+        nameCollection: 'movimientos',
+        enviromentClienteId: clienteId,
+        item: {
+          fecha,
+          fechaVencimiento: null,
+          tipo: 'recepcion',
+          almacenOrigen: null,
+          almacenDestino: null, // detalleCompra[0].almacenDestino,
+          zona: null,
+          compraId: new ObjectId(newOrdenCompra.insertedId),
+          numeroMovimiento: contadorInventario,
+          estado: 'recibido',
+          estadoRecepcion: 'Satisfactorio',
+          statusInventario: 'Recibido',
+          borrar: true,
+          fechaCreacion: moment().toDate()
+        }
+      })
+      await upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'recepcion' }, update: { $set: { contador: contadorInventario } } })
+      await upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'compra' }, update: { $set: { contador: contadorOrden } } })
+      const newCompra = await createItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        item: {
+          tipoMovimiento: 'compra',
+          fecha,
+          fechaVencimiento: fecha,
+          fechaRecepcion: fecha,
+          numeroFactura: item.documento,
+          tipoDocumento: 'Factura',
+          numeroControl: item.documento,
+          proveedorId: proveedor._id,
+          moneda: 'Bs',
+          monedaSecundaria: 'Bs',
+          compraFiscal: true,
+          baseImponible,
+          iva,
+          total: baseImponible + iva,
+          baseImponibleSecundaria: baseImponible,
+          ivaSecundaria: iva,
+          totalSecundaria: baseImponible + iva,
+          creadoPor: new ObjectId(req.uid),
+          metodoPago: null,
+          formaPago: 'Contado',
+          credito: null,
+          duracionCredito: null,
+          tasaDia: 1,
+          ordenCompraId: newOrdenCompra.insertedId,
+          sinDerechoCredito: 0,
+          noSujeto: 0,
+          exonerado: 0,
+          exento: 0,
+          totalExento: 0,
+          sinDerechoCreditoSecundaria: 0,
+          noSujetoSecundaria: 0,
+          exoneradoSecundaria: 0,
+          exentoSecundaria: 0,
+          totalExentoSecundaria: 0,
+          aplicaProrrateo: false,
+          isImportacion: false,
+          ivasTotales: null,
+          borrar: true,
+          estado: 'pagada',
+          fechaPago: fecha,
+          pagadoPor: new ObjectId(req.uid),
+          fechaCreacion: moment().toDate()
+        }
+      })
+      await createItemSD({
+        nameCollection: 'transacciones',
+        enviromentClienteId: clienteId,
+        item: {
+          documentoId: new ObjectId(newCompra.insertedId),
+          proveedorId: new ObjectId(proveedor._id),
+          pago: Number(baseImponible + iva),
+          fechaPago: fecha,
+          referencia: generarCodigoRandom(7),
+          descripcion: `Factura-${item.documento}`,
+          banco: banco._id,
+          caja: null,
+          porcentajeIgtf: 0,
+          igtfPorPagar: 0,
+          // pagoIgtf: Number(abono?.pagoIgtf.toFixed(2)),
+          pagoSecundario: Number(baseImponible + iva),
+          igtfPorPagarSecundario: 0,
+          moneda: 'Bs',
+          monedaSecundaria: 'Bs',
+          tasa: 1,
+          tipo: 'compra',
+          creadoPor: new ObjectId(req.uid),
+          fechaCreacion: moment().toDate(),
+          borrar: true
+        }
+      })
+      for (const detalle of item.items) {
+        const producto = await getItemSD({
+          nameCollection: 'productos',
+          enviromentClienteId: clienteId,
+          filters: { codigo: detalle.codigo }
+        })
+        detalleOrdenCompra.push({
+          compraId: newOrdenCompra.insertedId,
+          productoId: producto._id,
+          codigo: producto.codigo,
+          nombre: producto.nombre,
+          cantidad: detalle.cantidad,
+          tipo: 'producto',
+          costoUnitario: Number(detalle.costoUnitario),
+          baseImponible: Number(detalle.costoTotal),
+          montoIva: Number((detalle.costoTotal * (ivaData?.iva || 0) / 100).toFixed(2)),
+          iva: ivaData?.iva || 0,
+          costoTotal: Number(detalle.costoTotal),
+          borrar: true
+        })
+        detalleMovimientoInventario.push({
+          movimientoId: movimientoInventario.insertedId,
+          productoId: producto._id,
+          codigo: producto.codigo,
+          nombre: producto.nombre,
+          cantidad: detalle.cantidad,
+          costoUnitario: Number(detalle.costoUnitario),
+          borrar: true
+        })
+        detalleCompra.push({
+          facturaId: newCompra.insertedId,
+          productoId: new ObjectId(producto._id),
+          codigo: producto.codigo,
+          nombre: producto.nombre,
+          cantidad: detalle.cantidad,
+          tipo: 'producto',
+          costoUnitario: Number(detalle.costoUnitario),
+          baseImponible: Number(detalle.costoTotal),
+          montoIva: Number((detalle.costoTotal * (ivaData?.iva || 0) / 100).toFixed(2)),
+          iva: ivaData?.iva || 0,
+          costoTotal: Number(detalle.costoTotal),
+          borrar: true
+        })
+        const inventarioAnterior = await agreggateCollectionsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          pipeline: [
+            {
+              $match:
+              {
+                productoId: new ObjectId(producto._id),
+                $or: [
+                  { $and: [{ movimientoId: { $ne: new ObjectId(movimientoInventario.insertedId) } }] }
+                ]
+              }
+            },
+            {
+              $group: {
+                _id: {
+                  productoId: '$productoId'
+                },
+                entrada: {
+                  $sum: {
+                    $cond: {
+                      if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                    }
+                  }
+                },
+                salida: {
+                  $sum: {
+                    $cond: {
+                      if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                    }
+                  }
+                }
+              }
+            },
+            {
+              $project: {
+                _id: 0,
+                cantidad: { $subtract: ['$entrada', '$salida'] }
+              }
+            },
+            { $match: { cantidad: { $gt: 0 } } }
+          ]
+        })
+        const costoPromedioTotalAnterior = (producto.costoPromedio || 0) * (inventarioAnterior[0]?.cantidad || 0)
+        let costoPromedio = producto.costoPromedio || 0
+        const costoPromedioTotalActualizado = (Number(detalle?.cantidad) * (detalle?.costoUnitario || 0)) + costoPromedioTotalAnterior
+        costoPromedio = costoPromedioTotalActualizado / (Number(detalle?.cantidad) + Number(inventarioAnterior[0]?.cantidad || 0))
+        const productoAlmacen = {
+          productoId: new ObjectId(producto._id),
+          movimientoId: new ObjectId(movimientoInventario.insertedId),
+          cantidad: Number(detalle.cantidad),
+          almacenId: new ObjectId(almacenPrincipal._id),
+          almacenOrigen: null,
+          almacenDestino: new ObjectId(almacenPrincipal._id),
+          tipo: 'movimiento',
+          tipoMovimiento: 'entrada',
+          lote: `LOTE-${generarCodigoRandom(7)}`,
+          fechaVencimiento: moment().toDate(),
+          fechaIngreso: fecha,
+          fechaMovimiento: fecha,
+          costoUnitario: detalle.costoUnitario,
+          costoPromedio: Number(costoPromedio.toFixed(2)),
+          creadoPor: new ObjectId(req.uid),
+          compraId: newOrdenCompra.insertedId,
+          borrar: true,
+          fechaCreacion: moment().toDate()
+        }
+        // console.log({ productoAlmacen })
+        dataProductoAlmace.push(productoAlmacen)
+        await updateItem({
+          nameCollection: 'productos',
+          enviromentClienteId: clienteId,
+          filters: { _id: new ObjectId(producto._id) },
+          update: { $set: { costoPromedio: Number(costoPromedio.toFixed(2)) } }
+        })
+        await createItemSD({
+          nameCollection: 'ajustePrecioProducto',
+          enviromentClienteId: clienteId,
+          item: {
+            productoId: new ObjectId(producto._id),
+            fecha,
+            costoPromedio: Number(costoPromedio.toFixed(2)),
+            borrar: true
+          }
+        })
+      }
+      // const uniqueItems = Array.from(new Set(dataProductoAlmace.map(a => JSON.stringify(a)))).map(a => JSON.parse(a))
+    }
+    console.log({ length: dataProductoAlmace.length })
+    /* await bulkWriteSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      pipeline: dataProductoAlmace
+    }) */
+    await createManyItemsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      items: dataProductoAlmace
+    })
+    await createManyItemsSD({
+      nameCollection: 'detalleCompra',
+      enviromentClienteId: clienteId,
+      items: detalleOrdenCompra
+    })
+    await createManyItemsSD({
+      nameCollection: 'detalleMovimientos',
+      enviromentClienteId: clienteId,
+      items: detalleMovimientoInventario
+    })
+    await createManyItemsSD({
+      nameCollection: 'detalleDocumentosFiscales',
+      enviromentClienteId: clienteId,
+      items: detalleCompra
+    })
+    return res.status(200).json({ status: 'compras guardados' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor ' + e.message })
+  }
+}
+export const saveVentasExcel = async (req, res) => {
+  const { clienteId, items } = req.body
+  try {
+    const groupDocumento = items.reduce((acc, row) => {
+      const documento = row.documento
+      const fecha = row.fecha
+      // Buscar si ya existe un grupo con el mismo documento
+      let group = acc.find(g => g.documento === documento)
+      // Si no existe, crear un nuevo grupo con documento, fecha e items vacíos
+      if (!group) {
+        group = { documento, fecha, items: [] }
+        acc.push(group)
+      }
+      // Agregar la fila al array de items del grupo correspondiente
+      group.items.push(row)
+      return acc
+    }, [])
+    const almacenPrincipal = await getItemSD({
+      nameCollection: 'almacenes',
+      enviromentClienteId: clienteId,
+      filters: { nombre: 'Almacen 1' }
+    })
+    const ajusteSistema = await getItemSD({
+      nameCollection: 'ajustes',
+      enviromentClienteId: clienteId,
+      filters: { tipo: 'sistema' }
+    })
+    const cliente = await getItemSD({
+      nameCollection: 'clientes',
+      enviromentClienteId: clienteId,
+      filters: { razonSocial: 'Cliente 1' }
+    })
+    const ivaData = await getItem({
+      nameCollection: 'iva',
+      filters: { tipo: 'General' }
+    })
+    const banco = await getItemSD({
+      nameCollection: 'bancos',
+      enviromentClienteId: clienteId,
+      filters: { tipo: 'Nacional', tipoBanco: 'banco' }
+    })
+    const sucursal = await getItemSD({
+      nameCollection: 'ventassucursales',
+      enviromentClienteId: clienteId,
+      filters: { nombre: 'sucursal 1' }
+    })
+    const caja = await getItemSD({
+      nameCollection: 'ventascajas',
+      enviromentClienteId: clienteId,
+      filters: { nombre: 'caja 1' }
+    })
+    const zona = await getItemSD({
+      nameCollection: 'ventaszonas',
+      enviromentClienteId: clienteId,
+      filters: { nombre: 'zona C1' }
+    })
+    console.log({ ivaData, cliente, banco, caja, almacenPrincipal, zona, sucursal })
+    const dataProductoAlmace = []
+    const detalleMovimientoInventario = []
+    const detalleVenta = []
+    console.log({ lengthDocum: groupDocumento.length })
+    for (const item of groupDocumento) {
+      const fecha = momentDate(ajusteSistema.timeZone || 'America/Caracas', item.fecha).toDate()
+      // console.log(item)
+      const baseImponible = item.items.reduce((acc, row) => acc + Number(row.costoTotal), 0)
+      const iva = Number((baseImponible * (ivaData.iva || 0) / 100).toFixed(2))
+      // console.log({ baseImponible })
+      let contadorInventario = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'despacho-ventas' } }))?.contador
+      if (contadorInventario) ++contadorInventario
+      if (!contadorInventario) contadorInventario = 1
+      await upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'despacho-ventas' }, update: { $set: { contador: contadorInventario } } })
+      const documento = await createItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        item: {
+          // datos del documento
+          tipoMovimiento: 'venta',
+          fecha,
+          fechaCreacion: moment().toDate(),
+          numeroFactura: item.documento,
+          numero: item.documento,
+          tipoDocumento: 'Factura',
+          // activo,
+          isExportacion: false,
+          isDespacho: true,
+          numeroControl: item.documento,
+          useImpresoraFiscal: false,
+          sucursalId: sucursal._id,
+          almacenId: almacenPrincipal._id,
+          cajaId: new ObjectId(caja._id),
+          // datos de monedas
+          tasaDia: 1,
+          moneda: 'Bs',
+          monedaSecundaria: 'Bs',
+          // datos de montos e impuestos
+          hasIgtf: false,
+          baseImponible,
+          exentoSinDescuento: 0,
+          iva,
+          totalDescuento: 0,
+          total: baseImponible + iva,
+          baseImponibleSecundaria: baseImponible,
+          ivaSecundaria: iva,
+          totalDescuentoSecundaria: 0,
+          totalSecundaria: baseImponible + iva,
+          totalIgtf: 0,
+          // total pagado
+          totalPagado: baseImponible + iva,
+          diferenciaVenta: 0,
+          // total establecido a credito
+          totalCredito: 0,
+          totalCreditoSecundario: 0,
+          diasCredito: 0,
+          fechaVencimiento: moment().toDate(),
+          // cuando se realicen pagos al credito se abonara a este total
+          totalAbonado: baseImponible + iva,
+          // estado como primero filtro antes de buscar las que estan pagadas
+          estado: 'pagada',
+          fechaUltimoPago: moment().toDate(),
+          // este es un arreglo que tiene el texto del total de los IVA por porcentaje
+          // datos del vendedor
+          creadoPor: new ObjectId(req.uid),
+          // creadoPorNombre: vendedor.nombre,
+          // datos del cliente de la venta
+          clienteId: new ObjectId(cliente._id),
+          clienteNombre: cliente.razonSocial,
+          clienteDocumentoIdentidad: cliente.documentoIdentidad,
+          direccion: cliente.direccion,
+          direccionEnvio: cliente.direccionEnvio,
+          zonaId: new ObjectId(zona._id),
+          zonaNombre: zona.nombre,
+          // datos del cliente del producto
+          ownLogo: sucursal.logo || cliente.logo,
+          ownRazonSocial: sucursal.nombre || cliente.razonSocial,
+          ownDireccion: sucursal.direccion || cliente.direccion,
+          ownDocumentoIdentidad: sucursal.rif || `${cliente.tipoDocumento}-${cliente.documentoIdentidad}`,
+          borrar: true
+        }
+      })
+      await createItemSD({
+        nameCollection: 'transacciones',
+        enviromentClienteId: clienteId,
+        item: {
+          documentoId: new ObjectId(documento.insertedId),
+          clienteId: new ObjectId(cliente._id),
+          metodo: 'banco', // caja, banco
+          pago: baseImponible + iva,
+          pagoSecundario: baseImponible + iva,
+          fechaPago: fecha,
+          referencia: generarCodigoRandom(6),
+          banco: banco._id,
+          caja: caja._id,
+          porcentajeIgtf: 0,
+          pagoIgtf: 0,
+          moneda: 'Bs',
+          monedaSecundaria: 'Bs',
+          tasa: 1,
+          tipo: 'venta',
+          tipoDocumento: 'Factura',
+          creadoPor: new ObjectId(req.uid),
+          credito: 0,
+          fechaCreacion: moment().toDate(),
+          borrar: true
+        }
+      })
+      const movimientoInventario = await createItemSD({
+        nameCollection: 'movimientos',
+        enviromentClienteId: clienteId,
+        item: {
+          fecha,
+          fechaVencimiento: moment().toDate(),
+          tipo: 'despacho-ventas',
+          documentoId: documento.insertedId,
+          tipoDocumento: 'Factura',
+          almacenOrigen: almacenPrincipal._id,
+          almacenDestino: null,
+          zona: zona._id,
+          estado: 'Despachado',
+          numeroMovimiento: contadorInventario,
+          creadoPor: new ObjectId(req.uid),
+          fechaCreacion: moment().toDate(),
+          borrar: true
+        }
+      })
+      for (const detalle of item.items) {
+        const producto = await getItemSD({
+          nameCollection: 'productos',
+          enviromentClienteId: clienteId,
+          filters: { codigo: detalle.codigo }
+        })
+        detalleMovimientoInventario.push({
+          movimientoId: movimientoInventario.insertedId,
+          documentoId: documento.insertedId,
+          tipoDocumento: 'Factura',
+          productoId: producto._id,
+          codigo: producto.codigo,
+          nombre: producto.nombre,
+          cantidad: detalle.cantidad,
+          costoUnitario: Number(detalle.costoUnitario),
+          borrar: true
+        })
+        detalleVenta.push({
+          documentoId: documento.insertedId,
+          tipoMovimiento: 'venta',
+          tipoDocumento: 'Factura',
+          productoId: new ObjectId(producto._id),
+          codigo: producto.codigo,
+          nombre: producto.nombre,
+          cantidad: detalle.cantidad,
+          tipo: 'producto',
+          precioVenta: Number(detalle.costoUnitario.toFixed(2)),
+          precioSinDescuento: Number(detalle.costoUnitario.toFixed(2)),
+          descuento: 0,
+          descuentoTotal: 0,
+          precioConDescuento: Number(detalle.costoUnitario.toFixed(2)),
+          baseImponible: Number(detalle.costoTotal.toFixed(2)),
+          montoIva: Number((detalle.costoTotal * (ivaData?.iva || 0) / 100).toFixed(2)),
+          ivaId: new ObjectId(ivaData._id),
+          iva: ivaData.iva,
+          precioTotal: Number(detalle.costoTotal.toFixed(2)) + Number((detalle.costoTotal * (ivaData?.iva || 0) / 100).toFixed(2)),
+          costoPromedio: producto.costoPromedio,
+          fechaCreacion: moment().toDate(),
+          borrar: true
+        })
+        const datosMovivientoPorProducto = await agreggateCollectionsSD({
+          nameCollection: 'productosPorAlmacen',
+          enviromentClienteId: clienteId,
+          pipeline: [
+            { $match: { productoId: new ObjectId(producto._id), almacenId: almacenPrincipal._id } },
+            {
+              $group: {
+                _id: {
+                  costoUnitario: '$costoUnitario',
+                  // fechaMovimiento: '$fechaMovimiento',
+                  lote: '$lote',
+                  fechaVencimiento: '$fechaVencimiento',
+                  fechaIngreso: '$fechaIngreso',
+                  costoPromedio: '$costoPromedio'
+                },
+                entrada: {
+                  $sum: {
+                    $cond: {
+                      if: { $eq: ['$tipoMovimiento', 'entrada'] }, then: '$cantidad', else: 0
+                    }
+                  }
+                },
+                salida: {
+                  $sum: {
+                    $cond: {
+                      if: { $eq: ['$tipoMovimiento', 'salida'] }, then: '$cantidad', else: 0
+                    }
+                  }
+                }
+              }
+            },
+            {
+              $project: {
+                _id: 0,
+                costoPromedio: '$_id.costoPromedio',
+                costoUnitario: '$_id.costoUnitario',
+                // fechaMovimiento: '$_id.fechaMovimiento',
+                fechaIngreso: '$_id.fechaIngreso',
+                lote: '$_id.lote',
+                fechaVencimiento: '$_id.fechaVencimiento',
+                cantidad: { $subtract: ['$entrada', '$salida'] } // cantidad de producto en el almacen de origen
+              }
+            },
+            { $match: { cantidad: { $gt: 0 } } },
+            { $sort: { fechaVencimiento: 1, lote: 1 } }
+          ]
+        })
+        for (const movimientos of datosMovivientoPorProducto) {
+          if (detalle.cantidad === 0) break
+          if (detalle.cantidad >= movimientos.cantidad) {
+            dataProductoAlmace.push({
+              // detalles de la venta
+              documentoId: documento.insertedId,
+              tipoDocumento: 'Factura',
+              productoId: new ObjectId(producto._id),
+              movimientoId: new ObjectId(movimientoInventario.insertedId),
+              cantidad: Number(movimientos.cantidad),
+              almacenId: almacenPrincipal._id,
+              almacenOrigen: almacenPrincipal._id,
+              almacenDestino: null,
+              tipo: 'movimiento',
+              tipoMovimiento: 'salida',
+              lote: movimientos.lote,
+              fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+              fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
+              fechaMovimiento: moment(fecha).toDate(),
+              costoUnitario: movimientos.costoUnitario,
+              costoPromedio: movimientos.costoPromedio,
+              creadoPor: new ObjectId(req.uid),
+              borrar: true
+            })
+            detalle.cantidad -= movimientos.cantidad
+            continue
+          }
+          if (detalle.cantidad < movimientos.cantidad) {
+            dataProductoAlmace.push({
+              documentoId: documento.insertedId,
+              tipoDocumento: 'Factura',
+              productoId: new ObjectId(producto._id),
+              movimientoId: new ObjectId(movimientoInventario.insertedId),
+              cantidad: Number(detalle.cantidad),
+              almacenId: almacenPrincipal._id,
+              almacenOrigen: almacenPrincipal._id,
+              almacenDestino: null,
+              tipo: 'movimiento',
+              tipoMovimiento: 'salida',
+              lote: movimientos.lote,
+              fechaVencimiento: moment(movimientos.fechaVencimiento).toDate(),
+              fechaIngreso: moment(movimientos.fechaIngreso).toDate(),
+              fechaMovimiento: moment(fecha).toDate(),
+              costoUnitario: movimientos.costoUnitario,
+              costoPromedio: movimientos.costoPromedio,
+              creadoPor: new ObjectId(req.uid),
+              borrar: true
+            })
+            detalle.cantidad = 0
+            break
+          }
+        }
+      }
+      // const uniqueItems = Array.from(new Set(dataProductoAlmace.map(a => JSON.stringify(a)))).map(a => JSON.parse(a))
+    }
+    console.log({ length: dataProductoAlmace.length })
+    await createManyItemsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      items: dataProductoAlmace
+    })
+    await createManyItemsSD({
+      nameCollection: 'detalleMovimientos',
+      enviromentClienteId: clienteId,
+      items: detalleMovimientoInventario
+    })
+    await createManyItemsSD({
+      nameCollection: 'detalleDocumentosFiscales',
+      enviromentClienteId: clienteId,
+      items: detalleVenta
+    })
+    return res.status(200).json({ status: 'ventas guardados' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor ' + e.message })
+  }
+}
+export const deleteImportaciones = async (req, res) => {
+  try {
+    const { clienteId } = req.body
+    await deleteManyItemsSD({
+      nameCollection: 'productos',
+      enviromentClienteId: clienteId,
+      filters: { borrar: true }
+    })
+    await deleteManyItemsSD({
+      nameCollection: 'movimientos',
+      enviromentClienteId: clienteId,
+      filters: { borrar: true }
+    })
+    await deleteManyItemsSD({
+      nameCollection: 'productosPorAlmacen',
+      enviromentClienteId: clienteId,
+      filters: { borrar: true }
+    })
+    await deleteManyItemsSD({
+      nameCollection: 'compras',
+      enviromentClienteId: clienteId,
+      filters: { borrar: true }
+    })
+    await deleteManyItemsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      filters: { borrar: true }
+    })
+    deleteManyItemsSD({
+      nameCollection: 'detalleCompra',
+      enviromentClienteId: clienteId,
+      filters: { borrar: true }
+    })
+    await deleteManyItemsSD({
+      nameCollection: 'detalleDocumentosFiscales',
+      enviromentClienteId: clienteId,
+      filters: { borrar: true }
+    })
+    await deleteManyItemsSD({
+      nameCollection: 'detalleMovimientos',
+      enviromentClienteId: clienteId,
+      filters: { borrar: true }
+    })
+    await deleteManyItemsSD({
+      nameCollection: 'ajustePrecioProducto',
+      enviromentClienteId: clienteId,
+      filters: { borrar: true }
+    })
+    return res.status(200).json({ status: 'borrado' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor ' + e.message })
+  }
+}
+
+function generarCodigoRandom (length) {
+  return randomBytes(length)
+    .toString('base64')
+    .slice(0, length)
+    .replace(/\+/g, '0')
+    .replace(/\//g, '0')
 }

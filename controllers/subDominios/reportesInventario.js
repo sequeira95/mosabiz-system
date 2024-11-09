@@ -1669,6 +1669,7 @@ export const reporteInventarios = async (req, res) => {
       ]
     })
     if (itemsPorPagina || pagina) {
+      console.log({ pagina })
       const productos = await agreggateCollectionsSD({
         nameCollection: 'productosPorAlmacen',
         enviromentClienteId: clienteId,
@@ -2087,6 +2088,8 @@ export const reporteInventarios = async (req, res) => {
               }
             }
           },
+          { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+          { $limit: Number(itemsPorPagina) },
           {
             $lookup: {
               from: ajustePrecioProductoCollection,

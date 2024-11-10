@@ -275,13 +275,14 @@ export const reporteRotacionInventario = async (req, res) => {
           $first: `$${fecha.format('YYYY-MM')}Salida`
         }
         segundoGroupMeses[`${fecha.format('YYYY-MM')}LastCosto`] = {
-          $sum: {
+          $push: {
             $cond: {
               if: {
-                $and: [
+                $lte: ['$ultimoCosto.dateFormat', moment(fecha).startOf('month').toDate()]
+                /* $and: [
                   { $eq: ['$ultimoCosto.year', Number(fecha.format('YYYY'))] },
-                  { $eq: ['$ultimoCosto.month', Number(fecha.format('M'))] }
-                ]
+                  { $lte: ['$ultimoCosto.month', Number(fecha.format('M'))] }
+                ] */
               },
               then: '$ultimoCosto.ultimoCostoPromedio',
               else: 0
@@ -305,9 +306,25 @@ export const reporteRotacionInventario = async (req, res) => {
         } */
         projectMeses[`${fecha.format('YYYY-MM')}Entrada`] = 1
         projectMeses[`${fecha.format('YYYY-MM')}Salida`] = 1
-        projectMeses[`${fecha.format('YYYY-MM')}LastCosto`] = 1
+        projectMeses[`${fecha.format('YYYY-MM')}LastCosto`] = {
+          $last: {
+            $filter: {
+              input: `$${fecha.format('YYYY-MM')}LastCosto`,
+              as: 'item',
+              cond: { $ne: ['$$item', 0] }
+            }
+          }
+        }
         projectMeses[`${fecha.format('YYYY-MM')}`] = {
-          $multiply: [{ $subtract: [`$${fecha.format('YYYY-MM')}Entrada`, `$${fecha.format('YYYY-MM')}Salida`] }, `$${fecha.format('YYYY-MM')}LastCosto`]
+          $multiply: [{ $subtract: [`$${fecha.format('YYYY-MM')}Entrada`, `$${fecha.format('YYYY-MM')}Salida`] }, {
+            $last: {
+              $filter: {
+                input: `$${fecha.format('YYYY-MM')}LastCosto`,
+                as: 'item',
+                cond: { $ne: ['$$item', 0] }
+              }
+            }
+          }]
         }
         addMeses.push(`$detalleRotacion.${fecha.format('YYYY-MM')}`)
         // fecha.set('month', i + 1)
@@ -448,25 +465,30 @@ export const reporteRotacionInventario = async (req, res) => {
                       {
                         $project: {
                           _id: 0,
-                          formatoNombre: {
-                            $concat: [
-                              { $toString: '$_id.year' },
-                              '-',
-                              {
-                                $cond: {
-                                  if: { $gt: ['$_id.month', 9] },
-                                  then: { $toString: '$_id.month' },
-                                  else: { $concat: ['0', { $toString: '$_id.month' }] }
-                                }
-                              },
-                              'ultimoCostoPromedio'
-                            ]
+                          dateFormat: { $dateFromString: {
+                            dateString: { $concat: [
+                                { $toString: '$_id.year' },
+                                '-',
+                                {
+                                  $cond: {
+                                    if: { $gt: ['$_id.month', 9] },
+                                    then: { $toString: '$_id.month' },
+                                    else: { $concat: ['0', { $toString: '$_id.month' }] }
+                                  }
+                                },
+                                '-',
+                                '01'
+                              ]
+                            },
+                            format: '%Y-%m-%d'
+                            }
                           },
                           year: '$_id.year',
                           month: '$_id.month',
                           ultimoCostoPromedio: 1
                         }
-                      }
+                      },
+                      { $sort: { dateFormat: 1 } }
                     ],
                     as: 'ultimoCosto'
                   }
@@ -496,6 +518,7 @@ export const reporteRotacionInventario = async (req, res) => {
               promedioSalida: { $divide: ['$detallePromedioSalida.sumDiff', '$detallePromedioSalida.cantidadSalidas'] },
               totalCostoPromedioSalida: { $round: ['$detallePromedioSalida.totalCostoPromedioSalida', 2] },
               totalPromedioRotacion: { $divide: [{ $add: addMeses }, mesesSeleccionados] },
+              addMeses,
               detalleRotacion: '$detalleRotacion'
             }
           }
@@ -2088,6 +2111,7 @@ export const reporteInventarios = async (req, res) => {
               }
             }
           },
+          { $sort: { _id: 1 } },
           { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
           { $limit: Number(itemsPorPagina) },
           {
@@ -2169,6 +2193,8 @@ export const reporteInventarios = async (req, res) => {
               ajustesSalida: 1,
               costoAjustesSalida: 1,
               costoPromedio: '$detalleProducto.costoPromedio',
+              salidasVentas: 1,
+              costoSalidasVentas: 1
             }
           }
         ]
@@ -2910,6 +2936,16 @@ export const savePoductosExcel = async (req, res) => {
           costoPromedio: Number(producto.costoUnitario),
           borrar: true,
           fechaCreacion: moment().toDate()
+        }
+      })
+      await createItemSD({
+        nameCollection: 'ajustePrecioProducto',
+        enviromentClienteId: clienteId,
+        item: {
+          productoId: new ObjectId(newProducto._id),
+          fecha: moment('2024/01/01').toDate(),
+          costoPromedio: Number(producto.costoUnitario.toFixed(2)),
+          borrar: true
         }
       })
     }

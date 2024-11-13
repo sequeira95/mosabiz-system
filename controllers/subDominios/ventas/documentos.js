@@ -115,6 +115,11 @@ export const getDocumentoByTipo = async (req, res) => {
       enviromentClienteId: clienteId,
       nameCollection: nameDetalleCollection
     })
+    const transaccionesCol = formatCollectionName({
+      enviromentEmpresa: subDominioName,
+      enviromentClienteId: clienteId,
+      nameCollection: 'transacciones'
+    })
     const [documento] = await agreggateCollectionsSD({
       enviromentClienteId: clienteId,
       nameCollection,
@@ -132,6 +137,22 @@ export const getDocumentoByTipo = async (req, res) => {
             localField: '_id',
             foreignField: 'documentoId',
             as: 'detalleProductos'
+          }
+        },
+        {
+          $lookup: {
+            from: detalleDocCol,
+            localField: '_id',
+            foreignField: 'documentoId',
+            as: 'detalleProductos'
+          }
+        },
+        {
+          $lookup: {
+            from: transaccionesCol,
+            localField: '_id',
+            foreignField: 'documentoId',
+            as: 'transacciones'
           }
         }
       ]

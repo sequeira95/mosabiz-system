@@ -1691,6 +1691,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       numeroControl: infoDoc.isFiscal && ventaInfo.useImpresoraFiscal ? ventaInfo.numeroControl : '',
       useImpresoraFiscal: infoDoc.isFiscal ? ventaInfo.useImpresoraFiscal : false,
       sucursalId: new ObjectId(ventaInfo.sucursalId),
+      isSucursalPrincipal: ventaInfo.isSucursalPrincipal || false,
       almacenId: new ObjectId(ventaInfo.almacenId),
       cajaId: new ObjectId(ventaInfo.cajaId),
       facturaAsociada: ventaInfo.facturaId ? new ObjectId(ventaInfo.facturaId) : '',
@@ -1755,6 +1756,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       zonaNombre: ventaInfo.zonaNombre,
       // datos del cliente del producto
       ownLogo: sucursal.logo || clienteOwn.logo,
+      ownPrincipalRazonSocial: clienteOwn.razonSocial,
       ownRazonSocial: sucursal.nombre || clienteOwn.razonSocial,
       ownDireccion: sucursal.direccion || clienteOwn.direccion,
       ownDocumentoIdentidad: sucursal.rif || `${clienteOwn.tipoDocumento}-${clienteOwn.documentoIdentidad}`
@@ -1816,7 +1818,7 @@ const createPagosDocumento = async ({ clienteId, ventaInfo, documentoId, creadoP
     banco: (e.banco && new ObjectId(e.banco)) || null,
     caja: (ventaInfo.cajaId && new ObjectId(ventaInfo.cajaId)) || null,
     porcentajeIgtf: Number(e.porcentajeIgtf || 0),
-    pagoIgtf: e?.igtfPorPagar ? Number((e.monto || 0).toFixed(2)) * Number((e.porcentajeIgtf || 0).toFixed(2)) / 100 : 0,
+    pagoIgtf: e?.hasIgtf ? Number((e.monto || 0).toFixed(2)) * Number((e.porcentajeIgtf || 0).toFixed(2)) / 100 : 0,
     moneda: ventaInfo.moneda,
     monedaSecundaria: e.moneda,
     tasa: e.tasa,

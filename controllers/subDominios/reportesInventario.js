@@ -3,7 +3,7 @@ import { subDominioName, tipoMovimientos } from '../../constants.js'
 import { agreggateCollectionsSD, createItemSD, createManyItemsSD, deleteManyItemsSD, formatCollectionName, getCollectionSD, getItem, getItemSD, updateItem, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import moment from 'moment-timezone'
 import { momentDate } from '../../utils/momentDate.js'
-import { generateKeySync, randomBytes } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 
 export const reporteProductos = async (req, res) => {
   const { clienteId, itemsPorPagina, pagina } = req.body
@@ -331,6 +331,7 @@ export const reporteRotacionInventario = async (req, res) => {
         fecha.add(1, 'month')
       }
       // console.log(groupMeses, projectMeses, fecha, mesesSeleccionados, addMeses.join(', '))
+      const documentos = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
       const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
       const ajustePrecioProductoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ajustePrecioProducto' })
       // const movimientosCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'movimientos' })
@@ -465,22 +466,24 @@ export const reporteRotacionInventario = async (req, res) => {
                       {
                         $project: {
                           _id: 0,
-                          dateFormat: { $dateFromString: {
-                            dateString: { $concat: [
-                                { $toString: '$_id.year' },
-                                '-',
-                                {
-                                  $cond: {
-                                    if: { $gt: ['$_id.month', 9] },
-                                    then: { $toString: '$_id.month' },
-                                    else: { $concat: ['0', { $toString: '$_id.month' }] }
-                                  }
-                                },
-                                '-',
-                                '01'
-                              ]
-                            },
-                            format: '%Y-%m-%d'
+                          dateFormat: {
+                            $dateFromString: {
+                              dateString: {
+                                $concat: [
+                                  { $toString: '$_id.year' },
+                                  '-',
+                                  {
+                                    $cond: {
+                                      if: { $gt: ['$_id.month', 9] },
+                                      then: { $toString: '$_id.month' },
+                                      else: { $concat: ['0', { $toString: '$_id.month' }] }
+                                    }
+                                  },
+                                  '-',
+                                  '01'
+                                ]
+                              },
+                              format: '%Y-%m-%d'
                             }
                           },
                           year: '$_id.year',
@@ -524,7 +527,32 @@ export const reporteRotacionInventario = async (req, res) => {
           }
         ]
       })
-      return res.status(200).json({ productsList })
+      const pruebaDatos = await agreggateCollectionsSD({
+        nameCollection: 'productosPorAlmacen',
+        enviromentClienteId: clienteId,
+        pipeline: [
+          { $match: { productoId: new ObjectId('67337762808642a2961b5a0f'), tipoMovimiento: 'salida', fechaMovimiento: { $lte: moment('2024/01/31').endOf('month').toDate() } } },
+          { $sort: { fechaMovimiento: -1 } },
+          {
+            $lookup: {
+              from: documentos,
+              localField: 'documentoId',
+              foreignField: '_id',
+              as: 'doc'
+            }
+          },
+          { $unwind: { path: '$doc', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              doc: '$doc.numeroFactura',
+              cantidad: 1,
+              fechaMovimiento: 1,
+              _id: null
+            }
+          }
+        ]
+      })
+      return res.status(200).json({ productsList, pruebaDatos })
     }
     return res.status(200).json({ count: count.length ? count[0].total : 0 })
   } catch (e) {
@@ -3706,6 +3734,11 @@ export const deleteImportaciones = async (req, res) => {
     })
     await deleteManyItemsSD({
       nameCollection: 'ajustePrecioProducto',
+      enviromentClienteId: clienteId,
+      filters: { borrar: true }
+    })
+    await deleteManyItemsSD({
+      nameCollection: 'transacciones',
       enviromentClienteId: clienteId,
       filters: { borrar: true }
     })

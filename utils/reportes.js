@@ -163,9 +163,249 @@ export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order
   }
 }
 export async function mayorAnaliticosAgrupado ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta }) {
+  const fechaInit = moment(fechaDesde).toDate()
+  const fechaEnd = moment(fechaHasta).toDate()
+  const sort = order === 'documento' ? { $sort: { documento: 1 } } : { $sort: { fecha: 1 } }
+  const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
+  const tercerosCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'terceros' })
+  const addFieldCondition = { $addFields: { codigoToInt: { $convert: { input: '$codigo', to: 'double' } } } }
+  let matchCondition = []
+  if (cuentaDesde && !cuentaHasta) {
+    matchCondition = [
+      addFieldCondition,
+      { $match: { codigoToInt: { $eq: Number(cuentaDesde) } } }
+    ]
+  }
+  if (!cuentaDesde && cuentaHasta) {
+    matchCondition = [
+      addFieldCondition,
+      { $match: { codigoToInt: { $lte: Number(cuentaHasta) } } }
+    ]
+  }
+  if (cuentaDesde && cuentaHasta) {
+    matchCondition = [
+      addFieldCondition,
+      { $match: { codigoToInt: { $gte: Number(cuentaDesde), $lte: Number(cuentaHasta) } } }
+    ]
+  }
+  const gtMatch = cuentaSinMovimientos ? '$gte' : '$gt'
+  try {
+    const dataCuentas = await agreggateCollectionsSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipo: 'Movimiento'
+          }
+        },
+        ...matchCondition,
+        {
+          $lookup: {
+            from: detalleComprobanteCollectionName,
+            localField: '_id',
+            foreignField: 'cuentaId',
+            pipeline: [
+              {
+                $match: {
+                  periodoId: new ObjectId(periodoId),
+                  fecha: { $gte: fechaInit, $lte: fechaEnd },
+                  isPreCierre: { $ne: true },
+                  isCierre: { $ne: true }
+                }
+              },
+              sort,
+              {
+                $group: {
+                  _id: {
+                    cuentaId: '$cuentaId',
+                    terceroId: '$terceroId',
+                    terceroNombre: '$terceroNombre'
+                  },
+                  // cuentaNombre: { $first: '$cuentaNombre' },
+                  // cuentaCodigo: { $first: '$cuentaCodigo' },
+                  dataCuenta: {
+                    $push: {
+                      periodoId: '$periodoId',
+                      cuentaId: '$cuentaId',
+                      fecha: '$fecha',
+                      comprobanteId: '$comprobanteId',
+                      documento: '$docReferenciaAux',
+                      descripcion: '$descripcion',
+                      debe: '$debe',
+                      haber: '$haber',
+                      monedasUsar: '$monedasUsar',
+                      cantidad: '$cantidad',
+                      terceroId: '$terceroId',
+                      terceroNombre: '$terceroNombre'
+                    }
+                  }
+                }
+              },
+              {
+                $lookup: {
+                  from: tercerosCollectionName,
+                  localField: '_id.terceroId',
+                  foreignField: '_id',
+                  as: 'dataTercero'
+                }
+              },
+              {
+                $lookup: {
+                  from: detalleComprobanteCollectionName,
+                  localField: '_id',
+                  foreignField: 'cuentaId',
+                  let: { terceroNombre: '$terceroNombre' },
+                  pipeline: [
+                    {
+                      $match: {
+                        periodoId: new ObjectId(periodoId),
+                        isPreCierre: { $eq: true },
+                        $expr: { $eq: ['$terceroNombre', '$$terceroNombre'] }
+                      }
+                    },
+                    {
+                      $group: {
+                        _id: '$cuentaId',
+                        debe: { $sum: '$debe' },
+                        haber: { $sum: '$haber' }
+                      }
+                    }
+                  ],
+                  as: 'saldosIniciales'
+                }
+              },
+              {
+                $lookup: {
+                  from: detalleComprobanteCollectionName,
+                  localField: '_id',
+                  foreignField: 'cuentaId',
+                  let: { terceroNombre: '$terceroNombre' },
+                  pipeline: [
+                    {
+                      $match: {
+                        periodoId: new ObjectId(periodoId),
+                        fecha: { $lt: fechaInit },
+                        isPreCierre: { $ne: true },
+                        isCierre: { $ne: true },
+                        $expr: { $eq: ['$terceroNombre', '$$terceroNombre'] }
+                      }
+                    },
+                    {
+                      $group: {
+                        _id: '$cuentaId',
+                        debe: { $sum: '$debe' },
+                        haber: { $sum: '$haber' }
+                      }
+                    }
+                  ],
+                  as: 'saldoAnterior'
+                }
+              },
+              { $unwind: { path: '$saldoAnterior', preserveNullAndEmptyArrays: true } },
+              { $unwind: { path: '$saldosIniciales', preserveNullAndEmptyArrays: true } },
+              { $unwind: { path: '$dataTercero', preserveNullAndEmptyArrays: true } },
+              {
+                $project: {
+                  cuentaId: '$_id.cuentaId',
+                  terceroId: '$_id.terceroId',
+                  terceroNombre: '$_id.terceroNombre',
+                  saldoAnteriorData: '$saldoAnterior',
+                  saldoInicialData: '$saldosIniciales',
+                  saldoAnteriorTercero: { $subtract: ['$saldoAnterior.debe', '$saldoAnterior.haber'] },
+                  saldosInicialesTercero: { $subtract: ['$saldosIniciales.debe', '$saldosIniciales.haber'] },
+                  dataCuenta: '$dataCuenta',
+                  terceroNombreAux: '$dataTercero.nombre'
+                }
+              }
+            ],
+            as: 'detalleComprobantes'
+          }
+        },
+        {
+          $lookup: {
+            from: detalleComprobanteCollectionName,
+            localField: '_id',
+            foreignField: 'cuentaId',
+            pipeline: [
+              {
+                $match: {
+                  periodoId: new ObjectId(periodoId),
+                  isPreCierre: { $eq: true }
+                }
+              },
+              {
+                $group: {
+                  _id: '$cuentaId',
+                  debe: { $sum: '$debe' },
+                  haber: { $sum: '$haber' }
+                }
+              }
+            ],
+            as: 'saldosIniciales'
+          }
+        },
+        {
+          $match: {
+            $expr: {
+              $or: [
+                { [gtMatch]: [{ $size: '$detalleComprobantes' }, 0] },
+                { [gtMatch]: [{ $size: '$saldosIniciales' }, 0] }
+              ]
+            }
+          }
+        },
+        // { $unwind: { path: '$detalleComprobantes', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$saldosIniciales', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: detalleComprobanteCollectionName,
+            localField: '_id',
+            foreignField: 'cuentaId',
+            pipeline: [
+              {
+                $match: {
+                  periodoId: new ObjectId(periodoId),
+                  fecha: { $lt: fechaInit },
+                  isPreCierre: { $ne: true },
+                  isCierre: { $ne: true }
+                }
+              },
+              {
+                $group: {
+                  _id: '$cuentaId',
+                  debe: { $sum: '$debe' },
+                  haber: { $sum: '$haber' },
+                  fecha: { $first: '$fecha' }
+                }
+              }
+            ],
+            as: 'detalle'
+          }
+        },
+        { $unwind: { path: '$detalle', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            cuentaNombre: '$descripcion',
+            cuentaCodigo: '$codigo',
+            saldoInit: { $subtract: ['$saldosIniciales.debe', '$saldosIniciales.haber'] },
+            saldo: { $subtract: ['$detalle.debe', '$detalle.haber'] },
+            dataCuenta: '$detalleComprobantes'
+          }
+        },
+        { $sort: { cuentaCodigo: 1 } }
+      ]
+    })
+    return { dataCuentas }
+  } catch (e) {
+    console.log(e)
+    return e
+  }
+}
+/* export async function mayorAnaliticosAgrupado ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta }) {
   console.log('entro a mayorAnaliticosAgrupado')
-  const fechaInit = moment(fechaDesde).toDate()/* .startOf('day').toDate() */
-  const fechaEnd = moment(fechaHasta).toDate() /* .endOf('day').toDate() */
+  const fechaInit = moment(fechaDesde).toDate()
+  const fechaEnd = moment(fechaHasta).toDate()
   const sort = order === 'documento' ? { $sort: { documento: 1 } } : { $sort: { fecha: 1 } }
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   const matchCuentasMovimientos = cuentaSinMovimientos ? {} : { $match: { dataCuentaSize: { $gt: 0 } } }
@@ -354,7 +594,7 @@ export async function mayorAnaliticosAgrupado ({ fechaDesde, fechaHasta, order, 
     console.log(e)
     return e
   }
-}
+} */
 export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos }) {
   const fechaInit = moment(fecha).startOf('month').toDate()
   const fechaEnd = moment(fecha).endOf('month').toDate()

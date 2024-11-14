@@ -43,17 +43,27 @@ export const getListBancos = async (req, res) => {
 export const getListBancosGeneral = async (req, res) => {
   const { tipo, pais } = req.body
   const matchConfig = {}
+  const projectConfig = {}
   if (tipo === 'Nacional') {
     matchConfig.pais = { $eq: pais }
+    projectConfig.nombreMostrar = '$nombre'
   }
   if (tipo === 'Internacional') {
     matchConfig.pais = { $ne: pais }
+    projectConfig.nombreMostrar = { $concat: ['$nombre', ' (', '$pais', ')'] }
   }
   try {
     const bancos = await agreggateCollections({
       nameCollection: 'bancos',
       pipeline: [
-        { $match: matchConfig }
+        { $match: matchConfig },
+        {
+          $project: {
+            nombre: '$nombre',
+            pais: '$pais',
+            ...projectConfig
+          }
+        }
       ]
     })
     return res.status(200).json({ bancos })

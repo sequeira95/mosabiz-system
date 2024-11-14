@@ -84,6 +84,20 @@ export const deleteTercero = async (req, res) => {
   const { clienteId, _id } = req.body
   try {
     await deleteItemSD({ nameCollection: 'terceros', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
+    const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+    console.log({ periodosActivos })
+    await updateManyItemSD(
+      {
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        filters: { terceroId: new ObjectId(_id), periodoId: { $in: periodosActivos } },
+        update: {
+          $set: {
+            terceroNombre: null,
+            terceroId: null
+          }
+        }
+      })
     return res.status(200).json({ status: 'Tercero eliminado exitosamente' })
   } catch (e) {
     console.log(e.message)

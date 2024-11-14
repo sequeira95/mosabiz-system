@@ -157,7 +157,14 @@ export const getDocumentoByTipo = async (req, res) => {
         }
       ]
     })
-    return res.status(200).json({ documento })
+    const sucursal = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'ventassucursales',
+      filters: {
+        _id: documento?.sucursalId
+      }
+    })
+    return res.status(200).json({ documento, sucursal })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar la data del documento: ' + e.message })

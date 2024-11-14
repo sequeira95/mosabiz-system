@@ -593,6 +593,7 @@ export const saveCorte = async (req, res) => {
     sucursalId,
     caja,
     sucursal,
+    fondo,
     apertura,
     cierre,
     horasTrabajadas,
@@ -750,6 +751,7 @@ export const saveCorte = async (req, res) => {
     if (!contador) contador = 1
 
     // crea el cierre de caja
+    const fondoCaja = Object.keys(fondo).length !== 0 && fondo.constructor === Object ? fondo : {}
     const cierreCaja = await createItemSD({
       nameCollection: 'cierrescaja',
       enviromentClienteId: clienteId,
@@ -757,6 +759,7 @@ export const saveCorte = async (req, res) => {
         numero: contador,
         cajaId: cajaId ? new ObjectId(cajaId) : null,
         sucursalId: sucursalId ? new ObjectId(sucursalId) : null,
+        fondo: fondoCaja,
         apertura: apertura ? momentDate(undefined, apertura).toDate() : null,
         cierre: cierre ? momentDate(undefined, cierre).toDate() : null,
         horasTrabajadas: horasTrabajadas ? Number(horasTrabajadas) : 0,
@@ -849,13 +852,14 @@ export const saveCorte = async (req, res) => {
     // transacciones hacia la caja principal
     const transacciones = []
     const montoMonedaPrincipal = Number((resumen.dataMonedaPrincipal?.montoShow || 0).toFixed(2))
-
+    const fondoMonedaPrincipal = Number(fondoCaja[ajustesSistema.monedaPrincipal]) || 0
+    const totalMontoMonedaPrincipal = Number((montoMonedaPrincipal - fondoMonedaPrincipal).toFixed(2))
     transacciones.push({
       clienteId: new ObjectId(clienteId),
       cierreCajaId: cierreCaja.insertedId,
       metodo: 'caja', // caja, banco
-      pago: montoMonedaPrincipal,
-      pagoSecundario: montoMonedaPrincipal,
+      pago: totalMontoMonedaPrincipal,
+      pagoSecundario: totalMontoMonedaPrincipal,
       fechaPago: momentDate(undefined, fecha).toDate(),
       caja: cuentaCajaPrincipalNacional._id,
       porcentajeIgtf: 0,
@@ -871,16 +875,20 @@ export const saveCorte = async (req, res) => {
     let montoMonedaDivisas = 0
     let diferenciaMontos = montoCalculoEfectivo - Number((resumen.dataMonedaPrincipal?.montoShow || 0).toFixed(2))
     for (const dataByMoneda of resumen.dataDivisas) {
-      montoMonedaDivisas += Number((dataByMoneda?.montoShow || 0).toFixed(2))
+      const fondoMonedaShow = (Number(fondoCaja[dataByMoneda.monedaSecundaria]) || 0) * dataByMoneda.tasa
+      montoMonedaDivisas += (Number((dataByMoneda?.montoShow || 0).toFixed(2)) - fondoMonedaShow)
       diferenciaMontos -= Number((dataByMoneda?.montoShow || 0).toFixed(2))
+      const fondoMonedaReal = (Number(fondoCaja[dataByMoneda.monedaSecundaria]) || 0)
+      diferenciaMontos -= fondoMonedaShow
+
       transacciones.push({
         cierreCajaId: cierreCaja.insertedId,
         clienteId: new ObjectId(clienteId),
         metodo: 'caja', // caja, banco
-        pago: Number((dataByMoneda?.montoShow || 0).toFixed(2)),
-        pagoSecundario: Number((dataByMoneda?.totalReal || 0).toFixed(2)),
+        pago: Number(((dataByMoneda?.montoShow || 0) - fondoMonedaShow).toFixed(2)),
+        pagoSecundario: Number(((dataByMoneda?.totalReal || 0) - fondoMonedaReal).toFixed(2)),
         fechaPago: momentDate(undefined, fecha).toDate(),
-        caja: cuentaCajaPrincipalNacional._id,
+        caja: cuentaCajaPrincipalDivisas._id,
         porcentajeIgtf: 0,
         pagoIgtf: 0,
         moneda: ajustesSistema.monedaPrincipal,

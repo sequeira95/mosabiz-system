@@ -45,6 +45,8 @@ export const getClientes = async (req, res) => {
         telefono: 1,
         tipoDocumento: 1,
         tipoEmpresa: 1,
+        nombreCorto: 1,
+        timeZone: 1,
         cantPersonas: '$usuarios.usuariosLength'
       }
     },
@@ -90,6 +92,8 @@ export const getClientes = async (req, res) => {
           telefono: 1,
           tipoDocumento: 1,
           tipoEmpresa: 1,
+          nombreCorto: 1,
+          timeZone: 1,
           cantPersonas: '$usuarios.usuariosLength'
         }
       }
@@ -124,7 +128,8 @@ export const createCliente = async (req, res) => {
     modulos,
     periodoActual,
     periodoInit,
-    periodoEnd
+    periodoEnd,
+    nombreCorto
   } = req.body
   try {
     const subDominioClientesCollectionsName = formatCollectionName({ enviromentEmpresa: subDominioName, nameCollection: 'clientes' })
@@ -178,6 +183,7 @@ export const createCliente = async (req, res) => {
         limiteUsuarios: parseInt(limiteUsuarios),
         modulos,
         periodoActual,
+        nombreCorto,
         fechaCreacion: moment().toDate(),
         activo: true
       }
@@ -316,7 +322,8 @@ export const updateCliente = async (req, res) => {
     clasificacionContribuyente,
     primerPeriodoFiscal,
     limiteUsuarios,
-    modulos
+    modulos,
+    nombreCorto
   } = req.body
   try {
     const clienteCol = await updateItemSD({
@@ -325,6 +332,7 @@ export const updateCliente = async (req, res) => {
       update: {
         $set: {
           razonSocial,
+          nombreCorto,
           email: email.toLowerCase(),
           countryCode,
           telefono,

@@ -65,6 +65,9 @@ export const createSucursal = async (req, res) => {
     almacenes,
     cajaNacionalId,
     cajaDivisasId,
+    rangoNumerosControl,
+    hasSeries,
+    series,
     pieDocumentos,
     clienteId,
   } = req.body
@@ -119,6 +122,7 @@ export const createSucursal = async (req, res) => {
       : almacenes
         ? [almacenes]
         : undefined
+    const trueHasSeries = hasSeries === 'true' || hasSeries === true
     if (_id) {
       const verify = await getItemSD({
         nameCollection: 'ventassucursales',
@@ -148,6 +152,11 @@ export const createSucursal = async (req, res) => {
             cajaDivisasId: new ObjectId(cajaDivisasId),
             supervisor: new ObjectId(supervisor),
             pieDocumentos: String(pieDocumentos || ''),
+            rangoNumerosControl: Array.isArray(rangoNumerosControl) && rangoNumerosControl.length === 2
+              ? rangoNumerosControl.sort((a, b) => Number(a) - Number(b)).map(e => Number(e))
+              : [],
+            hasSeries: trueHasSeries,
+            series: trueHasSeries ? (series || []).map(e => String(e)) : [],
             ...logo
           }
         }
@@ -169,6 +178,11 @@ export const createSucursal = async (req, res) => {
           cajaNacionalId: new ObjectId(cajaNacionalId),
           cajaDivisasId: new ObjectId(cajaDivisasId),
           pieDocumentos: String(pieDocumentos || ''),
+          rangoNumerosControl: Array.isArray(rangoNumerosControl) && rangoNumerosControl.length === 2
+            ? rangoNumerosControl.sort((a, b) => Number(a) - Number(b)).map(e => Number(e))
+            : [],
+          hasSeries: trueHasSeries,
+          series: trueHasSeries ? (series || []).map(e => String(e)) : [],
         }
       })
       sucursal = await getItemSD({ nameCollection: 'ventassucursales', enviromentClienteId: clienteId, filters: { _id: newSucursal.insertedId } })

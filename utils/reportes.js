@@ -867,7 +867,7 @@ export async function dataComprobantes ({ clienteId, periodoId, order, comproban
                       descripcion: '$descripcion',
                       debe: '$debe',
                       haber: '$haber',
-                      tercero: '$terceroNombre'
+                      terceroNombre: '$terceroNombre'
                     }
                   }
                 }
@@ -887,6 +887,12 @@ export async function dataComprobantes ({ clienteId, periodoId, order, comproban
             debe: '$detalleComprobantes.debe',
             haber: '$detalleComprobantes.haber',
             detalleComprobantes: '$detalleComprobantes.dataCuenta'
+          }
+        },
+        {
+          $sort: {
+            mesPeriodo: 1,
+            codigo: 1
           }
         }
       ]

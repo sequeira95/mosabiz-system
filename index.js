@@ -46,6 +46,7 @@ import proveedoresSDRouter from './routes/subDominios/proveedores.js'
 import comprasSDRouter from './routes/subDominios/compras.js'
 import tributosSDRouter from './routes/subDominios/tributos.js'
 import administracionSDRouter from './routes/subDominios/administracion.js'
+import homeSDRouter from './routes/subDominios/home.js'
 import { getValoresBcvExcel } from './utils/tareas.js'
 
 export const clientDb = database // .db(process.env.DB_NAME)
@@ -116,5 +117,6 @@ app.use('/v1/sub-dominio/proveedores', proveedoresSDRouter)
 app.use('/v1/sub-dominio/compras', comprasSDRouter)
 app.use('/v1/sub-dominio/tributos', tributosSDRouter)
 app.use('/v1/sub-dominio/administracion', administracionSDRouter)
+app.use('/v1/sub-dominio/home', homeSDRouter)
 
 app.listen(PORT, () => console.log('0.0.0.0' + PORT))

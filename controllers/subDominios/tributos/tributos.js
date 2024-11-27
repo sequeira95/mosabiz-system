@@ -4569,13 +4569,13 @@ export const savePlanillaIva = async (req, res) => {
     delete dataIva._id
     console.log({ dataIva })
     const declaracionCrear = {
+      ...dataIva,
       estado,
       periodoInit: moment(periodoInit).toDate(),
       priodoFin: moment(priodoFin).toDate(),
       periodo,
       creadoPor: new ObjectId(req.uid),
       tipoDeclaracion: tiposDeclaracion.planillaIva,
-      ...dataIva,
       fechaPlanilla: moment(fechaPlanilla).toDate()
     }
     /* if (req.files && req.files.documentos) {

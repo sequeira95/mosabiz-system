@@ -309,23 +309,9 @@ export const getDataEstadisticasPosicionMonetaria = async ({ clienteId, dateInit
             pipeline: [
               { $match: { fechaPago: { $lte: moment(dataEnd).endOf('day').toDate() } } },
               {
-                $addFields: {
-                  tasa: { $objectToArray: tasa }
-                }
-              },
-              { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
-              { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
-              {
-                $addFields: {
-                  valor: { $multiply: ['$tasa.v', '$pagoSecundario'] }
-                }
-              },
-              {
                 $group: {
                   _id: '$documentoId',
-                  totalAbono: { $sum: '$valor' },
-                  totalAbonoPrincipal: { $sum: '$pago' },
-                  totalAbonoSecundario: { $sum: '$pagoSecundario' }
+                  totalAbono: { $sum: '$pago' },
                 }
               }
             ],
@@ -333,8 +319,120 @@ export const getDataEstadisticasPosicionMonetaria = async ({ clienteId, dateInit
           }
         },
         { $unwind: { path: '$detalleTransacciones', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: '_id',
+            foreignField: 'facturaAsociada',
+            pipeline: [
+              { $match: { tipoDocumento: { $nin: tiposMovimientosUsar } } },
+              {
+                $group: {
+                  _id: 0,
+                  totalNotaCredito: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                        then: '$toda',
+                        else: 0
+                      }
+                    }
+                  },
+                  totalIslr: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIslr] },
+                        then: '$totalRetenido',
+                        else: 0
+                      }
+                    }
+                  },
+                  totalIva: {
+                    $sum: {
+                      $cond: {
+                        if: { $eq: ['$tipoDocumento', tiposDocumentosFiscales.retIva] },
+                        then: '$totalRetenido',
+                        else: 0
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            as: 'documentosAsociados'
+          }
+        },
+        { $unwind: { path: '$documentosAsociados', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: '_id',
+            foreignField: 'notaEntregaAsociada',
+            pipeline: [
+              {
+                $group: {
+                  _id: 0,
+                  totalDevolucion: {
+                    $sum: '$total'
+                  }
+                }
+              }
+            ],
+            as: 'devoluciones'
+          }
+        },
+        { $unwind: { path: '$devoluciones', preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: '$tipoMovimiento',
+            total: { $sum: '$total' },
+            totalAbono: { $sum: '$detalleTransacciones.totalAbono' },
+            totalNotaCredito: { $sum: '$documentosAsociados.totalNotaCredito' },
+            totalIslr: { $sum: '$creditoDebito.totalIslr' },
+            totalIva: { $sum: '$creditoDebito.totalIva' },
+            totalDevolucion: { $sum: '$devoluciones.totalDevolucion' }
+          }
+        },
+        {
+          $project: {
+            saldo: {
+              $subtract: [
+                '$total',
+                {
+                  $add: ['$totalAbono', '$totalNotaCredito', '$totalIva', '$totalDevolucion', '$totalIslr']
+                }
+              ]
+            }
+          }
+        },
       ]
     })
+    const year = moment(dataEnd).year()
+    const mees = moment(dataEnd).month()
+    const conciliacionTesoreria = await agreggateCollectionsSD({
+      nameCollection: 'conciliacionTesoreria',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            year: Number(year),
+            mes: mees + 1
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: '$saldoFinal' }
+          }
+        }
+      ]
+    })
+    if (conciliacionTesoreria[0]) {
+      dataDocumentos.push({
+        _id: 'disponible',
+        saldo: conciliacionTesoreria[0].total
+      })
+    }
     console.log(dataDocumentos)
     return { dataDocumentos }
   } catch (e) {

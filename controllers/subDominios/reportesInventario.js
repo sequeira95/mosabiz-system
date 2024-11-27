@@ -1441,7 +1441,8 @@ export const reporteAntiguedadInventario = async (req, res) => {
               },
               costoPromedio: '$ultimoCostoPromedio.costoPromedio'
             }
-          }
+          },
+          { $sort: { fechaIngreso: 1 } }
         ]
       })
       return res.status(200).json({ productos })

@@ -4561,7 +4561,7 @@ const substringNumeroDocumento = (numeroDocumento) => {
   return Number(nuevoNumero)
 }
 export const savePlanillaIva = async (req, res) => {
-  const { clienteId, _id, dataIva, estado, periodoInit, priodoFin, periodo } = req.body
+  const { clienteId, _id, dataIva, estado, periodoInit, priodoFin, periodo, fechaPlanilla } = req.body
   try {
     console.log(req.body)
     // const documentos = req.files?.documentos
@@ -4575,7 +4575,8 @@ export const savePlanillaIva = async (req, res) => {
       periodo,
       creadoPor: new ObjectId(req.uid),
       tipoDeclaracion: tiposDeclaracion.planillaIva,
-      ...dataIva
+      ...dataIva,
+      fechaPlanilla: moment(fechaPlanilla).toDate()
     }
     /* if (req.files && req.files.documentos) {
       if (documentos && documentos[0]) {
@@ -4621,6 +4622,14 @@ export const savePlanillaIva = async (req, res) => {
       filters: { _id: new ObjectId(_id) },
       update: { $set: declaracionCrear }
     })
+    if (estado === 'declarado') {
+      updateManyItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { periodoIvaNombre: periodo },
+        update: { $set: { declarado: true } }
+      })
+    }
     return res.status(200).json({ status: 'Planilla guardada exitosamente', declaracion: declaracionGuardada })
   } catch (e) {
     console.log(e)

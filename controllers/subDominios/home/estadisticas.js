@@ -1,4 +1,4 @@
-import { getDataEstadisticasComprasVentas, getDataEstadisticasPosicionMonetaria, getDataEstadisticasTransacciones } from '../../../utils/estadisticasFuction.js'
+import { getDataAntiguedadCuentas, getDataEstadisticasComprasVentas, getDataEstadisticasPosicionMonetaria, getDataEstadisticasTransacciones } from '../../../utils/estadisticasFuction.js'
 
 export const getDataEstadisticas = async (req, res) => {
   const { clienteId, dateInitYear, dataEnd, dateInitLastSixMonth, timeZone } = req.body
@@ -24,11 +24,21 @@ export const getEstadisticasTransacciones = async (req, res) => {
   }
 }
 export const getEstadisticasPosicionMonetaria = async (req, res) => {
-  const { clienteId, dateInitYear, dataEnd, dateInitLastSixMonth, timeZone } = req.body
+  const { clienteId, dateInitYear, dataEnd, dateInitLastSixMonth, timeZone, fechaACtual } = req.body
   console.log(req.body)
   try {
     console.log('todo b54en')
-    const { dataDocumentos } = await getDataEstadisticasPosicionMonetaria({ clienteId, dateInitYear, dataEnd, dateInitLastSixMonth, timeZone })
+    const { dataDocumentos, rangosEjexString } = await getDataEstadisticasPosicionMonetaria({ clienteId, dateInitYear, dataEnd, dateInitLastSixMonth, timeZone, fechaACtual })
+    return res.status(200).json({ dataDocumentos, rangosEjexString })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar datos ' + e.message })
+  }
+}
+export const getEstadisticasAntiguedadCuentas = async (req, res) => {
+  const { clienteId, dateInitYear, dataEnd, dateInitLastSixMonth, timeZone, fechaACtual } = req.body
+  try {
+    const { dataDocumentos } = await getDataAntiguedadCuentas({ clienteId, dateInitYear, dataEnd, dateInitLastSixMonth, timeZone, fechaACtual })
     return res.status(200).json({ dataDocumentos })
   } catch (e) {
     console.log(e)

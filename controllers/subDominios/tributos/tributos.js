@@ -4364,6 +4364,14 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         filters: { numeroFactura: documento.numeroFacturaAfectada }
       })
       if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
+      const verifyRetencion = await getItemSD({
+        nameCollection: 'documentosFiscales',
+        enviromentClienteId: clienteId,
+        filters: { facturaAsociada: facturaAfectada._id }
+      })
+      if (verifyRetencion && verifyRetencion.numeroFactura === documento.numeroFactura) {
+        throw new Error(`La factura N° ${documento.numeroFacturaAfectada} ya tiene un documento de retención asingnado con el número ${documento.numeroFactura}`)
+      }
       const razonSocial = cliente ? cliente?.razonSocial : 'DOCUMENTO ANULADO'
       const venta = {
         fechaCreacion: moment().toDate(),

@@ -2686,10 +2686,21 @@ export const getDataIva = async (req, res) => {
   }
 }
 export const getComprobantesRetencionIVAVenta = async (req, res) => {
-  const { clienteId, periodoSelect, pagina, itemsPorPagina } = req.body
+  const { clienteId, periodoSelect, pagina, itemsPorPagina, tipoBusqueda } = req.body
+  console.log({ body: req.body })
   try {
     const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
+    let matchFecha = {}
+    if (tipoBusqueda === 'Periodo') {
+      matchFecha = {
+        periodoIvaInit: { $gte: moment(periodoSelect.fechaInicio).toDate() },
+        periodoIvaEnd: { $lte: moment(periodoSelect.fechaFin).toDate() }
+      }
+    }
+    if (tipoBusqueda === 'Documento') {
+      matchFecha = { fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() } }
+    }
     const comprobantes = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
@@ -2698,7 +2709,8 @@ export const getComprobantesRetencionIVAVenta = async (req, res) => {
           $match: {
             tipoMovimiento: 'venta',
             tipoDocumento: tiposDocumentosFiscales.retIva,
-            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
+            ...matchFecha
+            // fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
             // estado: { $ne: 'anulado' }
           }
         },
@@ -2743,7 +2755,8 @@ export const getComprobantesRetencionIVAVenta = async (req, res) => {
           $match: {
             tipoMovimiento: 'venta',
             tipoDocumento: tiposDocumentosFiscales.retIva,
-            fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
+            ...matchFecha
+            // fecha: { $gte: moment(periodoSelect.fechaInicio).toDate(), $lte: moment(periodoSelect.fechaFin).toDate() }
             // estado: { $ne: 'anulado' }
           }
         },

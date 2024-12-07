@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getCollectionSD, upsertItemSD, updateManyItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getCollectionSD, upsertItemSD, updateManyItemSD, formatCollectionName } from '../../utils/dataBaseConfing.js'
+import { subDominioName } from '../../constants.js'
 
 export const getTerceros = async (req, res) => {
   const { clienteId, cuentaId } = req.body
@@ -9,6 +10,44 @@ export const getTerceros = async (req, res) => {
       enviromentClienteId: clienteId,
       pipeline: [
         { $match: { cuentaId: new ObjectId(cuentaId) } }
+      ]
+    })
+    return res.status(200).json({ terceros })
+  } catch (e) {
+    console.log(e.message)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar los terceros' + e.message })
+  }
+}
+export const theRealGetTerceros = async (req, res) => {
+  const { clienteId } = req.body
+  try {
+    const planCuentasCol = formatCollectionName({
+      enviromentClienteId: clienteId,
+      enviromentEmpresa: subDominioName,
+      nameCollection: 'planCuenta'
+    })
+    const terceros = await agreggateCollectionsSD({
+      nameCollection: 'terceros',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $lookup: {
+            from: planCuentasCol,
+            localField: 'cuentaId',
+            foreignField: '_id',
+            pipeline: [
+              {
+                $project: {
+                  _id: 1,
+                  codigo: '$codigo',
+                  descripcion: '$descripcion',
+                }
+              }
+            ],
+            as: 'cuenta'
+          }
+        },
+        { $unwind: { path: '$cuenta', preserveNullAndEmptyArrays: true } },
       ]
     })
     return res.status(200).json({ terceros })

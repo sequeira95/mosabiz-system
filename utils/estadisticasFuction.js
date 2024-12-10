@@ -287,20 +287,20 @@ export const getDataEstadisticasPosicionMonetaria = async ({ clienteId, dateInit
     const ajusteCompras = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'compras' } })
     const ajusteVentas = await getItemSD({ nameCollection: 'ajustes', enviromentClienteId: clienteId, filters: { tipo: 'ventas' } })
     const rangos = validarRangos(ajusteCompras?.rangoFechaVencimiento, ajusteVentas?.rangoFechaVencimiento)
-    console.log({ rangos })
+    // console.log({ rangos })
     const groupRangos = {}
     const projectRangos = {}
     const rangosLength = rangos.length
-    console.log({ rangosLength })
+    // console.log({ rangosLength })
     const rangosEjexString = []
     if (rangos && rangos[0]) {
       for (const index in rangos) {
-        console.log(index, rangos[index])
+        // console.log(index, rangos[index])
         const indexNumber = Number(index)
         projectRangos[`rango${indexNumber}`] = 1
         if (indexNumber === 0) {
           rangosEjexString.push(`< ${rangos[index]}`)
-          console.log('entramos')
+          // console.log('entramos')
           groupRangos[`rango${indexNumber}`] = {
             $sum: {
               $cond: {
@@ -380,7 +380,7 @@ export const getDataEstadisticasPosicionMonetaria = async ({ clienteId, dateInit
         }
       }
     }
-    console.log({ 0: groupRangos.rango0.$sum.$cond.if.$and[1], 1: groupRangos.rango1.$sum.$cond.if.$and[1], 2: groupRangos.rango2.$sum.$cond.if.$and[1], 3: groupRangos.rango3.$sum.$cond.if.$and[1], 4: groupRangos.rango4.$sum.$cond.if.$and[1] })
+    // console.log({ 0: groupRangos.rango0.$sum.$cond.if.$and[1], 1: groupRangos.rango1.$sum.$cond.if.$and[1], 2: groupRangos.rango2.$sum.$cond.if.$and[1], 3: groupRangos.rango3.$sum.$cond.if.$and[1], 4: groupRangos.rango4.$sum.$cond.if.$and[1] })
     const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const transaccionesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'transacciones' })
     const dataDocumentos = await agreggateCollectionsSD({

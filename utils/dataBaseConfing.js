@@ -1,4 +1,4 @@
-import { collectionNameClient, dataBasePrincipal, dataBaseSecundaria, subDominioName } from '../constants.js'
+import { collectionNameClient, dataBasePrincipal, dataBaseSecundaria, ListIndexesClient, subDominioName } from '../constants.js'
 import { clientDb } from '../index.js'
 // accedemos a la base de datos correspondiente
 export async function accessToDataBase (dataBaseName) {
@@ -170,5 +170,20 @@ export async function createCollectionClient ({ enviromentClienteId }) {
   }
   createIndexCollectionClient({ enviromentClienteId })
 }
-async function createIndexCollectionClient ({ enviromentClienteId }) {
+export async function createIndexCollectionClient ({ enviromentClienteId }) {
+  const db = await accessToDataBase(dataBaseSecundaria)
+  const dataIndices = ListIndexesClient
+  for (const data of dataIndices) {
+    const collecionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId, nameCollection: data.collection })
+    const collection = await db.collection(collecionName)
+    for (const indice of data.indices) {
+      try {
+        await collection.createIndex(indice.key, { background: indice.background })
+        continue
+      } catch (e) {
+        console.log({ error: e.message })
+        continue
+      }
+    }
+  }
 }

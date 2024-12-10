@@ -400,7 +400,7 @@ export const saveAjusteAlmacen = async (req, res) => {
   let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'ajuste' } }))?.contador
   if (contador) ++contador
   if (!contador) contador = 1
-  const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: new ObjectId(productoId) })
+  const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(productoId) } })
   if (tipo === 'Ingreso') {
     const movimiento = await createItemSD({
       nameCollection: 'movimientos',
@@ -833,7 +833,7 @@ export const saveDataInicial = async (req, res) => {
     upsertItemSD({
       nameCollection: 'ajustePrecioProducto',
       enviromentClienteId: clienteId,
-      filters: { fecha: moment(momentDate(timeZone).toDate()).toDate() },
+      filters: { fecha: moment(momentDate(timeZone).toDate()).toDate(), productoId: new ObjectId(productoId) },
       update: {
         $set: {
           productoId: new ObjectId(productoId),
@@ -1432,7 +1432,7 @@ export const updateCostoPorLote = async (req, res) => {
     upsertItemSD({
       nameCollection: 'ajustePrecioProducto',
       enviromentClienteId: clienteId,
-      filters: { fecha: moment(momentDate(timeZone).toDate()).toDate() },
+      filters: { fecha: moment(momentDate(timeZone).toDate()).toDate(), productoId: new ObjectId(productoId) },
       update: {
         $set: {
           productoId: new ObjectId(productoId),

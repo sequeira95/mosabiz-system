@@ -636,7 +636,7 @@ const updateMovimientoSalida = async ({ detalleMovimientos, almacenOrigen, almac
     let asientoContableHaber = {}
     let asientoContableDebe = {}
     if (tieneContabilidad) {
-      const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: new ObjectId(detalle.productoId) } })
+      const producto = await getItemSD({ nameCollection: 'productos', enviromentClienteId: clienteId, filters: { _id: { _id: new ObjectId(detalle.productoId) } } })
       const categoriaPorAlmacen = await getItemSD({
         nameCollection: 'categoriaPorAlmacen',
         enviromentClienteId: clienteId,
@@ -4316,7 +4316,7 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
         upsertItemSD({
           nameCollection: 'ajustePrecioProducto',
           enviromentClienteId: clienteId,
-          filters: { fecha: moment(momentDate(ajusteSistema.timeZone).toDate()).toDate() },
+          filters: { fecha: moment(momentDate(ajusteSistema.timeZone).toDate()).toDate(), productoId: new ObjectId(productoId) },
           update: {
             $set: {
               productoId: new ObjectId(productoId),

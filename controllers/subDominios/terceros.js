@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getCollectionSD, upsertItemSD, updateManyItemSD, formatCollectionName } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getCollectionSD, upsertItemSD, updateManyItemSD, formatCollectionName, getItemSD, deleteManyItemsSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 
 export const getTerceros = async (req, res) => {
@@ -141,5 +141,53 @@ export const deleteTercero = async (req, res) => {
   } catch (e) {
     console.log(e.message)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar un tercero' + e.message })
+  }
+}
+export const mergeTerceros = async (req, res) => {
+  const { clienteId, tercerosMerge, terceroPreserve } = req.body
+  try {
+    if (!tercerosMerge || !tercerosMerge[0]) throw new Error('Debe seleccionar al menos un tercero para combinar')
+    const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+    const tercero = await getItemSD({
+      nameCollection: 'terceros',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(terceroPreserve) }
+    })
+    if (!tercero) throw new Error('El tercero para preservar ya no existe')
+    const cuentaTercero = await getItemSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      filters: { _id: tercero.cuentaId }
+    })
+    if (!cuentaTercero) throw new Error('El tercero para preservar no tiene una cuenta asignada')
+    await updateManyItemSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      filters: {
+        periodoId: { $in: periodosActivos },
+        terceroId: { $in: tercerosMerge.map(e => new ObjectId(e)) },
+      },
+      update: {
+        $set: {
+          cuentaId: cuentaTercero._id,
+          cuentaCodigo: cuentaTercero.codigo,
+          cuentaNombre: cuentaTercero.descripcion,
+          terceroId: tercero._id,
+          terceroNombre: tercero.terceroNombre,
+        }
+      }
+    })
+    await deleteManyItemsSD({
+      nameCollection: 'terceros',
+      enviromentClienteId: clienteId,
+      filters: {
+        _id: { $in: tercerosMerge.map(e => new ObjectId(e)) },
+      }
+    })
+    console.log(tercero)
+    return res.status(200).json({ status: 'Terceros combinados satisfactoriamente' })
+  } catch (e) {
+    console.log(e.message)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar los terceros' + e.message })
   }
 }

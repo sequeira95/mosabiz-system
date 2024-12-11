@@ -19,7 +19,7 @@ export const getCajas = async (req, res) => {
             localField: 'sucursalId',
             foreignField: '_id',
             pipeline: [
-              { $project: { codigo: '$codigo', nombre: '$nombre' } }
+              { $project: { codigo: '$codigo', nombre: '$nombre', maquinas: '$maquinas' } }
             ],
             as: 'sucursal'
           }
@@ -36,7 +36,11 @@ export const getCajas = async (req, res) => {
         { $unwind: { path: '$cuentaData', preserveNullAndEmptyArrays: true } },
         {
           $addFields: {
-            cuenta: '$cuentaData.codigo'
+            cuenta: '$cuentaData.codigo',
+            maquina: {
+              numero: '$numeroControl',
+              nombre: '$modeloImpresoraFiscal'
+            }
           }
         }
       ]

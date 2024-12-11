@@ -68,6 +68,8 @@ export const createSucursal = async (req, res) => {
     rangoNumerosControl,
     hasSeries,
     series,
+    hasMaquinas,
+    maquinas,
     pieDocumentos,
     clienteId,
   } = req.body
@@ -123,6 +125,10 @@ export const createSucursal = async (req, res) => {
         ? [almacenes]
         : undefined
     const trueHasSeries = hasSeries === 'true' || hasSeries === true
+    const trueHasMaquinas = hasMaquinas === 'true' || hasMaquinas === true
+    const trueSeries = typeof series === 'string' ? [series] : series
+    const maquinasObject = JSON.parse(maquinas)
+    const trueMaquinas = Array.isArray(maquinasObject) ? maquinasObject : [maquinasObject]
     if (_id) {
       const verify = await getItemSD({
         nameCollection: 'ventassucursales',
@@ -156,7 +162,9 @@ export const createSucursal = async (req, res) => {
               ? rangoNumerosControl.sort((a, b) => Number(a) - Number(b)).map(e => Number(e))
               : [],
             hasSeries: trueHasSeries,
-            series: trueHasSeries ? (series || []).map(e => String(e)) : [],
+            series: trueHasSeries ? (trueSeries || []).map(e => String(e)) : [],
+            hasMaquinas: trueHasMaquinas,
+            maquinas: trueHasMaquinas ? (trueMaquinas || []).map(e => ({ nombre: String(e.nombre), numero: String(e.numero) })) : [],
             ...logo
           }
         }
@@ -182,7 +190,9 @@ export const createSucursal = async (req, res) => {
             ? rangoNumerosControl.sort((a, b) => Number(a) - Number(b)).map(e => Number(e))
             : [],
           hasSeries: trueHasSeries,
-          series: trueHasSeries ? (series || []).map(e => String(e)) : [],
+          series: trueHasSeries ? (trueSeries || []).map(e => String(e)) : [],
+          hasMaquinas: trueHasMaquinas,
+          maquinas: trueHasMaquinas ? (trueMaquinas || []).map(e => ({ nombre: String(e.nombre), numero: String(e.numero) })) : [],
         }
       })
       sucursal = await getItemSD({ nameCollection: 'ventassucursales', enviromentClienteId: clienteId, filters: { _id: newSucursal.insertedId } })

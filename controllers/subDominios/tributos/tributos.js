@@ -1296,6 +1296,8 @@ export const saveComprobanteRetIvaCompras = async (req, res) => {
           enviromentClienteId: clienteId,
           filters: { _id: new ObjectId(detalleProveedor[0]?.detalleCategoria?.cuentaId) }
         })
+        // console.log({ cuentaProveedor })
+        if (!cuentaProveedor) throw new Error('No se encontró la cuenta contable asignada al proveedor')
         let terceroProveedor = await getItemSD({
           nameCollection: 'terceros',
           enviromentClienteId: clienteId,
@@ -4213,13 +4215,14 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
       })
       if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
       const razonSocial = proveedor ? proveedor?.razonSocial : 'DOCUMENTO ANULADO'
+      console.log({ numF: documento.numeroFactura })
       const compra = {
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
         facturaAsociada: facturaAfectada?._id || null,
         fecha: moment(documento.fecha).toDate(),
         fechaVencimiento: moment().toDate(),
-        numeroFactura: documento.numeroFactura,
+        numeroFactura: String(documento.numeroFactura),
         numeroFacturaContador: substringNumeroDocumento(documento.numeroFactura),
         tipoDocumento: tiposDocumentosFiscales.retIva,
         tipoDocumentoAfectado: facturaAfectada?.tipoDocumento || null,
@@ -4578,7 +4581,9 @@ const validarFechaDentroRago = (fecha, fechaInicio) => {
   return moment(fechaInicio).startOf('month').toDate()
 }
 const substringNumeroDocumento = (numeroDocumento) => {
-  const nuevoNumero = numeroDocumento.substring(6)
+  console.log({ numeroDocumento })
+  const nuevoNumero = String(numeroDocumento).substring(6)
+  console.log({ nuevoNumero })
   return Number(nuevoNumero)
 }
 export const savePlanillaIva = async (req, res) => {

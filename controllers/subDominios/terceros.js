@@ -48,6 +48,18 @@ export const theRealGetTerceros = async (req, res) => {
           }
         },
         { $unwind: { path: '$cuenta', preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: '$nombre',
+            cuenta: {
+              $push: { codigo: '$cuenta.codigo', descripcion: '$cuenta.descripcion' }
+            },
+            nombre: {
+              $first: '$nombre'
+            }
+          }
+        },
+        { $sort: { _id: 1 } }
       ]
     })
     return res.status(200).json({ terceros })
@@ -148,10 +160,62 @@ export const mergeTerceros = async (req, res) => {
   try {
     if (!tercerosMerge || !tercerosMerge[0]) throw new Error('Debe seleccionar al menos un tercero para combinar')
     const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
-    const tercero = await getItemSD({
+    for (const nombre of tercerosMerge) {
+      const terceros = await getCollectionSD({
+        nameCollection: 'terceros',
+        enviromentClienteId: clienteId,
+        filters: { nombre }
+      })
+      // buscar las cuentas de los terceros
+      const cuentasId = [...new Set(terceros.map(e => e.cuentaId))]
+      const cuentasTerceros = await getCollectionSD({
+        nameCollection: 'planCuenta',
+        enviromentClienteId: clienteId,
+        filters: { _id: { $in: cuentasId } }
+      })
+      // se iteran las cuentas terceros para chekear que no existe algun tercero con
+      // nombre igual al tercero preserve
+      for (const cuenta of cuentasTerceros) {
+        const existeTerceroPreserve = await upsertItemSD({
+          nameCollection: 'terceros',
+          enviromentClienteId: clienteId,
+          filters: { nombre: terceroPreserve, cuentaId: cuenta._id },
+          update: {
+            $set: {
+              nombre: terceroPreserve,
+            }
+          }
+        })
+        if (existeTerceroPreserve) {
+          await updateManyItemSD({
+            nameCollection: 'detallesComprobantes',
+            enviromentClienteId: clienteId,
+            filters: {
+              periodoId: { $in: periodosActivos },
+              terceroNombre: { $in: tercerosMerge },
+              cuentaId: cuenta._id
+            },
+            update: {
+              $set: {
+                terceroId: existeTerceroPreserve._id,
+                terceroNombre: existeTerceroPreserve.terceroNombre,
+              }
+            }
+          })
+        }
+      }
+    }
+    await deleteManyItemsSD({
       nameCollection: 'terceros',
       enviromentClienteId: clienteId,
-      filters: { _id: new ObjectId(terceroPreserve) }
+      filters: {
+        nombre: { $in: tercerosMerge },
+      }
+    })
+    /* const tercero = await getItemSD({
+      nameCollection: 'terceros',
+      enviromentClienteId: clienteId,
+      filters: { nombre: terceroPreserve }
     })
     if (!tercero) throw new Error('El tercero para preservar ya no existe')
     const cuentaTercero = await getItemSD({
@@ -184,7 +248,7 @@ export const mergeTerceros = async (req, res) => {
         _id: { $in: tercerosMerge.map(e => new ObjectId(e)) },
       }
     })
-    console.log(tercero)
+    console.log(tercero) */
     return res.status(200).json({ status: 'Terceros combinados satisfactoriamente' })
   } catch (e) {
     console.log(e.message)

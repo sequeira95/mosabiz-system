@@ -3254,11 +3254,18 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
       })
       if (documento.razonSocial !== 'DOCUMENTO ANULADO') {
         if (!proveedor) {
-          const categoriaGeneral = await getItemSD({
+          let categoriaGeneral = await getItemSD({
             nameCollection: 'categorias',
             enviromentClienteId: clienteId,
             filters: { nombre: 'Proveedores Generales', tipo: 'compras/proveedor' }
           })
+          if (!categoriaGeneral) {
+            categoriaGeneral = await upsertItemSD({
+              nameCollection: 'categorias',
+              enviromentClienteId: clienteId,
+              filters: { nombre: 'Proveedores Generales', tipo: 'compras/proveedor' },
+            })
+          }
           proveedor = await upsertItemSD({
             nameCollection: 'proveedores',
             enviromentClienteId: clienteId,
@@ -3278,15 +3285,15 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
       const validarNumeroFactura = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor._id), tipoMovimiento: 'compra' }
+        filters: { numeroFactura: String(documento.numeroFactura), proveedorId: new ObjectId(proveedor._id), tipoMovimiento: 'compra' }
       })
-      if (validarNumeroFactura) throw new Error(`La factura N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
+      if (validarNumeroFactura) throw new Error(`La factura N° ${String(documento.numeroFactura)} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
       const compra = {
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
         fecha: moment(documento.fecha).toDate(),
         fechaVencimiento: moment().toDate(),
-        numeroFactura: documento.numeroFactura,
+        numeroFactura: String(documento.numeroFactura),
         tipoDocumento: 'Factura',
         numeroControl: documento.numeroControl,
         proveedorId: proveedor?._id ? new ObjectId(proveedor._id) : null,
@@ -4589,11 +4596,11 @@ const substringNumeroDocumento = (numeroDocumento) => {
 export const savePlanillaIva = async (req, res) => {
   const { clienteId, _id, dataIva, estado, periodoInit, priodoFin, periodo, fechaPlanilla } = req.body
   try {
-    console.log(req.body)
+    // console.log(req.body)
     // const documentos = req.files?.documentos
     // const documentosAdjuntos = []
     delete dataIva._id
-    console.log({ dataIva })
+    // console.log({ dataIva })
     const declaracionCrear = {
       ...dataIva,
       estado,
@@ -4664,7 +4671,7 @@ export const savePlanillaIva = async (req, res) => {
 }
 export const addImagenPlanillaIva = async (req, res) => {
   const { clienteId, planillaId } = req.body
-  console.log({ body: req.body, file: req.files.documentos })
+  // console.log({ body: req.body, file: req.files.documentos })
   try {
     const documentos = req.files?.documentos
     const documentosAdjuntos = []

@@ -95,7 +95,9 @@ export const createCajas = async (req, res) => {
     numeroControl,
     useImpresoraFiscal,
     modeloImpresoraFiscal,
-    clave
+    clave,
+    useSeries,
+    series,
   } = req.body
   if (!nombre) throw new Error('Debe un gresar un nombre y codigo valido')
   try {
@@ -111,6 +113,11 @@ export const createCajas = async (req, res) => {
       : usuarios
         ? [usuarios]
         : undefined
+    const seriesArray = Array.isArray(series)
+      ? series
+      : typeof series === 'string'
+        ? [series]
+        : undefined
     if (_id) {
       caja = await updateItemSD({
         nameCollection: 'ventascajas',
@@ -121,12 +128,14 @@ export const createCajas = async (req, res) => {
             descripcion,
             nombre,
             numeroControl,
-            useImpresoraFiscal,
+            useImpresoraFiscal: !!useImpresoraFiscal,
             modeloImpresoraFiscal,
             sucursalId: (sucursalId && new ObjectId(sucursalId)) || null,
             usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
             cuentaId: (cuentaId && new ObjectId(cuentaId)) || null,
-            clave: Number(clave)
+            clave: Number(clave),
+            useSeries: !!useSeries,
+            series: useSeries ? seriesArray.map(serie => String(serie)) : [],
           }
         }
       })

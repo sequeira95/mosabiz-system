@@ -44,7 +44,9 @@ export const getData = async (req, res) => {
             _id: 1,
             nombre: 1,
             almacenes: 1,
-            cajasId: 1
+            cajasId: 1,
+            series: 1,
+            rangoNumerosControl: 1
           }
         },
         {
@@ -326,16 +328,20 @@ export const getDetallePedidoVenta = async (req, res) => {
                       then: '$precioVenta',
                       else: {
                         $cond: {
-                          if: { $and: [
-                            { $gt: ['$detalleCategoria.utilidad', 0] },
-                            { $lt: ['$detalleCategoria.utilidad', 100] }
-                          ] },
+                          if: {
+                            $and: [
+                              { $gt: ['$detalleCategoria.utilidad', 0] },
+                              { $lt: ['$detalleCategoria.utilidad', 100] }
+                            ]
+                          },
                           then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                          else: { $cond: {
-                            if: { $gte: ['$detalleCategoria.utilidad', 100] },
-                            then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                            else: 0
-                          } }
+                          else: {
+                            $cond: {
+                              if: { $gte: ['$detalleCategoria.utilidad', 100] },
+                              then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                              else: 0
+                            }
+                          }
                         }
                       }
                     }
@@ -528,10 +534,12 @@ export const getDetalleFacturas = async (req, res) => {
             cantidad: {
               $sum: {
                 $cond: {
-                  if: { $and: [
-                    { $eq: ['$tipoDocumento', 'Nota de crédito'] },
-                    { $eq: ['$tipoAjuste', 'cantidad'] }
-                  ] },
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoDocumento', 'Nota de crédito'] },
+                      { $eq: ['$tipoAjuste', 'cantidad'] }
+                    ]
+                  },
                   then: { $multiply: ['$cantidad', -1] },
                   else: {
                     $cond: {
@@ -548,10 +556,12 @@ export const getDetalleFacturas = async (req, res) => {
             precioVenta: {
               $sum: {
                 $cond: {
-                  if: { $and: [
-                    { $eq: ['$tipoDocumento', 'Nota de crédito'] },
-                    { $eq: ['$tipoAjuste', 'precio'] }
-                  ] },
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoDocumento', 'Nota de crédito'] },
+                      { $eq: ['$tipoAjuste', 'precio'] }
+                    ]
+                  },
                   then: { $multiply: [{ $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, -1] },
                   else: { $cond: [{ $ne: ['$tipoAjuste', 'cantidad'] }, { $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, 0] }
                 }
@@ -660,20 +670,24 @@ export const getDetalleFacturas = async (req, res) => {
                 {
                   $group: {
                     _id: 0,
-                    total: { $sum: {
-                      $cond: {
-                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
-                        then: '$transaccionAsociada.total',
-                        else: { $multiply: ['$transaccionAsociada.total', -1] }
+                    total: {
+                      $sum: {
+                        $cond: {
+                          if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                          then: '$transaccionAsociada.total',
+                          else: { $multiply: ['$transaccionAsociada.total', -1] }
+                        }
                       }
-                    } },
-                    abonosCredito: { $sum: {
-                      $cond: {
-                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
-                        then: '$transaccionAsociada.abonosCredito',
-                        else: { $multiply: ['$transaccionAsociada.abonosCredito', -1] }
+                    },
+                    abonosCredito: {
+                      $sum: {
+                        $cond: {
+                          if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                          then: '$transaccionAsociada.abonosCredito',
+                          else: { $multiply: ['$transaccionAsociada.abonosCredito', -1] }
+                        }
                       }
-                    } },
+                    },
                   }
                 }
               ],
@@ -854,10 +868,12 @@ export const getDetalleNotasEntrega = async (req, res) => {
             cantidad: {
               $sum: {
                 $cond: {
-                  if: { $and: [
-                    { $eq: ['$tipoDocumento', 'Devolución'] },
-                    { $eq: ['$tipoAjuste', 'cantidad'] }
-                  ] },
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoDocumento', 'Devolución'] },
+                      { $eq: ['$tipoAjuste', 'cantidad'] }
+                    ]
+                  },
                   then: { $multiply: ['$cantidad', -1] },
                   else: {
                     $cond: {
@@ -872,10 +888,12 @@ export const getDetalleNotasEntrega = async (req, res) => {
             precioVenta: {
               $sum: {
                 $cond: {
-                  if: { $and: [
-                    { $eq: ['$tipoDocumento', 'Devolución'] },
-                    { $eq: ['$tipoAjuste', 'precio'] }
-                  ] },
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoDocumento', 'Devolución'] },
+                      { $eq: ['$tipoAjuste', 'precio'] }
+                    ]
+                  },
                   then: { $multiply: [{ $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, -1] },
                   else: { $cond: [{ $ne: ['$tipoDocumento', 'Devolución'] }, { $round: [{ $subtract: ['$precioVenta', { $multiply: ['$precioVenta', '$descuento'] }] }, 2] }, 0] }
                 }
@@ -984,20 +1002,24 @@ export const getDetalleNotasEntrega = async (req, res) => {
                 {
                   $group: {
                     _id: 0,
-                    total: { $sum: {
-                      $cond: {
-                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
-                        then: '$transaccionAsociada.total',
-                        else: { $multiply: ['$transaccionAsociada.total', -1] }
+                    total: {
+                      $sum: {
+                        $cond: {
+                          if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                          then: '$transaccionAsociada.total',
+                          else: { $multiply: ['$transaccionAsociada.total', -1] }
+                        }
                       }
-                    } },
-                    abonosCredito: { $sum: {
-                      $cond: {
-                        if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
-                        then: '$transaccionAsociada.abonosCredito',
-                        else: { $multiply: ['$transaccionAsociada.abonosCredito', -1] }
+                    },
+                    abonosCredito: {
+                      $sum: {
+                        $cond: {
+                          if: { $in: ['$tipoDocumento', ['Factura', 'Nota de entrega', 'Nota de débito']] },
+                          then: '$transaccionAsociada.abonosCredito',
+                          else: { $multiply: ['$transaccionAsociada.abonosCredito', -1] }
+                        }
                       }
-                    } },
+                    },
                   }
                 }
               ],
@@ -1111,16 +1133,20 @@ export const getProductos = async (req, res) => {
                 then: '$precioVenta',
                 else: {
                   $cond: {
-                    if: { $and: [
-                      { $gt: ['$detalleCategoria.utilidad', 0] },
-                      { $lt: ['$detalleCategoria.utilidad', 100] }
-                    ] },
+                    if: {
+                      $and: [
+                        { $gt: ['$detalleCategoria.utilidad', 0] },
+                        { $lt: ['$detalleCategoria.utilidad', 100] }
+                      ]
+                    },
                     then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                    else: { $cond: {
-                      if: { $gte: ['$detalleCategoria.utilidad', 100] },
-                      then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                      else: 0
-                    } }
+                    else: {
+                      $cond: {
+                        if: { $gte: ['$detalleCategoria.utilidad', 100] },
+                        then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                        else: 0
+                      }
+                    }
                   }
                 }
               }
@@ -1218,6 +1244,37 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
   if (infoDoc.isFiscal && ventaInfo.useImpresoraFiscal && !ventaInfo.numeroControl) throw new Error('No existe el Numero de Control de la impresora')
   const tieneInventario = await hasInventario({ clienteId })
   if (tieneInventario && !ventaInfo.almacenId) throw new Error('Debe seleccionar un almacen')
+
+  // validar sucursal y rango de numeros de control
+  if (infoDoc.isFiscal && !ventaInfo.useImpresoraFiscal && !ventaInfo.numeroControl) throw new Error('No existe el Numero de Control del documento')
+  if (infoDoc.isFiscal && !ventaInfo.useImpresoraFiscal && ventaInfo.numeroControl) {
+    const sucursal = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'ventassucursales',
+      filters: { _id: new ObjectId(ventaInfo.sucursalId) }
+    })
+    if ((sucursal.rangoNumerosControl || [])[0] || (sucursal.rangoNumerosControl || [])[0] === 0) {
+      const r1 = sucursal.rangoNumerosControl[0]
+      const r2 = sucursal.rangoNumerosControl[1]
+      if (ventaInfo.numeroControl >= r1 && ventaInfo.numeroControl <= r2) {
+        const documentoRepetido = await getItemSD({
+          enviromentClienteId: clienteId,
+          nameCollection: 'documentosFiscales',
+          filters: {
+            numeroControl: ventaInfo.numeroControl,
+            sucursalId: new ObjectId(ventaInfo.sucursalId)
+          }
+        })
+        if (documentoRepetido) {
+          throw new Error('El numero de control ya fue usado en otro documento')
+        }
+      } else {
+        throw new Error('El numero de control no esta dentro del rango de la sucursal')
+      }
+    } else {
+      throw new Error('La sucursal no tiene un rango de numeros de control')
+    }
+  }
 
   const tieneContabilidad = await hasContabilidad({ clienteId })
   if (!tieneContabilidad) return true
@@ -1688,7 +1745,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       activo,
       isExportacion: ventaInfo.isExportacion,
       isDespacho: ventaInfo.isDespacho,
-      numeroControl: infoDoc.isFiscal && ventaInfo.useImpresoraFiscal ? ventaInfo.numeroControl : '',
+      numeroControl: infoDoc.isFiscal ? ventaInfo.numeroControl : '',
       useImpresoraFiscal: infoDoc.isFiscal ? ventaInfo.useImpresoraFiscal : false,
       sucursalId: new ObjectId(ventaInfo.sucursalId),
       isSucursalPrincipal: ventaInfo.isSucursalPrincipal || false,

@@ -3047,9 +3047,97 @@ export const getFacturasPorDeclararIva = async (req, res) => {
         {
           $group: {
             _id: 0,
-            baseImponible: { $sum: '$baseImponible' },
-            iva: { $sum: '$iva' },
-            totalExento: { $sum: '$totalExento' }
+            totalFacNd: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                      { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                },
+              }
+            },
+            totalNc: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                    ]
+                  },
+                  then: '$baseImponible',
+                  else: 0
+                },
+              }
+            },
+            totalIvaFacNd: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                      { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                },
+              }
+            },
+            totalIvaNc: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                    ]
+                  },
+                  then: '$iva',
+                  else: 0
+                },
+              }
+            },
+            totalExentoFacNd: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
+                      { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }
+                    ]
+                  },
+                  then: '$totalExento',
+                  else: 0
+                },
+              }
+            },
+            totalExentoNc: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] },
+                    ]
+                  },
+                  then: '$totalExento',
+                  else: 0
+                },
+              }
+            },
+            // baseImponible: { $sum: '$baseImponible' },
+            // iva: { $sum: '$iva' },
+            // totalExento: { $sum: '$totalExento' }
+          },
+        },
+        {
+          $project: {
+            baseImponible: { $subtract: ['$totalFacNd', '$totalNc'] },
+            iva: { $subtract: ['$totalIvaFacNd', '$totalIvaNc'] },
+            totalExento: { $subtract: ['$totalExentoFacNd', '$totalExentoNc'] }
           }
         }
       ]
@@ -3702,18 +3790,19 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         proveedorId: proveedor?._id ? new ObjectId(proveedor._id) : null,
         moneda,
         compraFiscal: true,
-        baseImponible: documento?.baseImponible ? Number(Number(documento?.baseImponible).toFixed(2)) : 0,
-        iva: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
-        total: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        baseImponible: documento?.baseImponible ? Math.abs(Number(Number(documento?.baseImponible).toFixed(2))) : 0,
+        baseImponibleSecundaria: documento?.baseImponible ? Math.abs(Number(Number(documento?.baseImponible).toFixed(2))) : 0,
+        iva: documento?.iva ? Math.abs(Number(Number(documento?.iva).toFixed(2))) : 0,
+        total: documento?.total ? Math.abs(Number(Number(documento?.total).toFixed(2))) : 0,
         monedaSecundaria: moneda,
-        ivaSecundaria: documento?.iva ? Number(Number(documento?.iva).toFixed(2)) : 0,
-        totalSecundaria: documento?.total ? Number(Number(documento?.total).toFixed(2)) : 0,
+        ivaSecundaria: documento?.iva ? Math.abs(Number(Number(documento?.iva).toFixed(2))) : 0,
+        totalSecundaria: documento?.total ? Math.abs(Number(Number(documento?.total).toFixed(2))) : 0,
         creadoPor: new ObjectId(uid),
-        sinDerechoCredito: documento?.sinDerechoCredito ? Number(Number(documento.sinDerechoCredito).toFixed(2)) : 0,
-        noSujeto: documento?.noSujeto ? Number(Number(documento?.noSujeto).toFixed(2)) : 0,
-        exonerado: documento?.exonerado ? Number(Number(documento?.exonerado).toFixed(2)) : 0,
-        exento: documento?.exento ? Number(Number(documento?.exento).toFixed(2)) : 0,
-        totalExento: documento?.totalExento ? Number(Number(documento?.totalExento).toFixed(2)) : 0,
+        sinDerechoCredito: documento?.sinDerechoCredito ? Math.abs(Number(Number(documento.sinDerechoCredito)).toFixed(2)) : 0,
+        noSujeto: documento?.noSujeto ? Math.abs(Number(Number(documento?.noSujeto).toFixed(2))) : 0,
+        exonerado: documento?.exonerado ? Math.abs(Number(Number(documento?.exonerado).toFixed(2))) : 0,
+        exento: documento?.exento ? Math.abs(Number(Number(documento?.exento).toFixed(2))) : 0,
+        totalExento: documento?.totalExento ? Math.abs(Number(Number(documento?.totalExento)).toFixed(2)) : 0,
         aplicaProrrateo: documento?.aplicaProrrateo || false,
         isImportacion: documento.isImportacion || false,
         periodoIvaNombre: documento.periodoIvaNombre,

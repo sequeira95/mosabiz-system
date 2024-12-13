@@ -1264,16 +1264,28 @@ export const reporteHistoricoMovimientos = async (req, res) => {
   }
 }
 export const reporteAntiguedadInventario = async (req, res) => {
-  const { clienteId, hasta, itemsPorPagina, pagina } = req.body
+  const { clienteId, hasta, itemsPorPagina, pagina, rango, detallado } = req.body
   console.log(req.body)
   const almacenes = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Devoluciones', 'Auditoria'] } } })
-  console.log({ almacenes })
+  // console.log({ almacenes })
   const almacenesInvalid = almacenes.map(e => e._id)
-  console.log({ almacenesInvalid })
+  // console.log({ almacenesInvalid })
   const productosPorAlmacenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
   const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
   const ajustePrecioProductoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ajustePrecioProducto' })
   try {
+    const groupCount = []
+    if (detallado) {
+      groupCount.push({
+        $group: {
+          _id: '$detalleCategoria._id',
+        }
+      },
+      { $count: 'total' }
+      )
+    } else {
+      groupCount.push({ $count: 'total' })
+    }
     const count = await agreggateCollectionsSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
@@ -1328,11 +1340,150 @@ export const reporteAntiguedadInventario = async (req, res) => {
         },
         { $unwind: { path: '$detallePorAlmacen', preserveNullAndEmptyArrays: true } },
         { $match: { 'detallePorAlmacen.cantidad': { $gt: 0 } } },
-        { $count: 'total' }
+        ...groupCount,
+        // { $count: 'total' }
       ]
     })
+    console.log({ count })
     if (itemsPorPagina || pagina) {
       // const almacenTransito = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Transito' } })
+      const rango1 = rango.value
+      const rango2 = rango.value * 2
+      const rango3 = rango.value * 3
+      const groupCategoria = []
+      if (detallado) {
+        groupCategoria.push({
+          $addFields: {
+            diffFecha: {
+              $dateDiff: {
+                startDate: '$detallePorAlmacen.fechaIngreso',
+                endDate: moment(hasta).toDate(),
+                unit: 'day',
+                // timezone: timeZone
+              }
+            },
+          }
+        },
+        {
+          $group: {
+            _id: '$detalleCategoria._id',
+            categoria: { $first: '$detalleCategoria.nombre' },
+            rango1: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [{ $gte: ['$diffFecha', 1] }, { $lte: ['$diffFecha', rango1] }]
+                  },
+                  then: { $multiply: ['$detallePorAlmacen.cantidad', '$ultimoCostoPromedio.costoPromedio'] },
+                  else: 0
+                }
+              }
+            },
+            rango2: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [{ $gt: ['$diffFecha', rango1] }, { $lte: ['$diffFecha', rango2] }]
+                  },
+                  then: { $multiply: ['$detallePorAlmacen.cantidad', '$ultimoCostoPromedio.costoPromedio'] },
+                  else: 0
+                }
+              }
+            },
+            rango3: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [{ $gt: ['$diffFecha', rango2] }, { $lte: ['$diffFecha', rango3] }]
+                  },
+                  then: { $multiply: ['$detallePorAlmacen.cantidad', '$ultimoCostoPromedio.costoPromedio'] },
+                  else: 0
+                }
+              }
+            },
+            rango4: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [{ $gt: ['$diffFecha', rango3] }]
+                  },
+                  then: { $multiply: ['$detallePorAlmacen.cantidad', '$ultimoCostoPromedio.costoPromedio'] },
+                  else: 0
+                }
+              }
+            }
+          }
+        })
+      } else {
+        groupCategoria.push(
+          { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+          { $limit: Number(itemsPorPagina) },
+          {
+            $addFields: {
+              diffFecha: {
+                $dateDiff: {
+                  startDate: '$detallePorAlmacen.fechaIngreso',
+                  endDate: moment(hasta).toDate(),
+                  unit: 'day',
+                  // timezone: timeZone
+                }
+              },
+            }
+          },
+          {
+            $project: {
+              codigo: 1,
+              nombre: 1,
+              unidad: 1,
+              categoria: '$detalleCategoria.nombre',
+              categoriaId: '$detalleCategoria._id',
+              lote: '$detallePorAlmacen.lote',
+              fechaVencimiento: '$detallePorAlmacen.fechaVencimiento',
+              fechaIngreso: '$detallePorAlmacen.fechaIngreso',
+              entradas: '$detallePorAlmacen.entradas',
+              salidas: '$detallePorAlmacen.salidas',
+              cantidad: '$detallePorAlmacen.cantidad',
+              rango1: {
+                $cond: {
+                  if: {
+                    $and: [{ $gte: ['$diffFecha', 1] }, { $lte: ['$diffFecha', rango1] }]
+                  },
+                  then: { $multiply: ['$detallePorAlmacen.cantidad', '$ultimoCostoPromedio.costoPromedio'] },
+                  else: 0
+                }
+              },
+              rango2: {
+                $cond: {
+                  if: {
+                    $and: [{ $gt: ['$diffFecha', rango1] }, { $lte: ['$diffFecha', rango2] }]
+                  },
+                  then: { $multiply: ['$detallePorAlmacen.cantidad', '$ultimoCostoPromedio.costoPromedio'] },
+                  else: 0
+                }
+              },
+              rango3: {
+                $cond: {
+                  if: {
+                    $and: [{ $gt: ['$diffFecha', rango2] }, { $lte: ['$diffFecha', rango3] }]
+                  },
+                  then: { $multiply: ['$detallePorAlmacen.cantidad', '$ultimoCostoPromedio.costoPromedio'] },
+                  else: 0
+                }
+              },
+              rango4: {
+                $cond: {
+                  if: {
+                    $and: [{ $gt: ['$diffFecha', rango3] }]
+                  },
+                  then: { $multiply: ['$detallePorAlmacen.cantidad', '$ultimoCostoPromedio.costoPromedio'] },
+                  else: 0
+                }
+              },
+              costoPromedio: '$ultimoCostoPromedio.costoPromedio'
+            }
+          }
+        )
+      }
       const productos = await agreggateCollectionsSD({
         nameCollection: 'productos',
         enviromentClienteId: clienteId,
@@ -1418,6 +1569,8 @@ export const reporteAntiguedadInventario = async (req, res) => {
           },
           { $unwind: { path: '$detallePorAlmacen', preserveNullAndEmptyArrays: true } },
           { $match: { 'detallePorAlmacen.cantidad': { $gt: 0 } } },
+          /* { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
+          { $limit: Number(itemsPorPagina) },
           {
             $project: {
               codigo: 1,
@@ -1441,10 +1594,12 @@ export const reporteAntiguedadInventario = async (req, res) => {
               },
               costoPromedio: '$ultimoCostoPromedio.costoPromedio'
             }
-          },
-          { $sort: { fechaIngreso: 1 } }
+          }, */
+          { $sort: { fechaIngreso: 1 } },
+          ...groupCategoria
         ]
       })
+      console.log({ productos })
       return res.status(200).json({ productos })
     }
     return res.status(200).json({ count: count.length ? count[0].total : 0 })
@@ -1454,7 +1609,7 @@ export const reporteAntiguedadInventario = async (req, res) => {
   }
 }
 export const reporteAntiguedadInventarioAlmacen = async (req, res) => {
-  const { clienteId, hasta, itemsPorPagina, pagina } = req.body
+  const { clienteId, hasta, itemsPorPagina, pagina, rango, detallado } = req.body
   console.log(req.body)
   const almacenes = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Devoluciones', 'Auditoria'] } } })
   console.log({ almacenes })
@@ -1527,6 +1682,95 @@ export const reporteAntiguedadInventarioAlmacen = async (req, res) => {
     })
     if (itemsPorPagina || pagina) {
       // const almacenTransito = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Transito' } })
+      const rango1 = rango.value
+      const rango2 = rango.value * 2
+      const rango3 = rango.value * 3
+      const groupCategoria = []
+      if (detallado) {
+        groupCategoria.push(
+          {
+            $group: {
+              _id: {
+                almacenId: '$almacenId',
+                almacenNombre: '$almacenNombre',
+                categoriaId: '$categoriaId',
+                categoria: '$categoria'
+              },
+              rango1: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [{ $gte: ['$diffFecha', 1] }, { $lte: ['$diffFecha', rango1] }]
+                    },
+                    then: { $multiply: ['$cantidad', '$costoPromedio'] },
+                    else: 0
+                  }
+                }
+              },
+              rango2: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [{ $gt: ['$diffFecha', rango1] }, { $lte: ['$diffFecha', rango2] }]
+                    },
+                    then: { $multiply: ['$cantidad', '$costoPromedio'] },
+                    else: 0
+                  }
+                }
+              },
+              rango3: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [{ $gt: ['$diffFecha', rango2] }, { $lte: ['$diffFecha', rango3] }]
+                    },
+                    then: { $multiply: ['$cantidad', '$costoPromedio'] },
+                    else: 0
+                  }
+                }
+              },
+              rango4: {
+                $sum: {
+                  $cond: {
+                    if: {
+                      $and: [{ $gt: ['$diffFecha', rango3] }]
+                    },
+                    then: { $multiply: ['$cantidad', '$costoPromedio'] },
+                    else: 0
+                  }
+                }
+              }
+            }
+          },
+          {
+            $group: {
+              _id: {
+                almacenId: '$_id.almacenId',
+                almacenNombre: '$_id.almacenNombre',
+              },
+              productos: {
+                $push: {
+                  categoriaId: '$_id.categoriaId',
+                  categoria: '$_id.categoria',
+                  rango1: '$rango1',
+                  rango2: '$rango2',
+                  rango3: '$rango3',
+                  rango4: '$rango4'
+                }
+              }
+            }
+          })
+      } else {
+        groupCategoria.push({
+          $group: {
+            _id: {
+              almacenId: '$almacenId',
+              almacenNombre: '$almacenNombre',
+            },
+            productos: { $push: '$$ROOT' }
+          }
+        })
+      }
       const productos = await agreggateCollectionsSD({
         nameCollection: 'productos',
         enviromentClienteId: clienteId,
@@ -1651,7 +1895,7 @@ export const reporteAntiguedadInventarioAlmacen = async (req, res) => {
               costoPromedio: '$ultimoCostoPromedio.costoPromedio'
             }
           },
-          {
+          /* {
             $group: {
               _id: {
                 almacenId: '$almacenId',
@@ -1659,7 +1903,8 @@ export const reporteAntiguedadInventarioAlmacen = async (req, res) => {
               },
               productos: { $push: '$$ROOT' }
             }
-          }
+          } */
+          ...groupCategoria
         ]
       })
       return res.status(200).json({ productos })

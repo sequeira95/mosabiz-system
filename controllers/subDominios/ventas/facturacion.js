@@ -81,7 +81,8 @@ export const getData = async (req, res) => {
                   usuarios: '$usuarios',
                   numeroControl: '$numeroControl',
                   useImpresoraFiscal: '$useImpresoraFiscal',
-                  modeloImpresoraFiscal: '$modeloImpresoraFiscal'
+                  modeloImpresoraFiscal: '$modeloImpresoraFiscal',
+                  series: '$series'
                 }
               }
             ],
@@ -1246,17 +1247,17 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
   if (tieneInventario && !ventaInfo.almacenId) throw new Error('Debe seleccionar un almacen')
 
   // validar sucursal y rango de numeros de control
+  const sucursal = await getItemSD({
+    enviromentClienteId: clienteId,
+    nameCollection: 'ventassucursales',
+    filters: { _id: new ObjectId(ventaInfo.sucursalId) }
+  })
   if (infoDoc.isFiscal && !ventaInfo.useImpresoraFiscal && !ventaInfo.numeroControl) throw new Error('No existe el Numero de Control del documento')
   if (infoDoc.isFiscal && !ventaInfo.useImpresoraFiscal && ventaInfo.numeroControl) {
-    const sucursal = await getItemSD({
-      enviromentClienteId: clienteId,
-      nameCollection: 'ventassucursales',
-      filters: { _id: new ObjectId(ventaInfo.sucursalId) }
-    })
     if ((sucursal.rangoNumerosControl || [])[0] || (sucursal.rangoNumerosControl || [])[0] === 0) {
-      const r1 = sucursal.rangoNumerosControl[0]
-      const r2 = sucursal.rangoNumerosControl[1]
-      if (ventaInfo.numeroControl >= r1 && ventaInfo.numeroControl <= r2) {
+      const r1 = Number(sucursal.rangoNumerosControl[0])
+      const r2 = Number(sucursal.rangoNumerosControl[1])
+      if (Number(ventaInfo.numeroControl) >= r1 && Number(ventaInfo.numeroControl) <= r2) {
         const documentoRepetido = await getItemSD({
           enviromentClienteId: clienteId,
           nameCollection: 'documentosFiscales',
@@ -1274,6 +1275,12 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
     } else {
       throw new Error('La sucursal no tiene un rango de numeros de control')
     }
+    if (!ventaInfo.serie) throw new Error('No existe la serie en el documento fiscal')
+    if (!(sucursal.series || []).includes(ventaInfo.serie)) throw new Error('No existe la serie ingresada en la sucursal')
+  }
+  if (infoDoc.isFiscal && ventaInfo.useImpresoraFiscal) {
+    const existeNumeroControl = (sucursal.maquinas || []).some(e => e.numero === ventaInfo.numeroControl)
+    if (!existeNumeroControl) throw new Error('El numero de control de la caja no existe en las maquinas fiscales de la sucursal')
   }
 
   const tieneContabilidad = await hasContabilidad({ clienteId })
@@ -1745,7 +1752,9 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       activo,
       isExportacion: ventaInfo.isExportacion,
       isDespacho: ventaInfo.isDespacho,
-      numeroControl: infoDoc.isFiscal ? ventaInfo.numeroControl : '',
+      // numeroControl: infoDoc.isFiscal ? ventaInfo.numeroControl : '',
+      numeroControl: String(ventaInfo.numeroControl),
+      serie: ventaInfo.serie || '',
       useImpresoraFiscal: infoDoc.isFiscal ? ventaInfo.useImpresoraFiscal : false,
       sucursalId: new ObjectId(ventaInfo.sucursalId),
       isSucursalPrincipal: ventaInfo.isSucursalPrincipal || false,
@@ -1841,6 +1850,7 @@ const createDetalleDocumento = async ({ clienteId, ventaInfo, documentoId }) => 
       observacion: e.observacion,
       unidad: e.unidad,
       cantidad: e.cantidad,
+      comentarios: String(e.comentarios),
       tipo: e.tipo ? e.tipo : 'producto',
       precioVenta: Number(e.precioVenta.toFixed(2)),
       precioSinDescuento: Number(e.precioSinDescuento.toFixed(2)),

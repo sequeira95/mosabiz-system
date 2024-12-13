@@ -127,9 +127,9 @@ export const createCajas = async (req, res) => {
           $set: {
             descripcion,
             nombre,
-            numeroControl,
+            numeroControl: useImpresoraFiscal ? numeroControl : '',
             useImpresoraFiscal: !!useImpresoraFiscal,
-            modeloImpresoraFiscal,
+            modeloImpresoraFiscal: useImpresoraFiscal ? modeloImpresoraFiscal : '',
             sucursalId: (sucursalId && new ObjectId(sucursalId)) || null,
             usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
             cuentaId: (cuentaId && new ObjectId(cuentaId)) || null,

@@ -2848,7 +2848,7 @@ export const saveComprobanteRetIvaVentas = async (req, res) => {
       const verifyComprobante = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { facturaAsociada: new ObjectId(comprobante.facturaAsociada), tipoDocumento: tiposDocumentosFiscales.retIva }
+        filters: { facturaAsociada: new ObjectId(comprobante.facturaAsociada), tipoDocumento: tiposDocumentosFiscales.retIva, estado: { $ne: 'anulado' } }
       })
       if (verifyComprobante) throw new Error('Ya existe un comprobante para la factura N° ' + comprobante.numeroFacturaAsociada)
       comprobantesCrear.push({
@@ -3373,7 +3373,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
       const validarNumeroFactura = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: String(documento.numeroFactura), proveedorId: new ObjectId(proveedor._id), tipoMovimiento: 'compra' }
+        filters: { numeroFactura: String(documento.numeroFactura), proveedorId: new ObjectId(proveedor._id), tipoMovimiento: 'compra', numeroControl: String(documento.numeroControl) }
       })
       if (validarNumeroFactura) throw new Error(`La factura N° ${String(documento.numeroFactura)} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
       const compra = {
@@ -4524,7 +4524,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
         periodoIvaInit: moment(documento.periodoIvaInit).toDate(),
         periodoIvaEnd: moment(documento.periodoIvaEnd).toDate()
       }
-      if (facturaAfectada) {
+      /* if (facturaAfectada) {
         const updatePeriodoFactura = {
           updateOne: {
             filter: { _id: facturaAfectada._id },
@@ -4538,7 +4538,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
           }
         }
         bulkWriteFacturasPeriodos.push(updatePeriodoFactura)
-      }
+      } */
       if (!documento.documentoIdentidad /* && documento?.razonSocial?.toLowerCase().replaceAll(' ', '') === 'anulado' */) {
         venta.estado = 'anulado'
         venta.clienteId = null

@@ -3373,7 +3373,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
       const validarNumeroFactura = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: String(documento.numeroFactura), proveedorId: new ObjectId(proveedor._id), tipoMovimiento: 'compra' }
+        filters: { numeroFactura: String(documento.numeroFactura), proveedorId: new ObjectId(proveedor._id), tipoMovimiento: 'compra', numeroControl: String(documento.numeroControl) }
       })
       if (validarNumeroFactura) throw new Error(`La factura N° ${String(documento.numeroFactura)} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
       const compra = {

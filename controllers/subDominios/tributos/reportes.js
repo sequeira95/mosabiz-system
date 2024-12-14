@@ -144,3 +144,70 @@ export const getLibroVenta = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de buscar los datos del libro ' + e.message })
   }
 }
+export const comprobantesRet = async (req, res) => {
+  const { clienteId, comprobante, tipo } = req.body
+  console.log({ comprobante })
+  try {
+    const proveedoresCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
+    const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
+    const comprobantes = await agreggateCollectionsSD({
+      nameCollection: 'documentosFiscales',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            tipoMovimiento: tipo,
+            tipoDocumento: tiposDocumentosFiscales.retIva,
+            numeroFactura: { $eq: comprobante.numeroFactura },
+            estado: { $ne: 'anulado' }
+          }
+        },
+        {
+          $lookup: {
+            from: proveedoresCollection,
+            localField: 'proveedorId',
+            foreignField: '_id',
+            as: 'proveedor'
+          }
+        },
+        { $unwind: { path: '$proveedor', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: documentosFiscalesCollection,
+            localField: 'facturaAsociada',
+            foreignField: '_id',
+            pipeline: [
+              {
+                $lookup: {
+                  from: documentosFiscalesCollection,
+                  localField: 'facturaAsociada',
+                  foreignField: '_id',
+                  as: 'detalleNota'
+                }
+              },
+              { $unwind: { path: '$detalleNota', preserveNullAndEmptyArrays: true } }
+            ],
+            as: 'factura'
+          }
+        },
+        { $unwind: { path: '$factura', preserveNullAndEmptyArrays: true } },
+        /* {
+          $group: {
+            _id: '$numeroFactura',
+            fecha: { $first: '$fecha' },
+            proveedor: { $first: '$proveedor.razonSocial' },
+            tipoDocumentoProveedor: { $first: '$proveedor.tipoDocumento' },
+            documentoIdentidadProveedor: { $first: '$proveedor.documentoIdentidad' },
+            comprobantes: {
+              $push: '$$ROOT'
+            }
+          }
+        } */
+      ]
+    })
+    return res.status(200).json({ comprobantes })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar los datos del comprobante ' + e.message })
+  }
+}

@@ -2966,13 +2966,14 @@ export const saveComprobanteRetIvaVentas = async (req, res) => {
   }
 }
 export const getFacturasPorDeclararIva = async (req, res) => {
-  const { clienteId, pagina, itemsPorPagina, periodoSelect, tipo } = req.body
+  const { clienteId, pagina, itemsPorPagina, periodoSelect, tipo, showOnlyPeriod } = req.body
   // console.log(req.body)
   try {
     const fechaFin = periodoSelect?.fechaFin ? moment(periodoSelect.fechaFin).toDate() : moment().toDate()
     const documentosFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'documentosFiscales' })
     const proveedoresFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'proveedores' })
     const clientesFiscalesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'clientes' })
+    const matchFecha = showOnlyPeriod ? { periodoIvaInit: { $gte: moment(periodoSelect.fechaInicio).toDate() }, periodoIvaEnd: { $lte: moment(periodoSelect.fechaFin).toDate() } } : { fecha: { $lte: fechaFin } }
     const facturas = await agreggateCollectionsSD({
       nameCollection: 'documentosFiscales',
       enviromentClienteId: clienteId,
@@ -2982,7 +2983,8 @@ export const getFacturasPorDeclararIva = async (req, res) => {
             tipoMovimiento: tipo,
             tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] },
             declarado: { $ne: true },
-            fecha: { $lte: fechaFin }
+            // fecha: { $lte: fechaFin }
+            ...matchFecha
           }
         },
         { $skip: (pagina - 1) * itemsPorPagina },
@@ -3037,7 +3039,8 @@ export const getFacturasPorDeclararIva = async (req, res) => {
             tipoMovimiento: tipo,
             tipoDocumento: { $in: [tiposDocumentosFiscales.factura, tiposDocumentosFiscales.notaCredito, tiposDocumentosFiscales.notaDebito] },
             declarado: { $ne: true },
-            fecha: { $lte: fechaFin },
+            // fecha: { $lte: fechaFin },
+            ...matchFecha,
             $and: [
               { periodoIvaNombre: { $exists: true } },
               { periodoIvaNombre: { $nin: ['', null, undefined] } }
@@ -3051,7 +3054,7 @@ export const getFacturasPorDeclararIva = async (req, res) => {
               $sum: {
                 $cond: {
                   if: {
-                    $and: [
+                    $or: [
                       { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
                       { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }
                     ]
@@ -3078,7 +3081,7 @@ export const getFacturasPorDeclararIva = async (req, res) => {
               $sum: {
                 $cond: {
                   if: {
-                    $and: [
+                    $or: [
                       { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
                       { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }
                     ]
@@ -3105,7 +3108,7 @@ export const getFacturasPorDeclararIva = async (req, res) => {
               $sum: {
                 $cond: {
                   if: {
-                    $and: [
+                    $or: [
                       { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaDebito] },
                       { $eq: ['$tipoDocumento', tiposDocumentosFiscales.factura] }
                     ]
@@ -3151,7 +3154,8 @@ export const getFacturasPorDeclararIva = async (req, res) => {
             tipoMovimiento: tipo,
             tipoDocumento: { $in: [tiposDocumentosFiscales.factura] },
             declarado: { $ne: true },
-            fecha: { $lte: fechaFin }
+            // fecha: { $lte: fechaFin }
+            ...matchFecha
           }
         },
         { $count: 'total' }

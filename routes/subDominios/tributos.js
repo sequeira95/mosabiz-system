@@ -1,7 +1,7 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
 import { addImagenPlanillaIva, anularComprobante, anularComprobanteVentas, deleteDocumentoPorDeclarar, deleteImgPlanillas, deletePeriodoFactura, eliminarDocumentos, getCajasSucursalList, getCiclos, getComprobantesRetencionIslr, getComprobantesRetencionIslrVentas, getComprobantesRetencionIVA, getComprobantesRetencionIVAVenta, getDataIva, getDataXmlIslr, getFacturasPorDeclarar, getFacturasPorDeclararIva, getListClientes, getListImpuestosIslr, getListImpuestosRetIva, getListProveedores, getResumenIslr, getResumenIvaCompra, getSucursalesList, saveComprobanteRetIslrCompras, saveComprobanteRetIslrVentas, saveComprobanteRetIvaCompras, saveComprobanteRetIvaVentas, saveDeclaracionIslr, saveDeclaracionIva, saveDocumentosfiscalesToArray, savePeriodoFactura, savePlanillaIva, ultimaInfoRetencion } from '../../controllers/subDominios/tributos/tributos.js'
-import { getLibroCompra, getLibroVenta } from '../../controllers/subDominios/tributos/reportes.js'
+import { comprobantesRet, getLibroCompra, getLibroVenta } from '../../controllers/subDominios/tributos/reportes.js'
 
 const router = express.Router()
 
@@ -40,5 +40,6 @@ router.post('/get/dataResumenIvaCompra', requireSubDominioToken, getResumenIvaCo
 router.post('/get/dataResumenIslr', requireSubDominioToken, getResumenIslr)
 router.post('/delete/porDeclarar', requireSubDominioToken, deleteDocumentoPorDeclarar)
 router.post('/get/dataXmlIslr', requireSubDominioToken, getDataXmlIslr)
+router.post('/get/comprobantesExcel', requireSubDominioToken, comprobantesRet)
 // router.post('/eliminando', requireSubDominioToken, eliminarDocumentos) // eliminar esta ruta
 export default router

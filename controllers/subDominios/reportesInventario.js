@@ -6,27 +6,43 @@ import { momentDate } from '../../utils/momentDate.js'
 import { randomBytes } from 'node:crypto'
 
 export const reporteProductos = async (req, res) => {
-  const { clienteId, itemsPorPagina, pagina } = req.body
+  const { clienteId, itemsPorPagina, pagina, showDisabled, hasta } = req.body
   console.log(req.body)
+  const matchDisabled = showDisabled ? {} : { activo: { $ne: false } }
   try {
     const count = await agreggateCollectionsSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { activo: { $ne: false } } },
+        { $match: { ...matchDisabled } },
         { $count: 'total' }
       ]
     })
     if (itemsPorPagina || pagina) {
+      const ajustePrecioProductoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ajustePrecioProducto' })
       const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
       const almacenAuditoria = await getItemSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: 'Auditoria' } })
       const productsList = await agreggateCollectionsSD({
         nameCollection: 'productos',
         enviromentClienteId: clienteId,
         pipeline: [
-          { $match: { activo: { $ne: false } } },
+          { $match: { ...matchDisabled } },
           { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
           { $limit: Number(itemsPorPagina) },
+          {
+            $lookup: {
+              from: ajustePrecioProductoCollection,
+              localField: '_id',
+              foreignField: 'productoId',
+              pipeline: [
+                { $match: { fecha: { $lte: moment(hasta).toDate() } } },
+                { $sort: { fecha: -1 } },
+                { $limit: 1 }
+              ],
+              as: 'ultimoCostoPromedio'
+            },
+          },
+          { $unwind: { path: '$ultimoCostoPromedio', preserveNullAndEmptyArrays: true } },
           {
             $lookup: {
               from: productorPorAlamcenCollection,
@@ -35,6 +51,7 @@ export const reporteProductos = async (req, res) => {
               pipeline: [
                 {
                   $match: {
+                    fechaMovimiento: { $lte: moment(hasta).toDate() },
                     $and: [
                       { almacenId: { $ne: almacenAuditoria._id } },
                       { almacenId: { $exists: true } }
@@ -82,9 +99,10 @@ export const reporteProductos = async (req, res) => {
               cantidad: '$detalleCantidadProducto.cantidad',
               entrada: '$detalleCantidadProducto.entrada',
               salida: '$detalleCantidadProducto.salida',
-              costoPromedio: '$costoPromedio',
+              costoPromedio: '$ultimoCostoPromedio.costoPromedio',
+              activo: '$activo',
               costoPromedioTotal: {
-                $multiply: ['$detalleCantidadProducto.cantidad', '$costoPromedio']
+                $multiply: ['$detalleCantidadProducto.cantidad', '$ultimoCostoPromedio.costoPromedio']
               }
             }
           }
@@ -100,18 +118,20 @@ export const reporteProductos = async (req, res) => {
   }
 }
 export const reporteProductosAlmacen = async (req, res) => {
-  const { clienteId, itemsPorPagina, pagina } = req.body
+  const { clienteId, itemsPorPagina, pagina, showDisabled, hasta } = req.body
   console.log(req.body)
+  const matchDisabled = showDisabled ? {} : { activo: { $ne: false } }
   try {
     const count = await agreggateCollectionsSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { activo: { $ne: false } } },
+        { $match: { ...matchDisabled } },
         { $count: 'total' }
       ]
     })
     if (itemsPorPagina || pagina) {
+      const ajustePrecioProductoCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ajustePrecioProducto' })
       const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
       const almacenesCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'almacenes' })
       const almacenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Auditoria', 'Devoluciones'] } } })
@@ -119,9 +139,23 @@ export const reporteProductosAlmacen = async (req, res) => {
         nameCollection: 'productos',
         enviromentClienteId: clienteId,
         pipeline: [
-          { $match: { activo: { $ne: false } } },
+          { $match: { ...matchDisabled } },
           { $skip: (Number(pagina) - 1) * Number(itemsPorPagina) },
           { $limit: Number(itemsPorPagina) },
+          {
+            $lookup: {
+              from: ajustePrecioProductoCollection,
+              localField: '_id',
+              foreignField: 'productoId',
+              pipeline: [
+                { $match: { fecha: { $lte: moment(hasta).toDate() } } },
+                { $sort: { fecha: -1 } },
+                { $limit: 1 }
+              ],
+              as: 'ultimoCostoPromedio'
+            },
+          },
+          { $unwind: { path: '$ultimoCostoPromedio', preserveNullAndEmptyArrays: true } },
           {
             $lookup: {
               from: productorPorAlamcenCollection,
@@ -130,6 +164,7 @@ export const reporteProductosAlmacen = async (req, res) => {
               pipeline: [
                 {
                   $match: {
+                    fechaMovimiento: { $lte: moment(hasta).toDate() },
                     $and: [
                       { almacenId: { $nin: almacenesInvalid.map(e => e._id) } },
                       { almacenId: { $exists: true } }
@@ -178,7 +213,7 @@ export const reporteProductosAlmacen = async (req, res) => {
               as: 'detalleCantidadProducto'
             }
           },
-          { $unwind: { path: '$detalleCantidadProducto', preserveNullAndEmptyArrays: false } },
+          { $unwind: { path: '$detalleCantidadProducto', preserveNullAndEmptyArrays: true } },
           {
             $project: {
               codigo: '$codigo',
@@ -188,9 +223,10 @@ export const reporteProductosAlmacen = async (req, res) => {
               cantidad: '$detalleCantidadProducto.cantidad',
               entrada: '$detalleCantidadProducto.entrada',
               salida: '$detalleCantidadProducto.salida',
-              costoPromedio: '$costoPromedio',
+              costoPromedio: '$ultimoCostoPromedio.costoPromedio',
+              activo: '$activo',
               costoPromedioTotal: {
-                $multiply: ['$detalleCantidadProducto.cantidad', { $ifNull: ['$costoPromedio', 0] }]
+                $multiply: ['$detalleCantidadProducto.cantidad', { $ifNull: ['$ultimoCostoPromedio.costoPromedio', 0] }]
               },
               almacenId: '$detalleCantidadProducto.almacenId',
               almacenNombre: '$detalleCantidadProducto.almacenNombre'

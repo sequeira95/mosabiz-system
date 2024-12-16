@@ -3226,7 +3226,7 @@ export const saveDocumentosfiscalesToArray = async (req, res) => {
     const tieneContabilidad = await hasContabilidad({ clienteId })
     /* este for se encarga solo de separar los documentos por tipo */
     for (const documento of documentosFiscales) {
-      const tipoDocumento = documento.tipoDocumento.replaceAll(' ', '').toLowerCase()
+      const tipoDocumento = documento.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()
       if (tipoDocumento === 'nc' || tipoDocumento === 'nd') debitoCredito.push(documento)
       if (tipoDocumento === 'ret') retIva.push(documento)
       if (tipoDocumento === 'fac') facturas.push(documento)

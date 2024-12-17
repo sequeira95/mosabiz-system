@@ -1767,6 +1767,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       moneda: ventaInfo.moneda,
       monedaSecundaria: ventaInfo.monedaSecundaria,
       // datos de montos e impuestos
+      costoVenta: Number(ventaInfo.productos.map(e => (e.costoPromedio * e.cantidad)).reduce((a, b) => a + b, 0).toFixed(2)),
       hasIgtf: ventaInfo.totalPagado.igtf > 0,
       baseImponible: Number(Number(ventaInfo.totalMonedaPrincial.baseImponible).toFixed(2)),
       exentoSinDescuento: Number(Number(ventaInfo.totalMonedaPrincial.exonerado).toFixed(2)),

@@ -3772,7 +3772,7 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
       const validarNumeroFactura = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor?._id) }
+        filters: { numeroFactura: documento.numeroFactura, proveedorId: new ObjectId(proveedor?._id), tipoMovimiento: 'compra', numeroControl: String(documento.numeroControl) }
       })
       if (validarNumeroFactura && proveedor) throw new Error(`La ${tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()]} N° ${documento.numeroFactura} del proveedor ${documento.razonSocial} ya se encuentra registrada`)
       const facturaAfectada = await getItemSD({
@@ -4315,7 +4315,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
       const facturaAfectada = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFacturaAfectada, proveedorId: proveedor?._id }
+        filters: { numeroFactura: documento.numeroFacturaAfectada, proveedorId: proveedor?._id, numeroControl: String(documento.numeroControlAfectado) }
       })
       if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
       const razonSocial = proveedor ? proveedor?.razonSocial : 'DOCUMENTO ANULADO'
@@ -4481,7 +4481,7 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
       const facturaAfectada = await getItemSD({
         nameCollection: 'documentosFiscales',
         enviromentClienteId: clienteId,
-        filters: { numeroFactura: documento.numeroFacturaAfectada }
+        filters: { numeroFactura: String(documento.numeroFacturaAfectada), numeroControl: String(documento.numeroControlAfectado) }
       })
       if (!facturaAfectada && documento.numeroFacturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
       const verifyRetencion = await getItemSD({

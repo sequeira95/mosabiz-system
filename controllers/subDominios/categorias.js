@@ -36,6 +36,7 @@ export const getCategorias = async (req, res) => {
             tipo: 1,
             vidaUtil: 1,
             observacion: 1,
+            costoRef: 1,
             hasProducto: { $size: '$detalleProducto' },
             hasActivo: { $size: '$detalleActivoFijo' }
           }
@@ -147,7 +148,7 @@ export const getCategoriasForCompras = async (req, res) => {
   }
 }
 export const saveCategorias = async (req, res) => {
-  const { _id, clienteId, nombre, observacion, tipo, vidaUtil } = req.body
+  const { _id, clienteId, nombre, observacion, tipo, vidaUtil, costoRef } = req.body
   if (!nombre) return res.status(400).json({ error: 'Debe ingresar un nombre de categoría valido' })
   try {
     if (!_id) {
@@ -177,6 +178,7 @@ export const saveCategorias = async (req, res) => {
             nombre,
             observacion,
             vidaUtil: Number(vidaUtil),
+            costoRef: costoRef ? Number(costoRef) : 0,
             fechaCreacion: moment().toDate()
           }
         }
@@ -209,6 +211,7 @@ export const saveCategorias = async (req, res) => {
         $set: {
           nombre,
           observacion,
+          costoRef: costoRef ? Number(costoRef) : 0,
           vidaUtil: Number(vidaUtil)
         }
       }

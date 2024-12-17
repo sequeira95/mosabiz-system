@@ -9,6 +9,24 @@ import { momentDate } from '../../utils/momentDate.js'
 export const getProductos = async (req, res) => {
   const { clienteId, almacenOrigen, itemsPorPagina, pagina } = req.body
   try {
+    const costoPromedioCond = {
+      $cond: {
+        if: {
+          $and: [
+            { $gt: ['$detalleCategoria.costoRef', 0] },
+            { $lt: ['$detalleCategoria.costoRef', 100] }
+          ]
+        },
+        then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.costoRef', 100] }] }] },
+        else: {
+          $cond: {
+            if: { $gte: ['$detalleCategoria.costoRef', 100] },
+            then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.costoRef', 100] }] }] },
+            else: '$costoPromedio'
+          }
+        }
+      }
+    }
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
     const matchAlmacen = almacenOrigen ? { almacenId: new ObjectId(almacenOrigen) } : {}
@@ -92,20 +110,25 @@ export const getProductos = async (req, res) => {
                 then: '$precioVenta',
                 else: {
                   $cond: {
-                    if: { $and: [
-                      { $gt: ['$detalleCategoria.utilidad', 0] },
-                      { $lt: ['$detalleCategoria.utilidad', 100] }
-                    ] },
-                    then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                    else: { $cond: {
-                      if: { $gte: ['$detalleCategoria.utilidad', 100] },
-                      then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
-                      else: 0
-                    } }
+                    if: {
+                      $and: [
+                        { $gt: ['$detalleCategoria.utilidad', 0] },
+                        { $lt: ['$detalleCategoria.utilidad', 100] }
+                      ]
+                    },
+                    then: { $divide: [costoPromedioCond, { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                    else: {
+                      $cond: {
+                        if: { $gte: ['$detalleCategoria.utilidad', 100] },
+                        then: { $multiply: [costoPromedioCond, { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                        else: 0
+                      }
+                    }
                   }
                 }
               }
             },
+            precioRef: '$precioVenta',
             iva: '$iva',
             ivaId: '$ivaId',
             costoPromedio: '$costoPromedio',

@@ -1055,6 +1055,24 @@ export const getProductos = async (req, res) => {
     const productorPorAlamcenCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'productosPorAlmacen' })
     const alamcenesInvalid = await getCollectionSD({ nameCollection: 'almacenes', enviromentClienteId: clienteId, filters: { nombre: { $in: ['Transito', 'Auditoria', 'Devoluciones'] } } })
     const matchAlmacen = almacenId ? { almacenId: new ObjectId(almacenId) } : { almacenId: { $nin: [null, ...alamcenesInvalid.map(e => e._id)] } }
+    const costoPromedioCond = {
+      $cond: {
+        if: {
+          $and: [
+            { $gt: ['$detalleCategoria.costoRef', 0] },
+            { $lt: ['$detalleCategoria.costoRef', 100] }
+          ]
+        },
+        then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.costoRef', 100] }] }] },
+        else: {
+          $cond: {
+            if: { $gte: ['$detalleCategoria.costoRef', 100] },
+            then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.costoRef', 100] }] }] },
+            else: '$costoPromedio'
+          }
+        }
+      }
+    }
     const productos = await agreggateCollectionsSD({
       nameCollection: 'productos',
       enviromentClienteId: clienteId,
@@ -1140,11 +1158,11 @@ export const getProductos = async (req, res) => {
                         { $lt: ['$detalleCategoria.utilidad', 100] }
                       ]
                     },
-                    then: { $divide: ['$costoPromedio', { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                    then: { $divide: [costoPromedioCond, { $subtract: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
                     else: {
                       $cond: {
                         if: { $gte: ['$detalleCategoria.utilidad', 100] },
-                        then: { $multiply: ['$costoPromedio', { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
+                        then: { $multiply: [costoPromedioCond, { $sum: [1, { $divide: ['$detalleCategoria.utilidad', 100] }] }] },
                         else: 0
                       }
                     }
@@ -1152,9 +1170,11 @@ export const getProductos = async (req, res) => {
                 }
               }
             },
+            precioRef: '$precioVenta',
             iva: '$iva',
             ivaId: '$ivaId',
-            costoPromedio: '$costoPromedio',
+            costoPromedio: costoPromedioCond,
+            // '$costoPromedio',
             isDataInicial: '$isDataInicial'
           }
         },
@@ -1767,7 +1787,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       moneda: ventaInfo.moneda,
       monedaSecundaria: ventaInfo.monedaSecundaria,
       // datos de montos e impuestos
-      costoVenta: Number(ventaInfo.productos.map(e => (e.costoPromedio * e.cantidad)).reduce((a, b) => a + b, 0).toFixed(2)),
+      costoVenta: Number(ventaInfo.productos.map(e => ((e.costoPromedio || 0) * e.cantidad)).reduce((a, b) => a + b, 0).toFixed(2)),
       hasIgtf: ventaInfo.totalPagado.igtf > 0,
       baseImponible: Number(Number(ventaInfo.totalMonedaPrincial.baseImponible).toFixed(2)),
       exentoSinDescuento: Number(Number(ventaInfo.totalMonedaPrincial.exonerado).toFixed(2)),

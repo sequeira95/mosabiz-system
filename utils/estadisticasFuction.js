@@ -17,34 +17,39 @@ export const getDataEstadisticasComprasVentas = async ({ clienteId, dateInitYear
         {
           $group: {
             _id: { $month: '$fecha' },
-            compras: {
+            costoVentas: {
               $sum: {
                 $cond: {
-                  if: { $eq: ['$tipoMovimiento', 'compra'] },
-                  then: '$total',
+                  if: { $eq: ['$tipoMovimiento', 'venta'] },
+                  then: '$costoVentas',
                   else: 0
                 }
               }
             },
-            ncCompras: {
+            nccostoVentas: {
               $sum: {
                 $cond: {
                   if: {
                     $and: [
-                      { $eq: ['$tipoMovimiento', 'compra'] },
+                      { $eq: ['$tipoMovimiento', 'venta'] },
                       { $eq: ['$tipoDocumentoFiscal', tiposDocumentosFiscales.notaCredito] }
                     ]
                   },
-                  then: '$total',
+                  then: '$costoVentas',
                   else: 0
                 }
               }
             },
-            ndCompras: {
+            ndcostoVentas: {
               $sum: {
                 $cond: {
-                  if: { $and: [{ $eq: ['$tipoMovimiento', 'compra'] }, { $eq: ['$tipoDocumentoFiscal', tiposDocumentosFiscales.notaDebito] }] },
-                  then: '$total',
+                  if: {
+                    $and: [
+                      { $eq: ['$tipoMovimiento', 'venta'] },
+                      { $eq: ['$tipoDocumentoFiscal', tiposDocumentosFiscales.notaDebito] }
+                    ]
+                  },
+                  then: '$costoVentas',
                   else: 0
                 }
               }
@@ -80,7 +85,7 @@ export const getDataEstadisticasComprasVentas = async ({ clienteId, dateInitYear
         },
         {
           $project: {
-            compras: { $subtract: [{ $add: ['$compras', '$ndCompras'] }, '$ncCompras'] },
+            costoVentas: { $subtract: [{ $add: ['$costoVentas', '$ndcostoVentas'] }, '$nccostoVentas'] },
             ventas: { $subtract: [{ $add: ['$ventas', '$ndVentas'] }, '$ncVentas'] }
           }
         },
@@ -147,7 +152,7 @@ export const getDataEstadisticasTransacciones = async ({ clienteId, dateInitYear
         {
           $match: {
             fechaPago: { $gte: moment(dateInitYear).toDate(), $lte: moment(dataEnd).toDate() },
-            // tipo: { $in: ['compra', 'venta', 'Ingreso', 'Egreso'] }
+            tipo: { $in: ['Ingreso', 'Egreso'] }
           }
         },
         {
@@ -159,7 +164,7 @@ export const getDataEstadisticasTransacciones = async ({ clienteId, dateInitYear
                   if: {
                     $or: [
                       { $eq: ['$tipo', 'Ingreso'] },
-                      { $eq: ['$tipo', 'venta'] }
+                      // { $eq: ['$tipo', 'venta'] }
                     ]
                   },
                   then: '$pago',
@@ -172,7 +177,7 @@ export const getDataEstadisticasTransacciones = async ({ clienteId, dateInitYear
                 $cond: {
                   if: {
                     $or: [
-                      {
+                      /* {
                         $and: [
                           { $eq: ['$tipo', 'venta'] },
                           { $eq: ['$tipoDocumento', tiposDocumentosFiscales.devolucion] }
@@ -183,9 +188,9 @@ export const getDataEstadisticasTransacciones = async ({ clienteId, dateInitYear
                           { $eq: ['$tipo', 'venta'] },
                           { $eq: ['$tipoDocumento', tiposDocumentosFiscales.notaCredito] }
                         ]
-                      },
+                      }, */
                       { $eq: ['$tipo', 'Egreso'] },
-                      { $eq: ['$tipo', 'compra'] }
+                      // { $eq: ['$tipo', 'compra'] }
                     ]
                   },
                   then: '$pago',

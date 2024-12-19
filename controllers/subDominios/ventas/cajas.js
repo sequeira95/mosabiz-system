@@ -1,13 +1,14 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, deleteItemSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, deleteItemSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
 import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
-import { subDominioName } from '../../../constants.js'
+import { subDominioName, documentosVentas } from '../../../constants.js'
 
 export const getCajas = async (req, res) => {
   const { clienteId } = req.body
   try {
     const cuentasColName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'planCuenta' })
+    const contadoresColName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'contadores' })
     const sucursalNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'ventassucursales' })
     const cajas = await agreggateCollectionsSD({
       nameCollection: 'ventascajas',
@@ -34,6 +35,14 @@ export const getCajas = async (req, res) => {
           }
         },
         { $unwind: { path: '$cuentaData', preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: contadoresColName,
+            localField: '_id',
+            foreignField: 'cajaId',
+            as: 'contadores'
+          }
+        },
         {
           $addFields: {
             cuenta: '$cuentaData.codigo',
@@ -214,5 +223,21 @@ export const deleteCajas = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la caja' + e.message })
+  }
+}
+
+export const changeContador = async (req, res) => {
+  const { clienteId, cajaId, value, type } = req.body
+  try {
+    await upsertItemSD({
+      nameCollection: 'contadores',
+      enviromentClienteId: clienteId,
+      filters: { tipo: `venta-${type}`, cajaId: new ObjectId(cajaId) },
+      update: { $set: { contador: Number(value) } }
+    })
+    return res.status(200).json({ status: 'Caja actualizada exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de actualizar la caja' + e.message })
   }
 }

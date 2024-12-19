@@ -14,7 +14,8 @@ import {
   deleteCajas,
   getCajas,
   saveCajas,
-  getUsuariosBySucursal
+  getUsuariosBySucursal,
+  changeContador
 } from '../../controllers/subDominios/ventas/cajas.js'
 
 import {
@@ -62,6 +63,7 @@ router.post('/cajas/set', requireSubDominioToken, createCajas)
 router.post('/cajas/save', requireSubDominioToken, saveCajas)
 router.post('/cajas/delete', requireSubDominioToken, deleteCajas)
 router.post('/cajas/getUsuariosBySucursal', requireSubDominioToken, getUsuariosBySucursal)
+router.post('/cajas/contador', requireSubDominioToken, changeContador)
 
 router.post('/zonas/get', requireSubDominioToken, getZonas)
 router.post('/zonas/set', requireSubDominioToken, saveZonas)

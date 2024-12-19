@@ -1752,7 +1752,11 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
   const sucursal = await getItemSD({ nameCollection: 'ventassucursales', enviromentClienteId: clienteId, filters: { _id: new ObjectId(ventaInfo.sucursalId) } })
   if (!sucursal) throw new Error('La sucursal no existe en la base de datos')
 
-  let contador = (await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: `venta-${ventaInfo.documento}` } }))?.contador
+  let contador = (await getItemSD({
+    nameCollection: 'contadores',
+    enviromentClienteId: clienteId,
+    filters: { tipo: `venta-${ventaInfo.documento}`, cajaId: new ObjectId(ventaInfo.cajaId) }
+  }))?.contador
   if (contador) ++contador
   if (!contador) contador = 1
   const infoDoc = documentosVentas.find(e => e.value === ventaInfo.documento)
@@ -1850,7 +1854,12 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
     }
   })
   // actualiza el contador
-  upsertItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: `venta-${ventaInfo.documento}` }, update: { $set: { contador } } })
+  upsertItemSD({
+    nameCollection: 'contadores',
+    enviromentClienteId: clienteId,
+    filters: { tipo: `venta-${ventaInfo.documento}`, cajaId: new ObjectId(ventaInfo.cajaId) },
+    update: { $set: { contador } }
+  })
   return newFactura
 }
 

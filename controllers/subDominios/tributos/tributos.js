@@ -4403,45 +4403,88 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             }
           }
         }
-        const asientos = [
-          {
-            cuentaId: new ObjectId(cuentaPago._id),
-            cuentaCodigo: cuentaPago.codigo,
-            cuentaNombre: cuentaPago.descripcion,
-            comprobanteId: new ObjectId(comprobante._id),
-            periodoId: new ObjectId(periodo._id),
-            descripcion: razonSocial.toUpperCase(),
-            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
-            debe: Number(Number(compra.totalRetenido).toFixed(2)),
-            haber: 0,
-            fechaCreacion: moment().toDate(),
-            terceroId: tercero ? new ObjectId(tercero._id) : null,
-            terceroNombre: tercero ? tercero.nombre : null,
-            docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-            documento: {
-              docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-              docFecha: moment(documento.fecha).toDate()
+        const descripcion = `${razonSocial.toUpperCase()} Doc.Afectado: ${facturaAfectada.numeroFactura}`
+        if (facturaAfectada?.tipoDocumento !== tiposDocumentosFiscales.notaCredito) {
+          const asientos = [
+            {
+              cuentaId: new ObjectId(cuentaPago._id),
+              cuentaCodigo: cuentaPago.codigo,
+              cuentaNombre: cuentaPago.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion,
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
+              debe: Number(Number(compra.totalRetenido).toFixed(2)),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              terceroId: tercero ? new ObjectId(tercero._id) : null,
+              terceroNombre: tercero ? tercero.nombre : null,
+              docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              documento: {
+                docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+                docFecha: moment(documento.fecha).toDate()
+              }
+            },
+            {
+              cuentaId: new ObjectId(cuentaRetIva._id),
+              cuentaCodigo: cuentaRetIva.codigo,
+              cuentaNombre: cuentaRetIva.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion,
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
+              debe: 0,
+              haber: Number(Number(compra.totalRetenido).toFixed(2)),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              documento: {
+                docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+                docFecha: moment(documento.fecha).toDate()
+              }
             }
-          },
-          {
-            cuentaId: new ObjectId(cuentaRetIva._id),
-            cuentaCodigo: cuentaRetIva.codigo,
-            cuentaNombre: cuentaRetIva.descripcion,
-            comprobanteId: new ObjectId(comprobante._id),
-            periodoId: new ObjectId(periodo._id),
-            descripcion: razonSocial.toUpperCase(),
-            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
-            debe: 0,
-            haber: Number(Number(compra.totalRetenido).toFixed(2)),
-            fechaCreacion: moment().toDate(),
-            docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-            documento: {
-              docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
-              docFecha: moment(documento.fecha).toDate()
+          ]
+          asientosContables.push(...asientos)
+        } else {
+          const asientos = [
+            {
+              cuentaId: new ObjectId(cuentaRetIva._id),
+              cuentaCodigo: cuentaRetIva.codigo,
+              cuentaNombre: cuentaRetIva.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion,
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
+              debe: Number(Number(compra.totalRetenido).toFixed(2)),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              documento: {
+                docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+                docFecha: moment(documento.fecha).toDate()
+              }
+            },
+            {
+              cuentaId: new ObjectId(cuentaPago._id),
+              cuentaCodigo: cuentaPago.codigo,
+              cuentaNombre: cuentaPago.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion,
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
+              debe: 0,
+              haber: Number(Number(compra.totalRetenido).toFixed(2)),
+              fechaCreacion: moment().toDate(),
+              terceroId: tercero ? new ObjectId(tercero._id) : null,
+              terceroNombre: tercero ? tercero.nombre : null,
+              docReferenciaAux: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+              documento: {
+                docReferencia: `${compra.tipoDocumento}-${compra.numeroFactura}`,
+                docFecha: moment(documento.fecha).toDate()
+              }
             }
-          }
-        ]
-        asientosContables.push(...asientos)
+          ]
+          asientosContables.push(...asientos)
+        }
       }
     }
     if (tipo === 'venta') {
@@ -4576,45 +4619,88 @@ const createRetencionesIva = async ({ documentos, moneda, uid, tipo, clienteId, 
             }
           }
         }
-        const asientos = [
-          {
-            cuentaId: new ObjectId(cuentaRetIva._id),
-            cuentaCodigo: cuentaRetIva.codigo,
-            cuentaNombre: cuentaRetIva.descripcion,
-            comprobanteId: new ObjectId(comprobante._id),
-            periodoId: new ObjectId(periodo._id),
-            descripcion: razonSocial.toUpperCase(), // `${venta.tipoDocumento}-${venta.numeroFactura}`,,
-            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
-            debe: Number(Number(venta.totalRetenido).toFixed(2)),
-            haber: 0,
-            fechaCreacion: moment().toDate(),
-            docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-            documento: {
-              docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              docFecha: moment(documento.fecha).toDate()
+        const descripcion = `${razonSocial.toUpperCase()} Doc.Afectado: ${facturaAfectada.numeroFactura}`
+        if (facturaAfectada?.tipoDocumento !== tiposDocumentosFiscales.notaCredito) {
+          const asientos = [
+            {
+              cuentaId: new ObjectId(cuentaRetIva._id),
+              cuentaCodigo: cuentaRetIva.codigo,
+              cuentaNombre: cuentaRetIva.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion, // `${venta.tipoDocumento}-${venta.numeroFactura}`,,
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
+              debe: Number(Number(venta.totalRetenido).toFixed(2)),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
+              documento: {
+                docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
+                docFecha: moment(documento.fecha).toDate()
+              }
+            },
+            {
+              cuentaId: new ObjectId(cuentaPago._id),
+              cuentaCodigo: cuentaPago.codigo,
+              cuentaNombre: cuentaPago.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion,
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
+              debe: 0,
+              haber: Number(Number(venta.totalRetenido).toFixed(2)),
+              fechaCreacion: moment().toDate(),
+              terceroId: tercero ? new ObjectId(tercero._id) : null,
+              terceroNombre: tercero ? tercero.nombre : null,
+              docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
+              documento: {
+                docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
+                docFecha: moment(documento.fecha).toDate()
+              }
             }
-          },
-          {
-            cuentaId: new ObjectId(cuentaPago._id),
-            cuentaCodigo: cuentaPago.codigo,
-            cuentaNombre: cuentaPago.descripcion,
-            comprobanteId: new ObjectId(comprobante._id),
-            periodoId: new ObjectId(periodo._id),
-            descripcion: razonSocial.toUpperCase(),
-            fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
-            debe: 0,
-            haber: Number(Number(venta.totalRetenido).toFixed(2)),
-            fechaCreacion: moment().toDate(),
-            terceroId: tercero ? new ObjectId(tercero._id) : null,
-            terceroNombre: tercero ? tercero.nombre : null,
-            docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-            documento: {
-              docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
-              docFecha: moment(documento.fecha).toDate()
+          ]
+          asientosContables.push(...asientos)
+        } else {
+          const asientos = [
+            {
+              cuentaId: new ObjectId(cuentaPago._id),
+              cuentaCodigo: cuentaPago.codigo,
+              cuentaNombre: cuentaPago.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion,
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
+              debe: Number(Number(venta.totalRetenido).toFixed(2)),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              terceroId: tercero ? new ObjectId(tercero._id) : null,
+              terceroNombre: tercero ? tercero.nombre : null,
+              docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
+              documento: {
+                docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
+                docFecha: moment(documento.fecha).toDate()
+              }
+            },
+            {
+              cuentaId: new ObjectId(cuentaRetIva._id),
+              cuentaCodigo: cuentaRetIva.codigo,
+              cuentaNombre: cuentaRetIva.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion, // `${venta.tipoDocumento}-${venta.numeroFactura}`,,
+              fecha: validarFechaDentroRago(documento.fecha, documento.periodoIvaInit, timeZone),
+              debe: 0,
+              haber: Number(Number(venta.totalRetenido).toFixed(2)),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: `${venta.tipoDocumento}-${venta.numeroFactura}`,
+              documento: {
+                docReferencia: `${venta.tipoDocumento}-${venta.numeroFactura}`,
+                docFecha: moment(documento.fecha).toDate()
+              }
             }
-          }
-        ]
-        asientosContables.push(...asientos)
+          ]
+          asientosContables.push(...asientos)
+        }
       }
     }
   }

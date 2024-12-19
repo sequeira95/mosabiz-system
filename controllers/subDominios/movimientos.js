@@ -4659,10 +4659,9 @@ export const saveAjusteAlmacenDevoluciones = async (req, res) => {
         upsertItemSD({
           nameCollection: 'ajustePrecioProducto',
           enviromentClienteId: clienteId,
-          filters: { fecha: moment(momentDate(ajusteSistema.timeZone).toDate()).toDate() },
+          filters: { fecha: moment(momentDate(ajusteSistema.timeZone).toDate()).toDate(), productoId: new ObjectId(productoId) },
           update: {
             $set: {
-              productoId: new ObjectId(productoId),
               costoPromedio: Number(nuevoCostoPromedio)
             }
           }

@@ -65,15 +65,15 @@ export const deleteComprobante = async (req, res) => {
   const { comprobanteId, periodoId, clienteId } = req.body
   if (!(periodoId && comprobanteId && clienteId)) return res.status(400).json({ error: 'Datos incompletos' })
   try {
-    await deleteItemSD({
-      nameCollection: 'comprobantes',
-      enviromentClienteId: clienteId,
-      filters: { _id: new ObjectId(comprobanteId), periodoId: new ObjectId(periodoId) }
-    })
     await deleteManyItemsSD({
       nameCollection: 'detallesComprobantes',
       enviromentClienteId: clienteId,
       filters: { comprobanteId: new ObjectId(comprobanteId) }
+    })
+    await deleteItemSD({
+      nameCollection: 'comprobantes',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(comprobanteId), periodoId: new ObjectId(periodoId) }
     })
     return res.status(200).json({ status: 'Comprobante eliminado exitosamente' })
   } catch (e) {

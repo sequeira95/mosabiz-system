@@ -44,9 +44,9 @@ export const mayorAnalitico = async (req, res) => {
   }
 }
 export const balanceComprobacion = async (req, res) => {
-  const { clienteId, periodoId, fecha, nivel, cuentaSinMovimientos, itemsPorPagina, pagina } = req.body
+  const { clienteId, periodoId, fecha, nivel, cuentaSinMovimientos, itemsPorPagina, pagina, timeZone } = req.body
   try {
-    const { count, dataCuentas } = await dataBalanceComprobacion({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos, itemsPorPagina, pagina })
+    const { count, dataCuentas } = await dataBalanceComprobacion({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos, itemsPorPagina, pagina, timeZone })
     return res.status(200).json({ balanceComprobacion: dataCuentas, count })
   } catch (e) {
     console.log(e)

@@ -63,7 +63,7 @@ export const collectionNameClient = [
   'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos', 'contadores', 'movimientos', 'detalleMovimientos',
   'productosPorAlmacen', 'retencionISLR', 'bancos', 'clientes', 'servicios', 'iva', 'proveedores', 'metodosPagos', 'compras', 'detalleCompra', 'transacciones',
   'documentosFiscales', 'detalleDocumentosFiscales', 'ventassucursales', 'ventaszonas', 'zonasPorSucursales', 'declaraciones', 'ajustePrecioProducto', 'conciliacionTesoreria',
-  'perfiles', 'empleados'
+  'perfiles', 'empleados', 'cierrescaja'
 ]
 export const collectionNameAIbiz = [
   'islr', 'iva', 'bancos', 'retIva'
@@ -98,7 +98,8 @@ export const ListIndexesClient = [
     indices:
     [
       { key: { periodoId: 1 }, background: true },
-      { key: { periodoId: 1, nombre: 1 }, background: true }
+      { key: { periodoId: 1, nombre: 1 }, background: true },
+      { key: { mesPeriodo: 1, codigo: 1, periodoId: 1 }, background: true }
     ]
   },
   {
@@ -115,6 +116,7 @@ export const ListIndexesClient = [
       { key: { periodoId: 1, fecha: 1, cuentaCodigo: 1 }, background: true },
       { key: { periodoId: 1, fecha: 1 }, background: true },
       { key: { cuentaId: 1, fecha: 1 }, background: true },
+      { key: { fechaCreacion: 1 }, background: true },
     ]
   },
   {
@@ -194,8 +196,8 @@ export const ListIndexesClient = [
     [
       { key: { categoria: 1 }, background: true },
       { key: { activo: 1 }, background: true },
+      { key: { activo: 1, _id: 1 }, background: true },
       { key: { codigo: 1, nombre: 1 }, background: true },
-      { key: { nombre: 1, codigo: 1 }, background: true },
       { key: { codigo: 1 }, background: true }
     ]
   },
@@ -213,8 +215,9 @@ export const ListIndexesClient = [
       { key: { estado: 1 }, background: true },
       { key: { tipo: 1 }, background: true },
       { key: { estado: 1, tipo: 1 }, background: true },
-      { key: { tipo: 1, estado: 1 }, background: true },
+      { key: { estado: 1, _id: 1 }, background: true },
       { key: { compraId: 1 }, background: true },
+      { key: { numeroMovimiento: 1, fecha: 1, tipo: 1 }, background: true },
     ]
   },
   {
@@ -246,7 +249,6 @@ export const ListIndexesClient = [
       { key: { tipoMovimiento: 1, productoId: 1, zonaId: 1 }, background: true },
       { key: { productoId: 1, movimientoId: 1 }, background: true },
       { key: { movimientoId: 1, lote: 1, almacenId: 1 }, background: true },
-      { key: { tipoMovimiento: 1, almacenId: 1, productoId: 1 }, background: true },
       { key: { movimientoAfectado: 1 }, background: true },
       { key: { movimientoAfectado: 1, productoId: 1 }, background: true },
       { key: { fechaMovimiento: 1, almacenId: 1 }, background: true },
@@ -271,7 +273,6 @@ export const ListIndexesClient = [
       { key: { tipo: 1, tipoBanco: 1 }, background: true },
       { key: { tipoBanco: 1 }, background: true },
       { key: { tipo: 1, isNacionalDivisas: 1, tipoBanco: 1 }, background: true },
-      { key: { tipo: 1, tipoBanco: 1, isNacionalDivisas: 1 }, background: true },
     ]
   },
   {
@@ -315,6 +316,7 @@ export const ListIndexesClient = [
     [
       { key: { _id: 1, estado: 1 }, background: true },
       { key: { estado: 1 }, background: true },
+      { key: { estado: 1, _id: 1 }, background: true },
       { key: { statusInventario: 1 }, background: true },
     ]
   },
@@ -346,7 +348,6 @@ export const ListIndexesClient = [
     indices:
     [
       { key: { tipoMovimiento: 1, estado: 1, tipoDocumento: 1, fecha: 1 }, background: true },
-      { key: { fecha: 1, estado: 1, tipoMovimiento: 1, tipoDocumento: 1 }, background: true },
       { key: { tipoMovimiento: 1, tipoDocumento: 1, fecha: 1 }, background: true },
       { key: { facturaAsociada: 1 }, background: true },
       { key: { facturaAsociada: 1, tipoDocumento: 1 }, background: true },
@@ -354,7 +355,6 @@ export const ListIndexesClient = [
       { key: { tipoMovimiento: 1, estado: 1, tipoDocumento: 1, numeroOrden: 1 }, background: true },
       { key: { tipoMovimiento: 1, estado: 1, tipoDocumento: 1, numeroFactura: 1 }, background: true },
       { key: { tipoMovimiento: 1, tipoDocumento: 1, estado: 1 }, background: true },
-      { key: { estado: 1, tipoDocumento: 1, tipoMovimiento: 1 }, background: true },
       { key: { tipoMovimiento: 1, fecha: 1 }, background: true },
       { key: { tipoMovimiento: 1, tipoDocumento: 1, periodoIvaInit: 1, periodoIvaEnd: 1 }, background: true },
       { key: { facturaAsociada: 1, tipoDocumento: 1, estado: 1 }, background: true },
@@ -372,13 +372,18 @@ export const ListIndexesClient = [
       { key: { numeroFactura: 1, estado: 1 }, background: true },
       { key: { periodoIvaNombre: 1 }, background: true },
       { key: { cajaId: 1 }, background: true },
+      { key: { activo: 1, _id: 1 }, background: true },
       { key: { _id: 1, tipoMovimiento: 1, tipoDocumento: 1 }, background: true },
-      { key: { tipoMovimiento: 1, tipoDocumento: 1 }, background: true },
+      { key: { tipoMovimiento: 1, tipoDocumento: 1, fechaCreacion: 1 }, background: true },
       { key: { tipoMovimiento: 1, tipoDocumento: 1, numeroFactura: 1 }, background: true },
       { key: { tipoMovimiento: 1, tipoDocumento: 1, activo: 1 }, background: true },
       { key: { tipoMovimiento: 1, tipoDocumento: 1, activo: 1, numeroFactura: 1 }, background: true },
       { key: { notaEntregaAsociada: 1 }, background: true },
       { key: { fecha: 1, tipoMovimiento: 1 }, background: true },
+      { key: { fechaUltimoPago: 1, cajaId: 1 }, background: true },
+      { key: { fechaUltimoPago: 1, cajaId: 1, totalCredito: 1 }, background: true },
+      { key: { _id: 1, tipoDocumento: 1, totalCredito: 1 }, background: true },
+      { key: { clienteId: 1 }, background: true },
     ]
   },
   {
@@ -386,6 +391,10 @@ export const ListIndexesClient = [
     indices:
     [
       { key: { documentoId: 1 }, background: true },
+      { key: { documentoId: 1, fechaCreacion: -1 }, background: true },
+      { key: { productoId: 1 }, background: true },
+      { key: { facturaId: 1 }, background: true },
+      { key: { facturaId: 1, documentoId: 1, tipo: 1 }, background: true },
     ]
   },
   {
@@ -401,6 +410,7 @@ export const ListIndexesClient = [
     indices:
     [
       { key: { nombre: 1 }, background: true },
+      { key: { cuentaId: 1 }, background: true },
     ]
   },
   {
@@ -424,7 +434,6 @@ export const ListIndexesClient = [
     indices:
     [
       { key: { fecha: 1, productoId: 1 }, background: true },
-      { key: { productoId: 1, fecha: 1 }, background: true },
       { key: { productoId: 1 }, background: true },
       { key: { fecha: 1 }, background: true },
     ]
@@ -436,7 +445,13 @@ export const ListIndexesClient = [
       { key: { cajaBancoId: 1 }, background: true },
       { key: { year: 1, mes: 1 }, background: true },
       { key: { cajaBancoId: 1, year: 1, mes: 1 }, background: true },
-      { key: { year: 1, mes: 1, cajaBancoId: 1 }, background: true },
+    ]
+  },
+  {
+    collection: 'cierrescaja',
+    indices:
+    [
+      { key: { fecha: -1 }, background: true },
     ]
   },
   {

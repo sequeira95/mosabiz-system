@@ -2,6 +2,7 @@ import moment from 'moment'
 import { agreggateCollectionsSD, formatCollectionName, getItemSD, getCollectionSD } from './dataBaseConfing.js'
 import { subDominioName, getParentCode } from '../constants.js'
 import { ObjectId } from 'mongodb'
+import { momentDate } from './momentDate.js'
 
 export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order, clienteId, periodoId, cuentaSinMovimientos, ajusteFecha, cuentaDesde, cuentaHasta, itemsPorPagina, pagina }) {
   const fechaInit = moment(fechaDesde).toDate()
@@ -146,7 +147,8 @@ export async function mayorAnaliticosSinAgrupar ({ fechaDesde, fechaHasta, order
                         monedasUsar: '$monedasUsar',
                         cantidad: '$cantidad',
                         terceroId: '$terceroId',
-                        terceroNombre: '$terceroNombre'
+                        terceroNombre: '$terceroNombre',
+                        detalleId: '$_id'
                       }
                     }
                   }
@@ -670,9 +672,9 @@ export async function mayorAnaliticosAgrupado ({ fechaDesde, fechaHasta, order, 
     return e
   }
 } */
-export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos, itemsPorPagina, pagina }) {
-  const fechaInit = moment(fecha).startOf('month').toDate()
-  const fechaEnd = moment(fecha).endOf('month').toDate()
+export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, nivel, cuentaSinMovimientos, itemsPorPagina, pagina, timeZone }) {
+  const fechaInit = momentDate(timeZone, fecha).startOf('month').toDate()
+  const fechaEnd = momentDate(timeZone, fecha).endOf('month').toDate()
   const detalleComprobanteCollectionName = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'detallesComprobantes' })
   // const matchSinMovimientos = cuentaSinMovimientos ? {} : { $match: { debe: { $gt: 0 }, haber: { $gt: 0 } } }
   const gtMatch = cuentaSinMovimientos ? '$gte' : '$gt'
@@ -892,7 +894,7 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
                         $and:
                         [
                           { $eq: ['$periodoId', new ObjectId(periodoId)] },
-                          { $lte: ['$fecha', fechaInit] },
+                          { $lt: ['$fecha', fechaInit] },
                           { $ne: ['$isPreCierre', true] },
                           { $ne: ['$isCierre', true] },
                           {
@@ -1005,10 +1007,10 @@ export async function dataBalanceComprobacion ({ clienteId, periodoId, fecha, ni
               codigo: 1,
               descripcion: 1,
               nivelCuenta: 1,
-              saldoAnterior: { $sum: ['$saldoAnterior', '$saldosIniciales'] },
+              saldoAnterior: { $add: ['$saldoAnterior', '$saldosIniciales'] },
               debe: 1,
               haber: 1,
-              saldo: { $sum: ['$saldoAnterior', '$saldosIniciales', '$saldo'] },
+              saldo: { $add: ['$saldoAnterior', '$saldosIniciales', '$saldo'] },
               preSaldo: '$saldo'
             }
           },

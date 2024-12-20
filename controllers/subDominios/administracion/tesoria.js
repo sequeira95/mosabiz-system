@@ -747,6 +747,7 @@ export const saveTransaccionToArray = async (req, res) => {
     let periodo = null
     let comprobante = null
     const fechaPeriodo = momentDate(timeZone, `${year}/${mes.value + 1}/05`, 'YYYY/MM/DD')
+    console.log('fechaPeriodo', fechaPeriodo, `${year}/${mes.value + 1}/05`)
     if (tieneContabilidad && filtrosContables?.crearContabilidad) {
       cuentaBanco = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtrosContables?.cuentaBanco?._id) } })
       cuentaBancoIngreso = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtrosContables?.cuentaBancoIngreso?._id) } })
@@ -754,14 +755,15 @@ export const saveTransaccionToArray = async (req, res) => {
       if (!cuentaBanco) throw new Error('La cuenta seleccionada de banco no existe')
       if (!cuentaBancoIngreso) throw new Error('La cuenta seleccionada de banco para ingresos no existe')
       if (!cuentaBancoEgresos) throw new Error('La cuenta seleccionada de banco para egresos no existe')
+      console.log('periodo', fechaPeriodo)
       periodo = await getItemSD({
         nameCollection: 'periodos',
         enviromentClienteId: clienteId,
-        filters: { fechaInicio: { $lte: momentDate(fechaPeriodo).startOf('month').toDate() }, fechaFin: { $gte: momentDate(fechaPeriodo).endOf('month').toDate() } }
+        filters: { fechaInicio: { $lte: fechaPeriodo.startOf('month').toDate() }, fechaFin: { $gte: fechaPeriodo.endOf('month').toDate() } }
       })
-      // console.log({ periodo })
+      console.log({ periodo })
       if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
-      const mesPeriodo = moment(fechaPeriodo).format('YYYY/MM')
+      const mesPeriodo = fechaPeriodo.format('YYYY/MM')
       comprobante = await getItemSD({
         nameCollection: 'comprobantes',
         enviromentClienteId: clienteId,

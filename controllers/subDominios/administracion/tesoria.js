@@ -1,7 +1,10 @@
 import { ObjectId } from 'mongodb'
 import { subDominioName, tiposDocumentosFiscales } from '../../../constants.js'
-import { agreggateCollections, agreggateCollectionsSD, createManyItemsSD, deleteItemSD, formatCollectionName, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollections, agreggateCollectionsSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, formatCollectionName, getItem, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
 import moment from 'moment-timezone'
+import { hasContabilidad } from '../../../utils/hasContabilidad.js'
+import { momentDate } from '../../../utils/momentDate.js'
+import { validarFechaDentroRago } from '../../../utils/validarFechasDentroRango.js'
 
 export const getTotalesTransaciones = async (req, res) => {
   const { clienteId, fechaTasa, monedaPrincipal, mes, year } = req.body
@@ -278,7 +281,7 @@ export const getListTiposcuentas = async (req, res) => {
 export const getTotalesCuenta = async (req, res) => {
   try {
     const { clienteId, mes, monedaPrincipal, cuenta, fechaTasa, year, desde, hasta } = req.body
-    // console.log({ clienteId, mes, monedaPrincipal, cuenta, year, desde, hasta })
+    // console.log(req.body)
     let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa, monedaPrincipal } })
     if (!tasa) {
       const ultimaTasa = await agreggateCollections({
@@ -484,6 +487,7 @@ export const getTotalesCuenta = async (req, res) => {
       })
       totales.saldoInicial = conciliacionTesoreria?.saldoInicial || 0
       totales.saldoFinal = Number(((conciliacionTesoreria?.saldoInicial || 0) + (totales?.ingresos || 0) - (totales?.egresos || 0)).toFixed(2))
+      console.log({ year: mes + 2 === 13 ? Number(year) + 1 : Number(year), mes: mes.value + 2 === 13 ? 1 : mes.value + 2 })
       upsertItemSD({
         nameCollection: 'conciliacionTesoreria',
         enviromentClienteId: clienteId,
@@ -525,7 +529,7 @@ export const getTotalesCuenta = async (req, res) => {
       updateItemSD({
         nameCollection: 'conciliacionTesoreria',
         enviromentClienteId: clienteId,
-        filters: { year: mes + 2 === 13 ? Number(year) + 1 : Number(year), mes: mes.value + 2 === 13 ? 1 : mes.value + 2, cajaBancoId: new ObjectId(cuenta._id) },
+        filters: { year: mes.value + 2 === 13 ? Number(year) + 1 : Number(year), mes: mes.value + 2 === 13 ? 1 : mes.value + 2, cajaBancoId: new ObjectId(cuenta._id) },
         update: {
           $set: {
             saldoInicial: Number((totales?.saldoFinal || 0)?.toFixed(2)),
@@ -545,7 +549,7 @@ export const getDetalleCuenta = async (req, res) => {
   try {
     const { clienteId, monedaPrincipal, cuenta, fechaTasa, desde, hasta, pagina, itemsPorPagina } = req.body
     // console.log({ clienteId, mes, monedaPrincipal, cuenta, year, desde, hasta })
-    console.log({ body: req.body })
+    // console.log({ body: req.body })
     let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa, monedaPrincipal } })
     if (!tasa) {
       const ultimaTasa = await agreggateCollections({
@@ -731,10 +735,53 @@ export const saveTransaccion = async (req, res) => {
 }
 export const saveTransaccionToArray = async (req, res) => {
   try {
-    const { clienteId, data, cuenta, monedaPrincipal } = req.body
+    const { clienteId, data, cuenta, monedaPrincipal, filtrosContables, timeZone, year, mes } = req.body
     console.log(req.body)
     const totalesMes = {}
     const transaccionesSave = []
+    const asientosContables = []
+    const tieneContabilidad = await hasContabilidad({ clienteId })
+    let cuentaBanco = null
+    let cuentaBancoIngreso = null
+    let cuentaBancoEgresos = null
+    let periodo = null
+    let comprobante = null
+    const fechaPeriodo = momentDate(timeZone, `${year}/${mes.value + 1}/05`, 'YYYY/MM/DD')
+    if (tieneContabilidad && filtrosContables?.crearContabilidad) {
+      cuentaBanco = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtrosContables?.cuentaBanco?._id) } })
+      cuentaBancoIngreso = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtrosContables?.cuentaBancoIngreso?._id) } })
+      cuentaBancoEgresos = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtrosContables?.cuentaBancoEgresos?._id) } })
+      if (!cuentaBanco) throw new Error('La cuenta seleccionada de banco no existe')
+      if (!cuentaBancoIngreso) throw new Error('La cuenta seleccionada de banco para ingresos no existe')
+      if (!cuentaBancoEgresos) throw new Error('La cuenta seleccionada de banco para egresos no existe')
+      periodo = await getItemSD({
+        nameCollection: 'periodos',
+        enviromentClienteId: clienteId,
+        filters: { fechaInicio: { $lte: momentDate(fechaPeriodo).startOf('month').toDate() }, fechaFin: { $gte: momentDate(fechaPeriodo).endOf('month').toDate() } }
+      })
+      // console.log({ periodo })
+      if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
+      const mesPeriodo = moment(fechaPeriodo).format('YYYY/MM')
+      comprobante = await getItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { codigo: filtrosContables.codigoComprobante, periodoId: periodo._id, mesPeriodo }
+      })
+      if (!comprobante) {
+        comprobante = await upsertItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: filtrosContables.codigoComprobante, periodoId: periodo._id, mesPeriodo },
+          update: {
+            $set: {
+              nombre: 'Trasacciones bancarias',
+              isBloqueado: false,
+              fechaCreacion: moment().toDate()
+            }
+          }
+        })
+      }
+    }
     if (!data[0]) throw new Error('No hay datos para guardar')
     for (const item of data) {
       transaccionesSave.push({
@@ -757,6 +804,90 @@ export const saveTransaccionToArray = async (req, res) => {
       totalesMes[moment(item.fechaPago).format('YYYY/MM')].egresos += item.tipo === 'Egreso' ? Number(item.pago.toFixed(2)) : 0
       totalesMes[moment(item.fechaPago).format('YYYY/MM')].mes = moment(item.fechaPago).month() + 1
       totalesMes[moment(item.fechaPago).format('YYYY/MM')].year = moment(item.fechaPago).year()
+      if (tieneContabilidad && filtrosContables?.crearContabilidad) {
+        const fechaContabilidad = validarFechaDentroRago(item.fechaPago, fechaPeriodo, timeZone)
+        if (item.tipo === 'Ingreso') {
+          const asientos = [
+            {
+              cuentaId: new ObjectId(cuentaBanco._id),
+              cuentaCodigo: cuentaBanco.codigo,
+              cuentaNombre: cuentaBanco.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: item.descripcion,
+              fecha: fechaContabilidad,
+              debe: Number(item.pago.toFixed(2)),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              // terceroId: tercero ? new ObjectId(tercero._id) : null,
+              // terceroNombre: tercero ? tercero.nombre : null,
+              docReferenciaAux: item.referencia,
+              documento: {
+                docReferencia: item.referencia,
+                docFecha: moment(item.fechaPago).toDate()
+              }
+            }, {
+              cuentaId: new ObjectId(cuentaBancoIngreso._id),
+              cuentaCodigo: cuentaBancoIngreso.codigo,
+              cuentaNombre: cuentaBancoIngreso.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: item.descripcion,
+              fecha: fechaContabilidad,
+              debe: 0,
+              haber: Number(item.pago.toFixed(2)),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: item.referencia,
+              documento: {
+                docReferencia: item.referencia,
+                docFecha: moment(item.fechaPago).toDate()
+              }
+            }
+          ]
+          asientosContables.push(...asientos)
+        }
+        if (item.tipo === 'Egreso') {
+          const asientos = [
+            {
+              cuentaId: new ObjectId(cuentaBancoEgresos._id),
+              cuentaCodigo: cuentaBancoEgresos.codigo,
+              cuentaNombre: cuentaBancoEgresos.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: item.descripcion,
+              fecha: fechaContabilidad,
+              debe: Number(item.pago.toFixed(2)),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: item.referencia,
+              documento: {
+                docReferencia: item.referencia,
+                docFecha: moment(item.fechaPago).toDate()
+              }
+            },
+            {
+              cuentaId: new ObjectId(cuentaBanco._id),
+              cuentaCodigo: cuentaBanco.codigo,
+              cuentaNombre: cuentaBanco.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion: item.descripcion,
+              fecha: fechaContabilidad,
+              debe: 0,
+              haber: Number(item.pago.toFixed(2)),
+              fechaCreacion: moment().toDate(),
+              // terceroId: tercero ? new ObjectId(tercero._id) : null,
+              // terceroNombre: tercero ? tercero.nombre : null,
+              docReferenciaAux: item.referencia,
+              documento: {
+                docReferencia: item.referencia,
+                docFecha: moment(item.fechaPago).toDate()
+              }
+            }
+          ]
+          asientosContables.push(...asientos)
+        }
+      }
     }
     const datosConciliar = Object.entries(totalesMes).map(([periodo, valores]) => ({
       periodo,
@@ -802,6 +933,13 @@ export const saveTransaccionToArray = async (req, res) => {
             saldoInicial: Number(saldoFinal?.toFixed(2)),
           }
         }
+      })
+    }
+    if (asientosContables[0]) {
+      createManyItemsSD({
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        items: asientosContables
       })
     }
     await createManyItemsSD({
@@ -877,10 +1015,10 @@ export const saveConciliacion = async (req, res) => {
     } = req.body
     console.log(req.body)
     let estado = 'noConciliado'
-    if (ingresos !== 0 && ingresos === ingresosReal &&
-      egresos !== 0 && egresos === egresosReal &&
-      saldoInicial !== 0 && saldoInicial === saldoInicialReal &&
-      saldoFinal !== 0 && saldoFinal === saldoFinalReal) {
+    if (ingresos === ingresosReal &&
+      egresos === egresosReal &&
+      saldoInicial === saldoInicialReal &&
+      saldoFinal === saldoFinalReal) {
       estado = 'conciliado'
     }
     const conciliacion = await updateItemSD({
@@ -902,5 +1040,112 @@ export const saveConciliacion = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la transaccion ' + e.message })
+  }
+}
+export const deleteTransaccionAll = async (req, res) => {
+  try {
+    const { clienteId, cuenta, year, mes, transacciones } = req.body
+    console.log(req.body)
+    let ingresos = 0
+    let egresos = 0
+    const transaccionesDelete = transacciones.map(item => {
+      ingresos += item.tipo === 'Ingreso' ? item?.pago || 0 : 0
+      egresos += item.tipo === 'Egreso' ? item?.pago || 0 : 0
+      return new ObjectId(item._id)
+    })
+    console.log({ transaccionesDelete, ingresos, egresos })
+    const conciliacionTesoreria = await getItemSD({
+      nameCollection: 'conciliacionTesoreria',
+      enviromentClienteId: clienteId,
+      filters: { year: Number(year), mes: mes.value + 1, cajaBancoId: new ObjectId(cuenta._id) }
+    })
+    console.log({ conciliacionTesoreria })
+    await deleteManyItemsSD({
+      nameCollection: 'transacciones',
+      enviromentClienteId: clienteId,
+      filters: { _id: { $in: transaccionesDelete } }
+    })
+    const ingresosFinal = ingresos > 0 ? (conciliacionTesoreria?.ingresos || 0) - (ingresos) || 0 : (conciliacionTesoreria?.ingresos || 0)
+    const egresosFinal = egresos > 0 ? (conciliacionTesoreria?.egresos || 0) - (egresos) || 0 : (conciliacionTesoreria?.egresos || 0)
+    const saldoFinal = ((conciliacionTesoreria?.saldoInicial || 0) + ingresosFinal) - egresosFinal
+    console.log({ ingresosFinal, egresosFinal, saldoFinal })
+    await upsertItemSD({
+      nameCollection: 'conciliacionTesoreria',
+      enviromentClienteId: clienteId,
+      filters: { year: Number(year), mes: mes.value + 1, cajaBancoId: new ObjectId(cuenta._id) },
+      update: {
+        $set: {
+          ingresos: Number(ingresosFinal?.toFixed(2)),
+          egresos: Number(egresosFinal?.toFixed(2)),
+          saldoFinal: Number(saldoFinal?.toFixed(2)),
+          estado: (saldoFinal > 0 || saldoFinal < 0) && saldoFinal !== conciliacionTesoreria?.saldoFinalReal ? 'noConciliado' : 'conciliado',
+        }
+      }
+    })
+    upsertItemSD({
+      nameCollection: 'conciliacionTesoreria',
+      enviromentClienteId: clienteId,
+      filters: { year: mes + 2 === 13 ? Number(year) + 1 : Number(year), mes: mes.value + 2 === 13 ? 1 : mes.value + 2, cajaBancoId: new ObjectId(cuenta._id) },
+      update: {
+        $set: {
+          saldoInicial: Number(saldoFinal?.toFixed(2)),
+        }
+      }
+    })
+    return res.status(200).json({ status: 'Transacciones eliminadas exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de eliminar la transaccion ' + e.message })
+  }
+}
+export const geDetalleSelected = async (req, res) => {
+  try {
+    const { clienteId, monedaPrincipal, cuenta, fechaTasa, desde, hasta } = req.body
+    // console.log({ clienteId, mes, monedaPrincipal, cuenta, year, desde, hasta })
+    console.log({ body: req.body })
+    let tasa = await getItem({ nameCollection: 'tasas', filters: { fechaUpdate: fechaTasa, monedaPrincipal } })
+    if (!tasa) {
+      const ultimaTasa = await agreggateCollections({
+        nameCollection: 'tasas',
+        pipeline: [
+          { $sort: { fechaOperacion: -1 } },
+          { $limit: 1 }
+        ]
+      })
+      tasa = ultimaTasa[0] ? ultimaTasa[0] : null
+    }
+    const detalle = await agreggateCollectionsSD({
+      nameCollection: 'transacciones',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            fechaPago: { $gte: moment(desde).toDate(), $lte: moment(hasta).toDate() },
+            tipo: { $in: ['Ingreso', 'Egreso'] },
+            $or: [
+              { caja: new ObjectId(cuenta._id) },
+              { banco: new ObjectId(cuenta._id) }
+            ]
+          }
+        },
+        { $sort: { fechaPago: -1 } },
+        {
+          $addFields: {
+            tasa: { $objectToArray: tasa }
+          }
+        },
+        { $unwind: { path: '$tasa', preserveNullAndEmptyArrays: true } },
+        { $match: { $expr: { $eq: ['$tasa.k', '$monedaSecundaria'] } } },
+        {
+          $addFields: {
+            valor: { $multiply: ['$tasa.v', '$pagoSecundario'] }
+          }
+        },
+      ]
+    })
+    return res.status(200).json({ detalle })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de buscar información sobre el detalle de la cuenta ' + e.message })
   }
 }

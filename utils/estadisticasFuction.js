@@ -11,7 +11,7 @@ export const getDataEstadisticasComprasVentas = async ({ clienteId, dateInitYear
         {
           $match: {
             fecha: { $gte: moment(dateInitYear).toDate(), $lte: moment(dataEnd).toDate() },
-            tipoMovimiento: { $in: ['compra', 'venta'] }
+            tipoMovimiento: { $eq: 'venta' }
           }
         },
         {
@@ -58,7 +58,7 @@ export const getDataEstadisticasComprasVentas = async ({ clienteId, dateInitYear
               $sum: {
                 $cond: {
                   if: { $eq: ['$tipoMovimiento', 'venta'] },
-                  then: '$total',
+                  then: '$baseImponible',
                   else: 0
                 }
               }
@@ -67,7 +67,7 @@ export const getDataEstadisticasComprasVentas = async ({ clienteId, dateInitYear
               $sum: {
                 $cond: {
                   if: { $and: [{ $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumentoFiscal', tiposDocumentosFiscales.notaCredito] }] },
-                  then: '$total',
+                  then: '$baseImponible',
                   else: 0
                 }
               }
@@ -76,7 +76,7 @@ export const getDataEstadisticasComprasVentas = async ({ clienteId, dateInitYear
               $sum: {
                 $cond: {
                   if: { $and: [{ $eq: ['$tipoMovimiento', 'venta'] }, { $eq: ['$tipoDocumentoFiscal', tiposDocumentosFiscales.notaDebito] }] },
-                  then: '$total',
+                  then: '$baseImponible',
                   else: 0
                 }
               }
@@ -86,7 +86,13 @@ export const getDataEstadisticasComprasVentas = async ({ clienteId, dateInitYear
         {
           $project: {
             costoVentas: { $subtract: [{ $add: ['$costoVentas', '$ndcostoVentas'] }, '$nccostoVentas'] },
-            ventas: { $subtract: [{ $add: ['$ventas', '$ndVentas'] }, '$ncVentas'] }
+            ventas: { $subtract: [{ $add: ['$ventas', '$ndVentas'] }, '$ncVentas'] },
+            utilidad: {
+              $subtract: [
+                { $subtract: [{ $add: ['$ventas', '$ndVentas'] }, '$ncVentas'] },
+                { $subtract: [{ $add: ['$costoVentas', '$ndcostoVentas'] }, '$nccostoVentas'] }
+              ]
+            }
           }
         },
         {

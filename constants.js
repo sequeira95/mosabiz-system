@@ -63,7 +63,7 @@ export const collectionNameClient = [
   'zonas', 'categoriaPorZona', 'activosFijos', 'almacenes', 'categoriaPorAlmacen', 'historial', 'productos', 'contadores', 'movimientos', 'detalleMovimientos',
   'productosPorAlmacen', 'retencionISLR', 'bancos', 'clientes', 'servicios', 'iva', 'proveedores', 'metodosPagos', 'compras', 'detalleCompra', 'transacciones',
   'documentosFiscales', 'detalleDocumentosFiscales', 'ventassucursales', 'ventaszonas', 'zonasPorSucursales', 'declaraciones', 'ajustePrecioProducto', 'conciliacionTesoreria',
-  'perfiles', 'empleados', 'cierrescaja', 'calendarToDo'
+  'perfiles', 'empleados', 'cierrescaja', 'calendarToDo', 'metodosFacturacion', 'ventascajas', 'ventaszonasPorSucursales'
 ]
 export const collectionNameAIbiz = [
   'islr', 'iva', 'bancos', 'retIva'

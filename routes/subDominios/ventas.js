@@ -48,7 +48,7 @@ import { createPagoOrdenes, getCajasSucursalListCobros, getDetalleVentas, getVen
 
 import { getSucursalesByUser, getCajasBySucursal, getCorteCaja, saveCorte } from '../../controllers/subDominios/ventas/cierresCaja.js'
 import { dataReportePorCobrar } from '../../controllers/subDominios/ventas/reportes.js'
-
+import { getMetodosFacturacion, setMetodosFacturacion, deleteMetodoFacturacion } from '../../controllers/subDominios/ventas/metodosFacturacion.js'
 const router = express.Router()
 
 router.post('/sucursales/get', requireSubDominioToken, getSucursales)
@@ -97,5 +97,9 @@ router.post('/cierres-caja/get/corte', requireSubDominioToken, getCorteCaja)
 router.post('/cierres-caja/save/corte', requireSubDominioToken, saveCorte)
 
 router.post('/getDataReportePorCobrar', requireSubDominioToken, dataReportePorCobrar)
+
+router.post('/metodos-facturacion/get', requireSubDominioToken, getMetodosFacturacion)
+router.post('/metodos-facturacion/set', requireSubDominioToken, setMetodosFacturacion)
+router.post('/metodos-facturacion/delete', requireSubDominioToken, deleteMetodoFacturacion)
 
 export default router

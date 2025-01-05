@@ -447,7 +447,7 @@ export const addLineDetalleComprobante = async (req, res) => {
 }
 
 export const changeCuentas = async (req, res) => {
-  const { clienteId, combinar, prevalecer, comprobanteId } = req.body
+  const { clienteId, combinar, prevalecer, comprobanteId, keepTerceros } = req.body
   try {
     // validaciones
     if (!combinar || !prevalecer) throw new Error('Debe seleccionar la cuenta a combinar y la cuenta a prevalecer')
@@ -479,44 +479,46 @@ export const changeCuentas = async (req, res) => {
     })
     if (!cuentaCombinar?._id) throw new Error('La cuenta combinar, no existe')
     if (!cuentaPrevalecer?._id) throw new Error('La cuenta prevalecer, no existe')
-    // se buscan los terceros de las cuentas a combinar
-    const tercerosCombinar = await getCollectionSD({
-      nameCollection: 'terceros',
-      enviromentClienteId: clienteId,
-      filters: { cuentaId: cuentaCombinar._id }
-    })
-    // se iteran los terceros para crearse si no existen en la cuenta que prevalecera
-    for (const { nombre, _id: terceroId } of tercerosCombinar) {
-      // se crean o actualizan los terceros en la cuenta que prevalecera
-      const existeTerceroPreserve = await upsertItemSD({
+    if (keepTerceros) {
+      // se buscan los terceros de las cuentas a combinar
+      const tercerosCombinar = await getCollectionSD({
         nameCollection: 'terceros',
         enviromentClienteId: clienteId,
-        filters: { nombre, cuentaId: cuentaPrevalecer._id },
-        update: {
-          $set: {
-            nombre,
-          }
-        }
+        filters: { cuentaId: cuentaCombinar._id }
       })
-      // se actualizan los detalles de los comprobantes al nuevo tercero y a la nueva cuenta
-      if (existeTerceroPreserve) {
-        await updateManyItemSD({
-          nameCollection: 'detallesComprobantes',
+      // se iteran los terceros para crearse si no existen en la cuenta que prevalecera
+      for (const { nombre, _id: terceroId } of tercerosCombinar) {
+        // se crean o actualizan los terceros en la cuenta que prevalecera
+        const existeTerceroPreserve = await upsertItemSD({
+          nameCollection: 'terceros',
           enviromentClienteId: clienteId,
-          filters: {
-            terceroId,
-            ...queryComprobante
-          },
+          filters: { nombre, cuentaId: cuentaPrevalecer._id },
           update: {
             $set: {
-              cuentaId: cuentaPrevalecer._id,
-              cuentaCodigo: cuentaPrevalecer.codigo,
-              cuentaNombre: cuentaPrevalecer.descripcion,
-              terceroId: existeTerceroPreserve._id,
-              terceroNombre: existeTerceroPreserve.nombre,
+              nombre,
             }
           }
         })
+        // se actualizan los detalles de los comprobantes al nuevo tercero y a la nueva cuenta
+        if (existeTerceroPreserve) {
+          await updateManyItemSD({
+            nameCollection: 'detallesComprobantes',
+            enviromentClienteId: clienteId,
+            filters: {
+              terceroId,
+              ...queryComprobante
+            },
+            update: {
+              $set: {
+                cuentaId: cuentaPrevalecer._id,
+                cuentaCodigo: cuentaPrevalecer.codigo,
+                cuentaNombre: cuentaPrevalecer.descripcion,
+                terceroId: existeTerceroPreserve._id,
+                terceroNombre: existeTerceroPreserve.nombre,
+              }
+            }
+          })
+        }
       }
     }
     // se actualizan los movimientos de la cuenta combinar a la cuenta prevalecer
@@ -534,6 +536,7 @@ export const changeCuentas = async (req, res) => {
           cuentaId: cuentaPrevalecer._id,
           cuentaCodigo: cuentaPrevalecer.codigo,
           cuentaNombre: cuentaPrevalecer.descripcion,
+          ...(keepTerceros ? {} : { terceroId: null, terceroNombre: null })
         }
       }
     })

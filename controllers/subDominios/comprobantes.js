@@ -1,5 +1,5 @@
 import moment from 'moment'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, getItemSD, updateItemSD, updateManyItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, createItemSD, createManyItemsSD, deleteItemSD, deleteManyItemsSD, getCollectionSD, getItem, getItemSD, updateItemSD, updateManyItemSD, upsertItemSD } from '../../utils/dataBaseConfing.js'
 import { ObjectId } from 'mongodb'
 import { agregateDetalleComprobante } from '../../utils/agregateComprobantes.js'
 import { deleteImg, uploadImg } from '../../utils/cloudImage.js'
@@ -443,5 +443,103 @@ export const addLineDetalleComprobante = async (req, res) => {
   } catch (e) {
     console.log(e.message)
     return res.status(500).json({ error: 'Error de servidor al momento de agregar la nueva linea: ' + e.message })
+  }
+}
+
+export const changeCuentas = async (req, res) => {
+  const { clienteId, combinar, prevalecer, comprobanteId } = req.body
+  try {
+    // validaciones
+    if (!combinar || !prevalecer) throw new Error('Debe seleccionar la cuenta a combinar y la cuenta a prevalecer')
+    if (combinar === prevalecer) throw new Error('Las cuentas no deben ser las mismas')
+    let comprobante = null
+    let queryComprobante = {}
+    const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+    if (comprobanteId) {
+      comprobante = await getItemSD({
+        nameCollection: 'comprobantes',
+        enviromentClienteId: clienteId,
+        filters: { _id: new ObjectId(comprobanteId) }
+      })
+      if (!comprobante) throw new Error('El comprobante no existe')
+      if (!(periodosActivos.map(e => String(e))).includes(String(comprobante.periodoId))) throw new Error('El comprobante se encuentra en un periodo bloqueado')
+      queryComprobante = { comprobanteId: new ObjectId(comprobanteId) }
+    } else {
+      queryComprobante = { periodoId: { $in: periodosActivos } }
+    }
+    const cuentaCombinar = await getItemSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(combinar) }
+    })
+    const cuentaPrevalecer = await getItemSD({
+      nameCollection: 'planCuenta',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(prevalecer) }
+    })
+    if (!cuentaCombinar?._id) throw new Error('La cuenta combinar, no existe')
+    if (!cuentaPrevalecer?._id) throw new Error('La cuenta prevalecer, no existe')
+    // se buscan los terceros de las cuentas a combinar
+    const tercerosCombinar = await getCollectionSD({
+      nameCollection: 'terceros',
+      enviromentClienteId: clienteId,
+      filters: { cuentaId: cuentaCombinar._id }
+    })
+    // se iteran los terceros para crearse si no existen en la cuenta que prevalecera
+    for (const { nombre, _id: terceroId } of tercerosCombinar) {
+      // se crean o actualizan los terceros en la cuenta que prevalecera
+      const existeTerceroPreserve = await upsertItemSD({
+        nameCollection: 'terceros',
+        enviromentClienteId: clienteId,
+        filters: { nombre, cuentaId: cuentaPrevalecer._id },
+        update: {
+          $set: {
+            nombre,
+          }
+        }
+      })
+      // se actualizan los detalles de los comprobantes al nuevo tercero y a la nueva cuenta
+      if (existeTerceroPreserve) {
+        await updateManyItemSD({
+          nameCollection: 'detallesComprobantes',
+          enviromentClienteId: clienteId,
+          filters: {
+            terceroId,
+            ...queryComprobante
+          },
+          update: {
+            $set: {
+              cuentaId: cuentaPrevalecer._id,
+              cuentaCodigo: cuentaPrevalecer.codigo,
+              cuentaNombre: cuentaPrevalecer.descripcion,
+              terceroId: existeTerceroPreserve._id,
+              terceroNombre: existeTerceroPreserve.nombre,
+            }
+          }
+        })
+      }
+    }
+    // se actualizan los movimientos de la cuenta combinar a la cuenta prevalecer
+    // (el paso anterior aplica solo si el movimiento tiene terceros)
+    // (en este caso si el movimiento no tiene tercero, se actualizaria aqui)
+    await updateManyItemSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      filters: {
+        cuentaId: cuentaCombinar._id,
+        ...queryComprobante
+      },
+      update: {
+        $set: {
+          cuentaId: cuentaPrevalecer._id,
+          cuentaCodigo: cuentaPrevalecer.codigo,
+          cuentaNombre: cuentaPrevalecer.descripcion,
+        }
+      }
+    })
+    return res.status(200).json({ status: 'Cuentas cambiadas satisfactoriamente' })
+  } catch (e) {
+    console.log(e.message)
+    return res.status(500).json({ error: 'Error de servidor al momento de cambiar los cuentas' + e.message })
   }
 }

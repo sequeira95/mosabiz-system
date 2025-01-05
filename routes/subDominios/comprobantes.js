@@ -9,7 +9,8 @@ import {
   saveDetalleComprobanteToArray,
   updateComprobante,
   updateDetalleComprobante,
-  addLineDetalleComprobante
+  addLineDetalleComprobante,
+  changeCuentas
 } from '../../controllers/subDominios/comprobantes.js'
 
 const router = express.Router()
@@ -23,4 +24,5 @@ router.post('/detalles/save', requireSubDominioToken, saveDetalleComprobanteToAr
 router.post('/detalles/update', requireSubDominioToken, updateDetalleComprobante)
 router.post('/detalles/delete', requireSubDominioToken, deleteDetalleComprobante)
 router.post('/detalles/add-line', requireSubDominioToken, addLineDetalleComprobante)
+router.post('/detalles/change-cuentas', requireSubDominioToken, changeCuentas)
 export default router

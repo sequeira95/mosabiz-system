@@ -1276,7 +1276,6 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
   })
   if (!metodoFacturacion) throw new Error('No existe el metodo de facturación')
   if (['serie', 'maquina'].includes(metodoFacturacion.tipo) && !infoDoc.isFiscal) throw new Error('El metodo de facturación no es valido para el tipo de documento')
-  if (['predeterminado'].includes(metodoFacturacion.tipo) && infoDoc.isFiscal) throw new Error('El metodo de facturación no es valido para el tipo de documento')
 
   // validar sucursal y rango de numeros de control
   const sucursal = await getItemSD({

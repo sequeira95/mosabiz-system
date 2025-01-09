@@ -305,6 +305,7 @@ export const createCliente = async (req, res) => {
         item: {
           codigo: 'principal',
           nombre: 'Principal',
+          isSucursalPrincipal: true,
           rif: `${tipoDocumento}${documentoIdentidad}`,
           direccion,
           descripcion: 'Sucursal principal',

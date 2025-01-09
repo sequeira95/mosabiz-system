@@ -6,6 +6,8 @@ import { subDominioName } from '../../../constants.js'
 export const getMetodosFacturacion = async (req, res) => {
   const { clienteId, itemsPorPagina, pagina } = req.body
   try {
+    const contadoresNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'contadores' })
+
     const items = await agreggateCollectionsSD({
       nameCollection: 'metodosFacturacion',
       enviromentClienteId: clienteId,
@@ -13,6 +15,14 @@ export const getMetodosFacturacion = async (req, res) => {
         { $sort: { tipo: 1, fechaCreacion: 1 } },
         { $skip: ((pagina || 1) - 1) * (itemsPorPagina || 1000) },
         { $limit: itemsPorPagina || 1000 },
+        {
+          $lookup: {
+            from: contadoresNameCol,
+            localField: '_id',
+            foreignField: 'metodoId',
+            as: 'contadores'
+          }
+        },
       ]
     })
     return res.status(200).json({ items })
@@ -94,5 +104,21 @@ export const deleteMetodoFacturacion = async (req, res) => {
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar el método de facturación' + e.message })
+  }
+}
+
+export const changeContador = async (req, res) => {
+  const { clienteId, metodoId, value, type } = req.body
+  try {
+    await upsertItemSD({
+      nameCollection: 'contadores',
+      enviromentClienteId: clienteId,
+      filters: { tipo: `venta-${type}`, metodoId: new ObjectId(metodoId) },
+      update: { $set: { contador: Number(value) } }
+    })
+    return res.status(200).json({ status: 'Contador actualizado exitosamente' })
+  } catch (e) {
+    console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al momento de actualizar el contador' + e.message })
   }
 }

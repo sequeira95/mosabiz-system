@@ -15,7 +15,6 @@ import {
   getCajas,
   saveCajas,
   getUsuariosBySucursal,
-  changeContador
 } from '../../controllers/subDominios/ventas/cajas.js'
 
 import {
@@ -48,7 +47,12 @@ import { createPagoOrdenes, getCajasSucursalListCobros, getDetalleVentas, getVen
 
 import { getSucursalesByUser, getCajasBySucursal, getCorteCaja, saveCorte } from '../../controllers/subDominios/ventas/cierresCaja.js'
 import { dataReportePorCobrar } from '../../controllers/subDominios/ventas/reportes.js'
-import { getMetodosFacturacion, setMetodosFacturacion, deleteMetodoFacturacion } from '../../controllers/subDominios/ventas/metodosFacturacion.js'
+import {
+  getMetodosFacturacion,
+  setMetodosFacturacion,
+  deleteMetodoFacturacion,
+  changeContador
+} from '../../controllers/subDominios/ventas/metodosFacturacion.js'
 const router = express.Router()
 
 router.post('/sucursales/get', requireSubDominioToken, getSucursales)
@@ -63,7 +67,6 @@ router.post('/cajas/set', requireSubDominioToken, createCajas)
 router.post('/cajas/save', requireSubDominioToken, saveCajas)
 router.post('/cajas/delete', requireSubDominioToken, deleteCajas)
 router.post('/cajas/getUsuariosBySucursal', requireSubDominioToken, getUsuariosBySucursal)
-router.post('/cajas/contador', requireSubDominioToken, changeContador)
 
 router.post('/zonas/get', requireSubDominioToken, getZonas)
 router.post('/zonas/set', requireSubDominioToken, saveZonas)
@@ -101,5 +104,6 @@ router.post('/getDataReportePorCobrar', requireSubDominioToken, dataReportePorCo
 router.post('/metodos-facturacion/get', requireSubDominioToken, getMetodosFacturacion)
 router.post('/metodos-facturacion/set', requireSubDominioToken, setMetodosFacturacion)
 router.post('/metodos-facturacion/delete', requireSubDominioToken, deleteMetodoFacturacion)
+router.post('/metodos-facturacion/contador', requireSubDominioToken, changeContador)
 
 export default router

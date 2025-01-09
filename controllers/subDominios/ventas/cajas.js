@@ -225,19 +225,3 @@ export const deleteCajas = async (req, res) => {
     return res.status(500).json({ error: 'Error de servidor al momento de eliminar la caja' + e.message })
   }
 }
-
-export const changeContador = async (req, res) => {
-  const { clienteId, cajaId, value, type } = req.body
-  try {
-    await upsertItemSD({
-      nameCollection: 'contadores',
-      enviromentClienteId: clienteId,
-      filters: { tipo: `venta-${type}`, cajaId: new ObjectId(cajaId) },
-      update: { $set: { contador: Number(value) } }
-    })
-    return res.status(200).json({ status: 'Caja actualizada exitosamente' })
-  } catch (e) {
-    console.log(e)
-    return res.status(500).json({ error: 'Error de servidor al momento de actualizar la caja' + e.message })
-  }
-}

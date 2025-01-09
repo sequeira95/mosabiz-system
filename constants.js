@@ -202,10 +202,21 @@ export const ListIndexesClient = [
     ]
   },
   {
+    collection: 'metodosFacturacion',
+    indices:
+    [
+      { key: { tipo: 1, fechaCreacion: 1 }, background: true },
+    ]
+  },
+  {
     collection: 'contadores',
     indices:
     [
-      { key: { tipo: 1 }, background: true }
+      { key: { tipo: 1 }, background: true },
+      { key: { metodoId: 1 }, background: true },
+      { key: { contador: 1 }, background: true },
+      { key: { tipo: 1, metodoId: 1 }, background: true },
+      { key: { tipo: 1, metodoId: 1, contador: 1 }, background: true },
     ]
   },
   {
@@ -350,6 +361,7 @@ export const ListIndexesClient = [
       { key: { tipoMovimiento: 1, estado: 1, tipoDocumento: 1, fecha: 1 }, background: true },
       { key: { tipoMovimiento: 1, tipoDocumento: 1, fecha: 1 }, background: true },
       { key: { facturaAsociada: 1 }, background: true },
+      { key: { metodoId: 1 }, background: true },
       { key: { facturaAsociada: 1, tipoDocumento: 1 }, background: true },
       { key: { estado: 1, tipoDocumento: 1, proveedorId: 1, fecha: 1 }, background: true },
       { key: { tipoMovimiento: 1, estado: 1, tipoDocumento: 1, numeroOrden: 1 }, background: true },

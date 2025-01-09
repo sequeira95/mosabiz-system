@@ -4,14 +4,15 @@ import { momentDate } from '../../../utils/momentDate.js'
 import { subDominioName } from '../../../constants.js'
 
 export const getMetodosFacturacion = async (req, res) => {
-  const { clienteId, itemsPorPagina, pagina } = req.body
+  const { clienteId, itemsPorPagina, pagina, metodosId } = req.body
   try {
     const contadoresNameCol = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'contadores' })
-
+    const stageMatch = metodosId ? [{ $match: { _id: { $in: metodosId.map(id => new ObjectId(id)) } } }] : []
     const items = await agreggateCollectionsSD({
       nameCollection: 'metodosFacturacion',
       enviromentClienteId: clienteId,
       pipeline: [
+        ...stageMatch,
         { $sort: { tipo: 1, fechaCreacion: 1 } },
         { $skip: ((pagina || 1) - 1) * (itemsPorPagina || 1000) },
         { $limit: itemsPorPagina || 1000 },
@@ -57,7 +58,7 @@ export const setMetodosFacturacion = async (req, res) => {
       const existeSerie = await getItemSD({
         nameCollection: 'metodosFacturacion',
         enviromentClienteId: clienteId,
-        filters: { serie: { $regex: text, $options: 'xi' }, _id: { $ne: _id } }
+        filters: { serie: { $regex: text, $options: 'xi' }, _id: { $ne: new ObjectId(_id) } }
       })
       if (existeSerie) throw new Error(`La serie ya existe en la serie: ${existeSerie.nombre}`)
     }
@@ -68,11 +69,12 @@ export const setMetodosFacturacion = async (req, res) => {
         filters: { _id: new ObjectId(_id) },
         update: {
           $set: {
-            tipo,
             nombre,
             descripcion,
-            serie: tipo === 'serie' ? serie : null,
-            numeroControl: tipo === 'maquina' ? numeroControl : null,
+            // no se editan
+            // tipo,
+            // serie: tipo === 'serie' ? serie : null,
+            // numeroControl: tipo === 'maquina' ? numeroControl : null,
           }
         }
       })

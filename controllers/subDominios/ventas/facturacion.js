@@ -45,8 +45,6 @@ export const getData = async (req, res) => {
             nombre: 1,
             almacenes: 1,
             cajasId: 1,
-            series: 1,
-            rangoNumerosControl: 1
           }
         },
         {
@@ -79,10 +77,7 @@ export const getData = async (req, res) => {
                   _id: 1,
                   nombre: '$nombre',
                   usuarios: '$usuarios',
-                  numeroControl: '$numeroControl',
-                  useImpresoraFiscal: '$useImpresoraFiscal',
-                  modeloImpresoraFiscal: '$modeloImpresoraFiscal',
-                  series: '$series'
+                  metodosFacturacionId: '$metodosFacturacionId',
                 }
               }
             ],
@@ -1260,11 +1255,28 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
   if (!ventaInfo.pagos[0]) throw new Error('No existe pagos de la venta')
   if (!ventaInfo.sucursalId) throw new Error('Debe seleccionar una sucursal')
   if (!ventaInfo.zonaId) throw new Error('No existe la zona del cliente')
+  if (!ventaInfo.metodoId) throw new Error('No existe el método de facturación')
+  if (!ventaInfo.cajaId) throw new Error('Debe seleccionar una caja')
   const infoDoc = documentosVentas.find(e => e.value === ventaInfo.documento)
   if (!infoDoc) throw new Error(`No existe el tipo de documento: ${ventaInfo.documento}`)
-  if (infoDoc.isFiscal && ventaInfo.useImpresoraFiscal && !ventaInfo.numeroControl) throw new Error('No existe el Numero de Control de la impresora')
+  if (infoDoc.isFiscal && !ventaInfo.numeroControl) throw new Error('No existe el Numero de Control de la impresora')
   const tieneInventario = await hasInventario({ clienteId })
   if (tieneInventario && !ventaInfo.almacenId) throw new Error('Debe seleccionar un almacen')
+  const caja = await getItemSD({
+    enviromentClienteId: clienteId,
+    nameCollection: 'ventascajas',
+    filters: { _id: new ObjectId(ventaInfo.cajaId) }
+  })
+  if (!caja) throw new Error('No existe la caja seleccionada')
+  // validar metodo de facturacion
+  const metodoFacturacion = await getItemSD({
+    enviromentClienteId: clienteId,
+    nameCollection: 'metodosFacturacion',
+    filters: { _id: new ObjectId(ventaInfo.metodoId) }
+  })
+  if (!metodoFacturacion) throw new Error('No existe el metodo de facturación')
+  if (['serie', 'maquina'].includes(metodoFacturacion.tipo) && !infoDoc.isFiscal) throw new Error('El metodo de facturación no es valido para el tipo de documento')
+  if (['predeterminado'].includes(metodoFacturacion.tipo) && infoDoc.isFiscal) throw new Error('El metodo de facturación no es valido para el tipo de documento')
 
   // validar sucursal y rango de numeros de control
   const sucursal = await getItemSD({
@@ -1272,37 +1284,24 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
     nameCollection: 'ventassucursales',
     filters: { _id: new ObjectId(ventaInfo.sucursalId) }
   })
-  if (infoDoc.isFiscal && !ventaInfo.useImpresoraFiscal && !ventaInfo.numeroControl) throw new Error('No existe el Numero de Control del documento')
-  if (infoDoc.isFiscal && !ventaInfo.useImpresoraFiscal && ventaInfo.numeroControl) {
-    if ((sucursal.rangoNumerosControl || [])[0] || (sucursal.rangoNumerosControl || [])[0] === 0) {
-      const r1 = Number(sucursal.rangoNumerosControl[0])
-      const r2 = Number(sucursal.rangoNumerosControl[1])
-      if (Number(ventaInfo.numeroControl) >= r1 && Number(ventaInfo.numeroControl) <= r2) {
-        const documentoRepetido = await getItemSD({
-          enviromentClienteId: clienteId,
-          nameCollection: 'documentosFiscales',
-          filters: {
-            numeroControl: ventaInfo.numeroControl,
-            sucursalId: new ObjectId(ventaInfo.sucursalId)
-          }
-        })
-        if (documentoRepetido) {
-          throw new Error('El numero de control ya fue usado en otro documento')
-        }
-      } else {
-        throw new Error('El numero de control no esta dentro del rango de la sucursal')
+  if (!sucursal) throw new Error('No existe la sucursal')
+  if (metodoFacturacion.tipo === 'maquina' && metodoFacturacion.numeroControl !== ventaInfo.numeroControl) throw new Error('El numero de control no corresponde al metodo de facturación')
+  if (metodoFacturacion.tipo === 'maquina' && !ventaInfo.useImpresoraFiscal) throw new Error('El metodo de facturación seleccionado debe ser fiscal: marcar check de usar impersora fiscal')
+  if (metodoFacturacion.tipo === 'serie' && metodoFacturacion.serie !== ventaInfo.serie) throw new Error('La serie no corresponde al metodo de facturación')
+  if (metodoFacturacion.tipo === 'serie' && !ventaInfo.numeroControl) throw new Error('No existe el Numero de Control del documento')
+  if (['serie', 'predeterminado'].includes(metodoFacturacion.tipo)) {
+    const documentoRepetido = await getItemSD({
+      enviromentClienteId: clienteId,
+      nameCollection: 'documentosFiscales',
+      filters: {
+        numeroControl: ventaInfo.numeroControl,
+        sucursalId: new ObjectId(ventaInfo.sucursalId)
       }
-    } else {
-      throw new Error('La sucursal no tiene un rango de numeros de control')
+    })
+    if (documentoRepetido) {
+      throw new Error(`El numero de control ya fue usado en el documento: ${documentoRepetido.tipoDocumento} ${documentoRepetido.numeroFactura}`)
     }
-    if (!ventaInfo.serie) throw new Error('No existe la serie en el documento fiscal')
-    if (!(sucursal.series || []).includes(ventaInfo.serie)) throw new Error('No existe la serie ingresada en la sucursal')
   }
-  if (infoDoc.isFiscal && ventaInfo.useImpresoraFiscal) {
-    const existeNumeroControl = (sucursal.maquinas || []).some(e => e.numero === ventaInfo.numeroControl)
-    if (!existeNumeroControl) throw new Error('El numero de control de la caja no existe en las maquinas fiscales de la sucursal')
-  }
-
   const tieneContabilidad = await hasContabilidad({ clienteId })
   if (!tieneContabilidad) return true
   const { status: existePeriodo } = await checkPeriodo({
@@ -1755,7 +1754,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
   let contador = (await getItemSD({
     nameCollection: 'contadores',
     enviromentClienteId: clienteId,
-    filters: { tipo: `venta-${ventaInfo.documento}`, cajaId: new ObjectId(ventaInfo.cajaId) }
+    filters: { tipo: `venta-${ventaInfo.documento}`, metodoId: new ObjectId(ventaInfo.metodoId) }
   }))?.contador
   if (contador) ++contador
   if (!contador) contador = 1
@@ -1791,7 +1790,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       moneda: ventaInfo.moneda,
       monedaSecundaria: ventaInfo.monedaSecundaria,
       // datos de montos e impuestos
-      costoVenta: Number(ventaInfo.productos.map(e => ((e.costoPromedio || 0) * e.cantidad)).reduce((a, b) => a + b, 0).toFixed(2)),
+      costoVentas: Number(ventaInfo.productos.map(e => ((e.costoPromedio || 0) * e.cantidad)).reduce((a, b) => a + b, 0).toFixed(2)),
       hasIgtf: ventaInfo.totalPagado.igtf > 0,
       baseImponible: Number(Number(ventaInfo.totalMonedaPrincial.baseImponible).toFixed(2)),
       exentoSinDescuento: Number(Number(ventaInfo.totalMonedaPrincial.exonerado).toFixed(2)),
@@ -1857,8 +1856,8 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
   upsertItemSD({
     nameCollection: 'contadores',
     enviromentClienteId: clienteId,
-    filters: { tipo: `venta-${ventaInfo.documento}`, cajaId: new ObjectId(ventaInfo.cajaId) },
-    update: { $set: { contador } }
+    filters: { tipo: `venta-${ventaInfo.documento}`, metodoId: new ObjectId(ventaInfo.metodoId) },
+    update: { $set: { contador, existe: true } }
   })
   return newFactura
 }
@@ -1880,7 +1879,7 @@ const createDetalleDocumento = async ({ clienteId, ventaInfo, documentoId }) => 
       observacion: e.observacion,
       unidad: e.unidad,
       cantidad: e.cantidad,
-      comentarios: String(e.comentarios),
+      comentarios: String(e.comentarios || ''),
       tipo: e.tipo ? e.tipo : 'producto',
       precioVenta: Number(e.precioVenta.toFixed(2)),
       precioSinDescuento: Number(e.precioSinDescuento.toFixed(2)),

@@ -101,12 +101,8 @@ export const createCajas = async (req, res) => {
     sucursalId,
     usuarios,
     cuentaId,
-    numeroControl,
-    useImpresoraFiscal,
-    modeloImpresoraFiscal,
     clave,
-    useSeries,
-    series,
+    metodosFacturacionId,
   } = req.body
   if (!nombre) throw new Error('Debe un gresar un nombre y codigo valido')
   try {
@@ -116,19 +112,18 @@ export const createCajas = async (req, res) => {
       filters: { nombre }
     })
     if ((_id && verify && String(verify._id) !== _id) || (verify && !_id)) throw new Error('EL nombre de caja ya existe')
-    let caja
     const usuariosArray = Array.isArray(usuarios)
       ? usuarios
       : usuarios
         ? [usuarios]
         : undefined
-    const seriesArray = Array.isArray(series)
-      ? series
-      : typeof series === 'string'
-        ? [series]
-        : undefined
+    const metodosFacturacionArray = Array.isArray(metodosFacturacionId)
+      ? metodosFacturacionId
+      : typeof metodosFacturacionId === 'string'
+        ? [metodosFacturacionId]
+        : []
     if (_id) {
-      caja = await updateItemSD({
+      await updateItemSD({
         nameCollection: 'ventascajas',
         enviromentClienteId: clienteId,
         filters: { _id: new ObjectId(_id) },
@@ -136,20 +131,16 @@ export const createCajas = async (req, res) => {
           $set: {
             descripcion,
             nombre,
-            numeroControl: useImpresoraFiscal ? numeroControl : '',
-            useImpresoraFiscal: !!useImpresoraFiscal,
-            modeloImpresoraFiscal: useImpresoraFiscal ? modeloImpresoraFiscal : '',
             sucursalId: (sucursalId && new ObjectId(sucursalId)) || null,
             usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
             cuentaId: (cuentaId && new ObjectId(cuentaId)) || null,
             clave: Number(clave),
-            useSeries: !!useSeries,
-            series: useSeries ? seriesArray.map(serie => String(serie)) : [],
+            metodosFacturacionId: metodosFacturacionArray.map(metodo => new ObjectId(metodo)),
           }
         }
       })
     } else {
-      const newCaja = await createItemSD({
+      await createItemSD({
         nameCollection: 'ventascajas',
         enviromentClienteId: clienteId,
         item: {
@@ -158,15 +149,12 @@ export const createCajas = async (req, res) => {
           sucursalId: (sucursalId && new ObjectId(sucursalId)) || null,
           usuarios: (usuariosArray || []).map(e => new ObjectId(e)),
           cuentaId: (cuentaId && new ObjectId(cuentaId)) || null,
-          numeroControl,
-          useImpresoraFiscal,
-          modeloImpresoraFiscal,
+          metodosFacturacionId: metodosFacturacionArray.map(metodo => new ObjectId(metodo)),
           clave: Number(clave)
         }
       })
-      caja = await getItemSD({ nameCollection: 'ventascajas', enviromentClienteId: clienteId, filters: { _id: newCaja.insertedId } })
     }
-    return res.status(200).json({ status: 'Caja guardada exitosamente', caja })
+    return res.status(200).json({ status: 'Caja guardada exitosamente' })
   } catch (e) {
     console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de guardar la caja: ' + e.message })

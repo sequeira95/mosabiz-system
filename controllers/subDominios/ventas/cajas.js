@@ -1,8 +1,7 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, createItemSD, deleteItemSD, formatCollectionName, getCollectionSD, getItemSD, updateItemSD, upsertItemSD } from '../../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, createItemSD, deleteItemSD, formatCollectionName, getItemSD, updateItemSD } from '../../../utils/dataBaseConfing.js'
 import { momentDate } from '../../../utils/momentDate.js'
-import { deleteImg, uploadImg } from '../../../utils/cloudImage.js'
-import { subDominioName, documentosVentas } from '../../../constants.js'
+import { subDominioName } from '../../../constants.js'
 
 export const getCajas = async (req, res) => {
   const { clienteId } = req.body
@@ -163,11 +162,9 @@ export const createCajas = async (req, res) => {
 
 export const saveCajas = async (req, res) => {
   const { clienteId, items } = req.body
-  let index = 1
   if (!items[0]) return res.status(400).json({ error: 'Hubo un error al momento de procesar la lista de sucursales' })
   try {
     for (const item of items) {
-      index++
       const existItem = await getItemSD({
         nameCollection: 'ventascajas',
         enviromentClienteId: clienteId,

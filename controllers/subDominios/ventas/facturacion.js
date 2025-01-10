@@ -1289,6 +1289,7 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
   if (metodoFacturacion.tipo === 'serie' && metodoFacturacion.serie !== ventaInfo.serie) throw new Error('La serie no corresponde al metodo de facturación')
   if (metodoFacturacion.tipo === 'serie' && !ventaInfo.numeroControl) throw new Error('No existe el Numero de Control del documento')
   if (['serie', 'predeterminado'].includes(metodoFacturacion.tipo)) {
+    if (metodoFacturacion.longitudNumeroControl && metodoFacturacion.longitudNumeroControl !== ventaInfo.numeroControl.length) throw new Error('El numero de control no cumple con la longitud requerida')
     const documentoRepetido = await getItemSD({
       enviromentClienteId: clienteId,
       nameCollection: 'documentosFiscales',
@@ -1774,7 +1775,7 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       activo,
       isExportacion: ventaInfo.isExportacion,
       isDespacho: ventaInfo.isDespacho,
-      // numeroControl: infoDoc.isFiscal ? ventaInfo.numeroControl : '',
+      // mas datos del documento
       numeroControl: String(ventaInfo.numeroControl),
       serie: ventaInfo.serie || '',
       useImpresoraFiscal: infoDoc.isFiscal ? ventaInfo.useImpresoraFiscal : false,
@@ -1784,6 +1785,9 @@ const createDocumento = async ({ clienteId, ventaInfo, creadoPor, activo = false
       cajaId: new ObjectId(ventaInfo.cajaId),
       facturaAsociada: ventaInfo.facturaId ? new ObjectId(ventaInfo.facturaId) : '',
       notaEntregaAsociada: ventaInfo.notaEntregaId ? new ObjectId(ventaInfo.notaEntregaId) : '',
+      metodoId: new ObjectId(ventaInfo.metodoId),
+      cantidadCeros: ventaInfo.cantidadCeros,
+      longitudNumeroControl: ventaInfo.longitudNumeroControl,
       // datos de monedas
       tasaDia: Number(ventaInfo.tasa) || 0,
       moneda: ventaInfo.moneda,

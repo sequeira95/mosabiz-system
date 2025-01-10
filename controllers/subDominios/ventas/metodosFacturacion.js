@@ -41,19 +41,22 @@ export const setMetodosFacturacion = async (req, res) => {
     descripcion,
     serie,
     numeroControl,
+    cantidadCeros,
+    longitudNumeroControl
   } = req.body
   try {
-    if (!['maquina', 'serie'].includes(tipo)) throw new Error('EL tipo de facturación no es valido')
+    if (!['maquina', 'serie', 'predeterminado'].includes(tipo)) throw new Error('EL tipo de facturación no es valido')
     if (tipo === 'maquina') {
       if (numeroControl.includes(' ')) throw new Error('EL Número Control es invalido, contiene espacios')
       const existeMaquina = await getItemSD({
         nameCollection: 'metodosFacturacion',
         enviromentClienteId: clienteId,
-        filters: { numeroControl: { $regex: numeroControl, $options: 'xi' }, _id: { $ne: _id } }
+        filters: { numeroControl: { $regex: numeroControl, $options: 'xi' }, _id: { $ne: new ObjectId(_id) } }
       })
       if (existeMaquina) throw new Error(`EL Número Control ya existe en la maquina: ${existeMaquina.nombre}`)
     }
     if (tipo === 'serie') {
+      if (serie.replaceAll(' ', '') === '') throw new Error('La serie no puede estar vacia')
       const text = serie.replaceAll(' ', '\\s+')
       const existeSerie = await getItemSD({
         nameCollection: 'metodosFacturacion',
@@ -71,6 +74,8 @@ export const setMetodosFacturacion = async (req, res) => {
           $set: {
             nombre,
             descripcion,
+            cantidadCeros: isNaN(Number(cantidadCeros || 0)) ? 0 : Number(cantidadCeros || 0),
+            longitudNumeroControl: isNaN(Number(longitudNumeroControl || 0)) ? 0 : Number(longitudNumeroControl || 0),
             // no se editan
             // tipo,
             // serie: tipo === 'serie' ? serie : null,
@@ -88,7 +93,9 @@ export const setMetodosFacturacion = async (req, res) => {
           descripcion,
           serie: tipo === 'serie' ? serie : null,
           numeroControl: tipo === 'maquina' ? numeroControl : null,
-          fechaCreacion: momentDate().toDate()
+          fechaCreacion: momentDate().toDate(),
+          cantidadCeros: isNaN(Number(cantidadCeros || 0)) ? 0 : Number(cantidadCeros || 0),
+          longitudNumeroControl: isNaN(Number(longitudNumeroControl || 0)) ? 0 : Number(longitudNumeroControl || 0),
         }
       })
     }

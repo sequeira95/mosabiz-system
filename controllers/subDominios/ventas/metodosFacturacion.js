@@ -42,7 +42,8 @@ export const setMetodosFacturacion = async (req, res) => {
     serie,
     numeroControl,
     cantidadCeros,
-    longitudNumeroControl
+    longitudNumeroControl,
+    gionPosition
   } = req.body
   try {
     if (!['maquina', 'serie', 'predeterminado'].includes(tipo)) throw new Error('EL tipo de facturación no es valido')
@@ -76,6 +77,7 @@ export const setMetodosFacturacion = async (req, res) => {
             descripcion,
             cantidadCeros: isNaN(Number(cantidadCeros || 0)) ? 0 : Number(cantidadCeros || 0),
             longitudNumeroControl: isNaN(Number(longitudNumeroControl || 0)) ? 0 : Number(longitudNumeroControl || 0),
+            gionPosition: isNaN(Number(gionPosition || 0)) ? 0 : Number(gionPosition || 0),
             // no se editan
             // tipo,
             // serie: tipo === 'serie' ? serie : null,
@@ -96,6 +98,7 @@ export const setMetodosFacturacion = async (req, res) => {
           fechaCreacion: momentDate().toDate(),
           cantidadCeros: isNaN(Number(cantidadCeros || 0)) ? 0 : Number(cantidadCeros || 0),
           longitudNumeroControl: isNaN(Number(longitudNumeroControl || 0)) ? 0 : Number(longitudNumeroControl || 0),
+          gionPosition: isNaN(Number(gionPosition || 0)) ? 0 : Number(gionPosition || 0),
         }
       })
     }

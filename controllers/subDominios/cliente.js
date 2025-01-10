@@ -297,18 +297,40 @@ export const createCliente = async (req, res) => {
         }
       ]
     })
-    // crear caja principal / sucursal principal / zona principal / metodo de facturacion predeterminado
+    // pasos de ventas
+    //  crear caja principal / sucursal principal / zona principal / metodo de facturacion predeterminado
     {
+      const zona = await createItemSD({
+        nameCollection: 'zonas',
+        enviromentClienteId: clienteCol.insertedId,
+        item: {
+          nombre: 'Principal',
+          observacion: 'Zona principal',
+          tipo: 'inventario',
+          fechaCreacion: moment().toDate()
+        }
+      })
       const sucursal = await createItemSD({
         nameCollection: 'sucursales',
         enviromentClienteId: clienteCol.insertedId,
         item: {
           codigo: 'principal',
           nombre: 'Principal',
+          zonaId: new ObjectId(zona.insertedId),
           isSucursalPrincipal: true,
           rif: `${tipoDocumento}${documentoIdentidad}`,
           direccion,
           descripcion: 'Sucursal principal',
+          fechaCreacion: moment().toDate()
+        }
+      })
+      const metodo = await createItemSD({
+        nameCollection: 'metodosFacturacion',
+        enviromentClienteId: clienteCol.insertedId,
+        item: {
+          tipo: 'predeterminado',
+          nombre: 'Predeterminado',
+          descripcion: 'Facturación normal (Forma Libre / Preimpreso)',
           fechaCreacion: moment().toDate()
         }
       })
@@ -319,27 +341,9 @@ export const createCliente = async (req, res) => {
           nombre: 'Principal',
           descripcion: 'Caja principal',
           fechaCreacion: moment().toDate(),
-          sucursalId: new ObjectId(sucursal.insertedId)
-        }
-      })
-      createItemSD({
-        nameCollection: 'zonas',
-        enviromentClienteId: clienteCol.insertedId,
-        item: {
-          nombre: 'Principal',
-          observacion: 'Zona principal',
-          tipo: 'inventario',
-          fechaCreacion: moment().toDate()
-        }
-      })
-      createItemSD({
-        nameCollection: 'metodosFacturacion',
-        enviromentClienteId: clienteCol.insertedId,
-        item: {
-          tipo: 'predeterminado',
-          nombre: 'Predeterminado',
-          descripcion: 'Facturación normal (Forma Libre / Preimpreso)',
-          fechaCreacion: moment().toDate()
+          sucursalId: new ObjectId(sucursal.insertedId),
+          usuarios: [new ObjectId(userCol.insertedId)],
+          metodosFacturacionId: [new ObjectId(metodo.insertedId)],
         }
       })
     }

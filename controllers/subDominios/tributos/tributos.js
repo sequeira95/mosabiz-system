@@ -392,6 +392,7 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
   // console.log('ret', req.body)
   try {
     const { clienteId, comprobantes, fecha } = req.body
+    console.log({ clienteId, comprobantes, fecha })
     const comprobantesCrear = []
     const facturasUpdate = []
     const asientosContables = []
@@ -402,7 +403,7 @@ export const saveComprobanteRetIslrCompras = async (req, res) => {
     const categoriasCollection = formatCollectionName({ enviromentEmpresa: subDominioName, enviromentClienteId: clienteId, nameCollection: 'categorias' })
     if (tieneContabilidad) {
       periodo = await getItemSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { fechaInicio: { $lte: moment(fecha).toDate() }, fechaFin: { $gte: moment(fecha).toDate() } } })
-      // console.log({ periodo })
+      // console.log({ periodo, tieneContabilidad })
       if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
       const mesPeriodo = moment(fecha).format('YYYY/MM')
       comprobanteContable = await getItemSD({

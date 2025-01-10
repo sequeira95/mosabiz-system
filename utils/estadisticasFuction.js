@@ -21,7 +21,7 @@ export const getDataEstadisticasComprasVentas = async ({ clienteId, dateInitYear
               $sum: {
                 $cond: {
                   if: { $eq: ['$tipoMovimiento', 'venta'] },
-                  then: '$costoVentas',
+                  then: '$costoVenta',
                   else: 0
                 }
               }
@@ -35,7 +35,7 @@ export const getDataEstadisticasComprasVentas = async ({ clienteId, dateInitYear
                       { $eq: ['$tipoDocumentoFiscal', tiposDocumentosFiscales.notaCredito] }
                     ]
                   },
-                  then: '$costoVentas',
+                  then: '$costoVenta',
                   else: 0
                 }
               }
@@ -49,7 +49,7 @@ export const getDataEstadisticasComprasVentas = async ({ clienteId, dateInitYear
                       { $eq: ['$tipoDocumentoFiscal', tiposDocumentosFiscales.notaDebito] }
                     ]
                   },
-                  then: '$costoVentas',
+                  then: '$costoVenta',
                   else: 0
                 }
               }

@@ -615,9 +615,58 @@ export const getDetalleCuenta = async (req, res) => {
 }
 export const saveTransaccion = async (req, res) => {
   try {
-    const { clienteId, fechaPago, tipo, referencia, pago, cuenta, year, mes, monedaPrincipal, _id, valor, descripcion } = req.body
+    const {
+      clienteId, fechaPago, tipo, referencia, pago, cuenta, year, mes, monedaPrincipal, _id, valor, descripcion, timeZone,
+      cuentaBanco, cuentaBancoIngreso, cuentaBancoEgresos, codigoComprobante
+    } = req.body
     console.log(req.body)
     if (!_id) {
+      const tieneContabilidad = await hasContabilidad({ clienteId })
+      let cuentaBancoData = null
+      let cuentaBancoIngresoData = null
+      let cuentaBancoEgresosData = null
+      let periodo = null
+      let comprobante = null
+      const asientosContables = []
+      const fechaPeriodo = momentDate(timeZone, `${year}/${mes.value + 1}/05`, 'YYYY/MM/DD')
+      console.log('fechaPeriodo', fechaPeriodo, `${year}/${mes.value + 1}/05`)
+      if (tieneContabilidad) {
+        cuentaBancoData = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(cuentaBanco?._id) } })
+        cuentaBancoIngresoData = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(cuentaBancoIngreso?._id) } })
+        cuentaBancoEgresosData = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(cuentaBancoEgresos?._id) } })
+        if (!cuentaBancoData) throw new Error('La cuenta seleccionada de banco no existe')
+        if (!cuentaBancoIngresoData) throw new Error('La cuenta seleccionada de banco para ingresos no existe')
+        if (!cuentaBancoEgresosData) throw new Error('La cuenta seleccionada de banco para egresos no existe')
+        if (!codigoComprobante) throw new Error('Tiene que asignar un codigo de comprobante contable')
+        console.log('periodo', fechaPeriodo)
+        periodo = await getItemSD({
+          nameCollection: 'periodos',
+          enviromentClienteId: clienteId,
+          filters: { fechaInicio: { $lte: fechaPeriodo.startOf('month').toDate() }, fechaFin: { $gte: fechaPeriodo.endOf('month').toDate() } }
+        })
+        console.log({ periodo })
+        if (!periodo) throw new Error('No se encontró periodo, por favor verifique la fecha del documento')
+        const mesPeriodo = fechaPeriodo.format('YYYY/MM')
+        comprobante = await getItemSD({
+          nameCollection: 'comprobantes',
+          enviromentClienteId: clienteId,
+          filters: { codigo: codigoComprobante, periodoId: periodo._id, mesPeriodo }
+        })
+        if (!comprobante) {
+          comprobante = await upsertItemSD({
+            nameCollection: 'comprobantes',
+            enviromentClienteId: clienteId,
+            filters: { codigo: codigoComprobante, periodoId: periodo._id, mesPeriodo },
+            update: {
+              $set: {
+                nombre: 'Trasacciones bancarias',
+                isBloqueado: false,
+                fechaCreacion: moment().toDate()
+              }
+            }
+          })
+        }
+      }
       const transaccion = await upsertItemSD({
         nameCollection: 'transacciones',
         enviromentClienteId: clienteId,
@@ -671,6 +720,97 @@ export const saveTransaccion = async (req, res) => {
           }
         }
       })
+      if (tieneContabilidad) {
+        const fechaContabilidad = validarFechaDentroRago(fechaPago, fechaPeriodo, timeZone)
+        if (tipo === 'Ingreso') {
+          const asientos = [
+            {
+              cuentaId: new ObjectId(cuentaBancoData._id),
+              cuentaCodigo: cuentaBancoData.codigo,
+              cuentaNombre: cuentaBancoData.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion,
+              fecha: fechaContabilidad,
+              debe: Number(pago.toFixed(2)),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              // terceroId: tercero ? new ObjectId(tercero._id) : null,
+              // terceroNombre: tercero ? tercero.nombre : null,
+              docReferenciaAux: referencia,
+              documento: {
+                docReferencia: referencia,
+                docFecha: moment(fechaPago).toDate()
+              }
+            }, {
+              cuentaId: new ObjectId(cuentaBancoIngresoData._id),
+              cuentaCodigo: cuentaBancoIngresoData.codigo,
+              cuentaNombre: cuentaBancoIngresoData.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion,
+              fecha: fechaContabilidad,
+              debe: 0,
+              haber: Number(pago.toFixed(2)),
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: referencia,
+              documento: {
+                docReferencia: referencia,
+                docFecha: moment(fechaPago).toDate()
+              }
+            }
+          ]
+          asientosContables.push(...asientos)
+        }
+        if (tipo === 'Egreso') {
+          const asientos = [
+            {
+              cuentaId: new ObjectId(cuentaBancoEgresosData._id),
+              cuentaCodigo: cuentaBancoEgresosData.codigo,
+              cuentaNombre: cuentaBancoEgresosData.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion,
+              fecha: fechaContabilidad,
+              debe: Number(pago.toFixed(2)),
+              haber: 0,
+              fechaCreacion: moment().toDate(),
+              docReferenciaAux: referencia,
+              documento: {
+                docReferencia: referencia,
+                docFecha: moment(fechaPago).toDate()
+              }
+            },
+            {
+              cuentaId: new ObjectId(cuentaBancoData._id),
+              cuentaCodigo: cuentaBancoData.codigo,
+              cuentaNombre: cuentaBancoData.descripcion,
+              comprobanteId: new ObjectId(comprobante._id),
+              periodoId: new ObjectId(periodo._id),
+              descripcion,
+              fecha: fechaContabilidad,
+              debe: 0,
+              haber: Number(pago.toFixed(2)),
+              fechaCreacion: moment().toDate(),
+              // terceroId: tercero ? new ObjectId(tercero._id) : null,
+              // terceroNombre: tercero ? tercero.nombre : null,
+              docReferenciaAux: referencia,
+              documento: {
+                docReferencia: referencia,
+                docFecha: moment(fechaPago).toDate()
+              }
+            }
+          ]
+          asientosContables.push(...asientos)
+        }
+        if (asientosContables[0]) {
+          createManyItemsSD({
+            nameCollection: 'detallesComprobantes',
+            enviromentClienteId: clienteId,
+            items: asientosContables
+          })
+        }
+      }
       return res.status(200).json({ transaccion })
     } else {
       const transaccion = await updateItemSD({

@@ -1,9 +1,12 @@
 import moment from 'moment'
 // import { chromium } from 'playwright'
-import { bulkWrite, getItem, upsertItem } from './dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWrite, getCollectionSD, getItem, getItemSD, upsertItem } from './dataBaseConfing.js'
 import axios from 'axios'
 import * as cheerio from 'cheerio'
 import XLSX from 'xlsx'
+import { momentDate } from './momentDate.js'
+import { colorSecodnary } from '../constants.js'
+import { senEmail } from './nodemailsConfing.js'
 
 export async function getValoresBcv () {
   console.log('Iniciando tarea de buscar las tasas diarias')
@@ -325,5 +328,113 @@ export async function getValoresBcvExcel () {
   } catch (error) {
     console.error('Error en la función getValoresBcvExcel:', error.message)
     throw error // Lanzar el error para que el llamador de la función sepa que falló
+  }
+}
+export async function tastRecordatiorioToDo () {
+  const clientes = await getCollectionSD({ nameCollection: 'clientes' })
+  console.log({ clientes })
+  for (const cliente of clientes) {
+    const enviromentClienteId = cliente._id.toString()
+    const timeZone = (await getItemSD({
+      nameCollection: 'ajustes',
+      enviromentClienteId,
+      filters: { tipo: 'sistema' }
+    })).timeZone
+    const lastThreeDay = momentDate(timeZone).add(3, 'days')
+    const fechaActual = momentDate(timeZone)
+    const eventosToDo = await agreggateCollectionsSD({
+      nameCollection: 'calendarToDo',
+      enviromentClienteId,
+      pipeline: [
+        { $match: { start: { $gte: fechaActual.toDate(), $lt: lastThreeDay.toDate() } } }
+      ]
+    })
+    if (!eventosToDo[0]) continue
+    for (const evento of eventosToDo) {
+      if (!evento?.invitados[0]) continue
+      const invitados = await agreggateCollectionsSD({
+        nameCollection: 'personas',
+        pipeline: [
+          { $match: { _id: { $in: evento?.invitados } } },
+          {
+            $project: {
+              nombre: 1,
+              email: 1
+            }
+          }
+        ]
+      })
+      const correos = invitados.map(e => e.email).join(',')
+      const emailConfing = {
+        from: 'Aibiz <pruebaenviocorreonode@gmail.com>',
+        to: correos,
+        subject: `Recordatorio: Evento ${evento.title} próximamente`,
+        html: `
+          <html lang="es">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Recordatorio de Evento</title>
+              <style>
+                  body {
+                      font-family: Arial, sans-serif;
+                      background-color: #f4f4f9;
+                      margin: 0;
+                      padding: 0;
+                      color: #333;
+                  }
+                  .container {
+                      width: 100%;
+                      max-width: 600px;
+                      margin: 20px auto;
+                      background-color: #fff;
+                      padding: 20px;
+                      border-radius: 10px;
+                      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                  }
+                  .header {
+                      text-align: center;
+                      margin-bottom: 20px;
+                  }
+                  .header h1 {
+                      color: ${colorSecodnary};
+                  }
+                  .content {
+                      line-height: 1.6;
+                  }
+                  .footer {
+                      text-align: center;
+                      margin-top: 20px;
+                      font-size: 12px;
+                      color: #888;
+                  }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <div class="header">
+                      <h1>Recordatorio de Evento</h1>
+                  </div>
+                  <div class="content">
+                      <p>Estimado/a,</p>
+                      <p>Espero este mensaje le encuentre bien. Le recordamos que el siguiente evento al cual ha sido asignado/a está próximo a realizarse:</p>
+                      <p><strong>Nombre del Evento:</strong> ${evento.title}<br>
+                        <strong>Descripción:</strong> ${evento.content}<br>
+                        <strong>Fecha de Inicio:</strong> ${evento.allDay ? momentDate(timeZone, evento.start).format('DD/MM/YYYY') : momentDate(timeZone, evento.start).format('DD/MM/YYYY | HH:mm')}</p>
+                        ${evento.allDay ? '' : `<strong>Fecha de Culminación:</strong> ${momentDate(timeZone, evento.end).format('DD/MM/YYYY | HH:mm')}</p>`}
+                      <p>Estamos a su disposición para cualquier duda o consulta adicional.</p>
+                      <p>Atentamente,<br>
+                      <strong>${cliente?.nombreCorto || cliente?.razonSocial}</strong><br>
+                  </div>
+                  <div class="footer">
+                      &copy; 2025 ${cliente?.razonSocial}. Todos los derechos reservados.
+                  </div>
+              </div>
+          </body>
+          </html>
+        `
+      }
+      await senEmail(emailConfing)
+    }
   }
 }

@@ -2,6 +2,8 @@ export const dataBasePrincipal = 'aibiz'
 
 export const dataBaseSecundaria = process.env.DB_NAME
 export const subDominioName = process.env.ENVIROMENTID
+
+export const colorSecodnary = '#004f56'
 export const lengthCodigoByNiveles = {
   1: 1,
   2: 2,

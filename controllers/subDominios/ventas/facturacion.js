@@ -1289,7 +1289,7 @@ const validarVenta = async ({ clienteId, ventaInfo, creadoPor }) => {
   if (metodoFacturacion.tipo === 'serie' && metodoFacturacion.serie !== ventaInfo.serie) throw new Error('La serie no corresponde al metodo de facturación')
   if (metodoFacturacion.tipo === 'serie' && !ventaInfo.numeroControl) throw new Error('No existe el Numero de Control del documento')
   if (['serie', 'predeterminado'].includes(metodoFacturacion.tipo)) {
-    if (metodoFacturacion.longitudNumeroControl && metodoFacturacion.longitudNumeroControl !== ventaInfo.numeroControl.length) throw new Error('El numero de control no cumple con la longitud requerida')
+    if (metodoFacturacion.longitudNumeroControl && (Number(metodoFacturacion.longitudNumeroControl) + 1) !== ventaInfo.numeroControl.length) throw new Error('El numero de control no cumple con la longitud requerida')
     const documentoRepetido = await getItemSD({
       enviromentClienteId: clienteId,
       nameCollection: 'documentosFiscales',

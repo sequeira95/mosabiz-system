@@ -138,7 +138,10 @@ export const createSucursal = async (req, res) => {
       const logo = {}
       if (!logoRef) logo.logo = null
       if (documentosAdjuntos[0]) logo.logo = documentosAdjuntos[0]
-      if (((!logoRef && verify?.logo) || (logo.logo?.fileId && verify.logo.fileId !== logo.logo.fileId))) {
+      if (!logoRef && verify?.logo) {
+        await deleteImg(verify.logo.fileId)
+      }
+      if (logo.logo?.fileId && verify.logo?.fileId && verify.logo.fileId !== logo.logo.fileId) {
         await deleteImg(verify.logo.fileId)
       }
       sucursal = await updateItemSD({
@@ -264,6 +267,13 @@ export const saveSucursales = async (req, res) => {
 export const deleteSucursales = async (req, res) => {
   const { clienteId, _id } = req.body
   try {
+    const verify = await getItemSD({
+      nameCollection: 'ventassucursales',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) }
+    })
+    if (!verify) throw new Error('La sucursal no existe')
+    if (verify.isSucursalPrincipal) throw new Error('No se puede eliminar la sucursal principal')
     await deleteItemSD({ nameCollection: 'ventassucursales', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
     return res.status(200).json({ status: 'sucursal eliminada exitosamente' })
   } catch (e) {

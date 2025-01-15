@@ -18,7 +18,7 @@ export const login = async (req, res) => {
       if (isValidFechaExp) res.status(500).json('Token expirado')
       const empresa = await getItemSD({ nameCollection: 'empresa' })
       if (!empresa) res.status(500).json({ error: 'No existe empresa' })
-      if (empresa.activo === false) res.status(500).json({ error: 'Empresa desactivada' })
+      if (empresa.activo === false) return res.status(500).json({ error: 'Empresa desactivada' })
       const usuario = await getItemSD({ nameCollection: 'usuarios', filters: { _id: new ObjectId(uid) } })
       if (!usuario) res.status(500).json({ error: 'No existe usuario' })
       if (usuario.activo === false) res.status(500).json({ error: 'Usuario desactivado' })
@@ -40,7 +40,7 @@ export const login = async (req, res) => {
   try {
     const empresa = await getItemSD({ nameCollection: 'empresa' })
     if (!empresa) res.status(500).json({ error: 'No existe empresa' })
-    if (empresa.activo === false) res.status(500).json({ error: 'Empresa desactivada' })
+    if (empresa.activo === false) return res.status(500).json({ error: 'Empresa desactivada' })
     const usuario = await getItemSD({ nameCollection: 'usuarios', filters: { email: email.toLowerCase() } })
     // en caso de que no exista el email , retornamos un error
     if (!usuario) return res.status(403).json({ error: 'Usuario o contraseña incorrecto' })

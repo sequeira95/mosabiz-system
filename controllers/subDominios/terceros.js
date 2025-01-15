@@ -1,15 +1,54 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getCollectionSD, upsertItemSD, updateManyItemSD, formatCollectionName, getItemSD, deleteManyItemsSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getCollectionSD, upsertItemSD, updateManyItemSD, formatCollectionName, deleteManyItemsSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 
 export const getTerceros = async (req, res) => {
-  const { clienteId, cuentaId } = req.body
+  const { clienteId, cuentaId, combinarTerceros } = req.body
   try {
+    console.log(req.body)
+    const matchConfig = {}
+    if (cuentaId) {
+      matchConfig.cuentaId = new ObjectId(cuentaId)
+    }
+    const groupCombinar = []
+    if (combinarTerceros) {
+      groupCombinar.push({
+        $group: {
+          _id: '$nombre',
+          cuentas: {
+            $push: { codigo: '$cuenta.codigo', descripcion: '$cuenta.descripcion', _id: '$cuenta._id' }
+          },
+          nombre: {
+            $first: '$nombre'
+          }
+        }
+      })
+    }
+    const planCuentasCol = formatCollectionName({ enviromentClienteId: clienteId, enviromentEmpresa: subDominioName, nameCollection: 'planCuenta' })
     const terceros = await agreggateCollectionsSD({
       nameCollection: 'terceros',
       enviromentClienteId: clienteId,
       pipeline: [
-        { $match: { cuentaId: new ObjectId(cuentaId) } }
+        { $match: matchConfig },
+        {
+          $lookup: {
+            from: planCuentasCol,
+            localField: 'cuentaId',
+            foreignField: '_id',
+            pipeline: [
+              {
+                $project: {
+                  _id: 1,
+                  codigo: '$codigo',
+                  descripcion: '$descripcion',
+                }
+              }
+            ],
+            as: 'cuenta'
+          }
+        },
+        { $unwind: { path: '$cuenta', preserveNullAndEmptyArrays: true } },
+        ...groupCombinar
       ]
     })
     return res.status(200).json({ terceros })
@@ -69,23 +108,55 @@ export const theRealGetTerceros = async (req, res) => {
   }
 }
 export const saveTerceros = async (req, res) => {
-  const { nombre, clienteId, _id, cuentaId } = req.body
+  const { nombre, clienteId, _id, cuentaId, multiCuentas } = req.body
   const nombreUppercase = String(nombre).trim().toUpperCase()
   try {
-    const tercero = await upsertItemSD({
-      nameCollection: 'terceros',
-      enviromentClienteId: clienteId,
-      filters: _id ? { _id: new ObjectId(_id) } : { nombre: nombreUppercase },
-      update: {
-        $set: _id
-          ? {
-              nombre: nombreUppercase,
-              cuentaId: new ObjectId(cuentaId)
+    if (multiCuentas && multiCuentas[0]) {
+      const dataTerceros = (await getCollectionSD({
+        nameCollection: 'terceros',
+        enviromentClienteId: clienteId,
+        filters: { nombre: _id }
+      })).map(e => e._id)
+      console.log(dataTerceros)
+      await updateManyItemSD({
+        nameCollection: 'terceros',
+        enviromentClienteId: clienteId,
+        filters: { _id: { $in: dataTerceros } },
+        update: {
+          $set: {
+            nombre: nombreUppercase
+          }
+        }
+      })
+      console.log('Actualizando detalle de comprobante')
+      const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+      await updateManyItemSD(
+        {
+          nameCollection: 'detallesComprobantes',
+          enviromentClienteId: clienteId,
+          filters: { terceroId: { $in: dataTerceros }, periodoId: { $in: periodosActivos } },
+          update: {
+            $set: {
+              terceroNombre: nombreUppercase
             }
-          : { cuentaId: new ObjectId(cuentaId) }
-      }
-    })
+          }
+        })
+      return res.status(200).json({ status: 'Terceros guardados exitosamente' })
+    }
     if (_id) {
+      const tercero = await upsertItemSD({
+        nameCollection: 'terceros',
+        enviromentClienteId: clienteId,
+        filters: _id ? { _id: new ObjectId(_id) } : { nombre: nombreUppercase },
+        update: {
+          $set: _id
+            ? {
+                nombre: nombreUppercase,
+                cuentaId: new ObjectId(cuentaId)
+              }
+            : { cuentaId: new ObjectId(cuentaId) }
+        }
+      })
       console.log('Actualizando detalle de comprobante')
       const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
       await updateManyItemSD(
@@ -99,7 +170,19 @@ export const saveTerceros = async (req, res) => {
             }
           }
         })
+      return res.status(200).json({ status: 'Tercero creado exitosamente', tercero })
     }
+    const tercero = await upsertItemSD({
+      nameCollection: 'terceros',
+      enviromentClienteId: clienteId,
+      filters: { _id: new ObjectId(_id) },
+      update: {
+        $set: {
+          nombre: nombreUppercase,
+          cuentaId: new ObjectId(cuentaId)
+        }
+      }
+    })
     return res.status(200).json({ status: 'Tercero creado exitosamente', tercero })
   } catch (e) {
     console.log(e.message)

@@ -13,7 +13,7 @@ export const login = async (req, res) => {
     // quitamos el Bearer del token
     try {
       token = token.split(' ')[1]
-      const { uid, fechaActPass, exp } = jwt.verify(token, process.env.JWT_SECRETSD)
+      const { uid, fechaActPass, exp, deviceId } = jwt.verify(token, process.env.JWT_SECRETSD)
       const isValidFechaExp = moment.unix(exp) < moment()
       if (isValidFechaExp) res.status(500).json('Token expirado')
       const empresa = await getItemSD({ nameCollection: 'empresa' })
@@ -23,6 +23,9 @@ export const login = async (req, res) => {
       if (!usuario) res.status(500).json({ error: 'No existe usuario' })
       if (usuario.activo === false) res.status(500).json({ error: 'Usuario desactivado' })
       if (moment(fechaActPass).valueOf() !== moment(usuario.fechaActPass).valueOf()) res.status(500).json('Contraseña no coinciden')
+      if (deviceId !== usuario.deviceId) {
+        res.status(500).json({ error: '' })
+      }
       const persona = await getItemSD({ nameCollection: 'personas', filters: { usuarioId: new ObjectId(usuario._id) } })
       let cliente = {}
       if (persona.clienteId) {
@@ -55,10 +58,21 @@ export const login = async (req, res) => {
       if (!cliente) return res.status(403).json({ error: 'El cliente no existe' })
       if (cliente.activo === false) return res.status(403).json({ error: 'El cliente no se encuentra activo' })
     }
+    const deviceId = new ObjectId(null).toString()
+    console.log({ deviceId })
     const { token, expiresIn } = generateTokenSD({
       uid: usuario._id,
-      fechaActPass: usuario.fechaActPass
+      fechaActPass: usuario.fechaActPass,
+      deviceId
     }, res)
+    // Actualizar las sesiones del usuario
+    await updateItemSD({
+      nameCollection: 'usuarios',
+      filters: { _id: usuario._id },
+      update: {
+        $set: { deviceId }
+      }
+    })
     let cliente = {}
     if (persona.clienteId) {
       cliente = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(persona.clienteId) } })

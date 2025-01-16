@@ -13,10 +13,10 @@ export const generateToken = ({ uid, fechaActPass, email, isSuperAdmin, isAdmin,
     // console.log(e)
   }
 }
-export const generateTokenSD = ({ uid, fechaActPass }, res) => {
+export const generateTokenSD = ({ uid, fechaActPass, deviceId }, res) => {
   const expiresIn = 60 * 60 * 24 * 30
   try {
-    const token = jwt.sign({ uid, fechaActPass }, process.env.JWT_SECRETSD, { expiresIn })
+    const token = jwt.sign({ uid, fechaActPass, deviceId }, process.env.JWT_SECRETSD, { expiresIn })
     /* res.cookie('SDToken', token, {
       httpOnly: true,
       secure: !(process.env.MODO === 'developer'),
@@ -32,5 +32,5 @@ export const tokenVerificationErrors = {
   'jwt expired': 'JWT expirado',
   'invalid token': 'Token no válido',
   'No bearer': 'Utiliza formato Bearer',
-  'jwt malformed': 'JWT formato no valido'
+  'jwt malformed': 'JWT formato no valido',
 }

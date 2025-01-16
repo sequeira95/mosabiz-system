@@ -11,7 +11,7 @@ export const requireSubDominioToken = async (req, res, next) => {
     if (!token) throw new Error('No bearer')
     // quitamos el Bearer del token
     token = token.split(' ')[1]
-    const { uid, fechaActPass, exp } = jwt.verify(token, process.env.JWT_SECRETSD)
+    const { uid, fechaActPass, exp, deviceId } = jwt.verify(token, process.env.JWT_SECRETSD)
     const isValidFechaExp = moment.unix(exp) < moment()
     if (isValidFechaExp) throw new Error('Token expirado')
     const empresa = await getItemSD({ nameCollection: 'empresa' })
@@ -21,6 +21,7 @@ export const requireSubDominioToken = async (req, res, next) => {
     if (!usuario) throw new Error('No existe usuario')
     if (usuario.activo === false) throw new Error('Usuario desactivado')
     if (moment(fechaActPass).valueOf() !== moment(usuario.fechaActPass).valueOf()) throw new Error('Contraseña no coinciden')
+    if (usuario.deviceId !== deviceId) throw new Error('Ha iniciado sesión en otro dispositivo')
     const persona = await getItemSD({ nameCollection: 'personas', filters: { usuarioId: usuario._id } })
     if (persona && persona.clienteId) {
       const cliente = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(persona.clienteId) } })
@@ -31,6 +32,6 @@ export const requireSubDominioToken = async (req, res, next) => {
     next()
   } catch (e) {
     // console.log(e)
-    return res.status(500).send({ error: tokenVerificationErrors[e.message] })
+    return res.status(500).send({ error: tokenVerificationErrors[e.message] || e.message, desconect: true })
   }
 }

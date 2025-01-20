@@ -47,7 +47,8 @@ export const createSubDominio = async (req, res) => {
       email: email.toLowerCase(),
       telefono,
       modulosId,
-      fechaCreacion: moment().toDate()
+      fechaCreacion: moment().toDate(),
+      activo: true
     })
     const usuariosCollection = await db.collection('usuarios')
     // generamos un password aleatorio
@@ -178,11 +179,13 @@ export const updateSubDominio = async (req, res) => {
 export const disabledSubDominio = async (req, res) => {
   const { _id } = req.params
   const empresa = req.body.empresaData
+  console.log({ _id, empresa })
   // const isSuperAdmin = req?.isSuperAdmin
   // if (!isSuperAdmin) return res.status(400).json({ error: 'Este usuario no tiene permiso para desactivar un sub-dominio' })
   try {
     const db = await accessToDataBase(dataBasePrincipal)
     const isActive = !empresa.activo
+    console.log({ isActive })
     const subDominiosCollection = await db.collection('sub-dominios')
     await subDominiosCollection.updateOne({ _id: new ObjectId(_id) }, { $set: { activo: isActive } })
     const usuariosCollection = await db.collection('usuarios')
@@ -192,7 +195,8 @@ export const disabledSubDominio = async (req, res) => {
     const dbSubDominio = await accessToDataBase(empresa.subDominio)
     const subDominioEmpresaCollectionsName = formatCollectionName({ enviromentEmpresa: empresa.subDominio, nameCollection: 'empresa' })
     const subDominioEmpresaCollections = await dbSubDominio.collection(subDominioEmpresaCollectionsName)
-    await subDominioEmpresaCollections.updateOne({}, { $set: { activo: isActive } })
+    const pruebaUpdate = await subDominioEmpresaCollections.updateOne({}, { $set: { activo: isActive } })
+    console.log({ pruebaUpdate })
     return res.status(200).json({ status: 'Sub-dominio desactivado' })
   } catch (e) {
     // console.log(e)

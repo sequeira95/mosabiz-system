@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getCollectionSD, upsertItemSD, updateManyItemSD, formatCollectionName, deleteManyItemsSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getCollectionSD, upsertItemSD, updateManyItemSD, formatCollectionName, deleteManyItemsSD, getItemSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 
 export const getTerceros = async (req, res) => {
@@ -217,10 +217,16 @@ export const saveTercerosMany = async (req, res) => {
 export const deleteTercero = async (req, res) => {
   const { clienteId, _id } = req.body
   try {
-    await deleteItemSD({ nameCollection: 'terceros', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
     const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+    const hasRegistrosContables = await getItemSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      filters: { terceroId: new ObjectId(_id), periodoId: { $in: periodosActivos } }
+    })
+    if (hasRegistrosContables) throw new Error('El tercero tiene registros contables asociados')
+    await deleteItemSD({ nameCollection: 'terceros', enviromentClienteId: clienteId, filters: { _id: new ObjectId(_id) } })
     console.log({ periodosActivos })
-    await updateManyItemSD(
+    /* await updateManyItemSD(
       {
         nameCollection: 'detallesComprobantes',
         enviromentClienteId: clienteId,
@@ -231,7 +237,7 @@ export const deleteTercero = async (req, res) => {
             terceroId: null
           }
         }
-      })
+      }) */
     return res.status(200).json({ status: 'Tercero eliminado exitosamente' })
   } catch (e) {
     console.log(e.message)
@@ -336,5 +342,27 @@ export const mergeTerceros = async (req, res) => {
   } catch (e) {
     console.log(e.message)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar los terceros' + e.message })
+  }
+}
+export const cleanRegistros = async (req, res) => {
+  const { clienteId, _id } = req.body
+  try {
+    const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+    await updateManyItemSD(
+      {
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        filters: { terceroId: new ObjectId(_id), periodoId: { $in: periodosActivos } },
+        update: {
+          $set: {
+            terceroNombre: null,
+            terceroId: null
+          }
+        }
+      })
+    return res.status(200).json({ status: 'El tercero ha sido limpiado de todos los registros contables' })
+  } catch (e) {
+    console.log(e.message)
+    return res.status(500).json({ error: 'Error de servidor al momento de limpiar los registros del tercero' + e.message })
   }
 }

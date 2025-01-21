@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { encryptPassword } from '../utils/hashPassword.js'
 import { senEmail } from '../utils/nodemailsConfing.js'
-import { accessToDataBase, formatCollectionName } from '../utils/dataBaseConfing.js'
+import { accessToDataBase, deleteItem, formatCollectionName } from '../utils/dataBaseConfing.js'
 import { dataBasePrincipal } from '../constants.js'
 // import { formatCollectionName } from '../utils/formatCollectionName.js'
 import moment from 'moment/moment.js'
@@ -257,5 +257,21 @@ export const deleteManySubDominios = async (req, res) => {
   } catch (e) {
     // console.log(e)
     return res.status(500).json({ error: 'Error al eliminar Sub-dominios' })
+  }
+}
+export const deleteSubDominio = async (req, res) => {
+  const empresa = req.body.empresaData
+  console.log({ empresa })
+  try {
+    await deleteItem({
+      nameCollection: 'sub-dominios',
+      filters: { _id: new ObjectId(empresa._id) }
+    })
+    const dbSubDominio = await accessToDataBase(empresa.subDominio)
+    await dbSubDominio.dropDatabase()
+    return res.status(200).json({ status: 'Sub-dominio eliminado' })
+  } catch (e) {
+    // console.log(e)
+    return res.status(500).json({ error: 'Error al eliminar Sub-dominio' })
   }
 }

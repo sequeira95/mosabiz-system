@@ -20,18 +20,19 @@ export const login = async (req, res) => {
       if (!empresa) res.status(500).json({ error: 'No existe empresa' })
       if (empresa.activo === false) return res.status(500).json({ error: 'Empresa desactivada' })
       const usuario = await getItemSD({ nameCollection: 'usuarios', filters: { _id: new ObjectId(uid) } })
-      if (!usuario) res.status(500).json({ error: 'No existe usuario' })
-      if (usuario.activo === false) res.status(500).json({ error: 'Usuario desactivado' })
-      if (moment(fechaActPass).valueOf() !== moment(usuario.fechaActPass).valueOf()) res.status(500).json('Contraseña no coinciden')
+      if (!usuario) return res.status(500).json({ error: 'No existe usuario' })
+      if (usuario.activo === false) return res.status(500).json({ error: 'Usuario desactivado' })
+      if (moment(fechaActPass).valueOf() !== moment(usuario.fechaActPass).valueOf()) return res.status(500).json('Contraseña no coinciden')
       if (deviceId !== usuario.deviceId) {
-        res.status(500).json({ error: '' })
+        return res.status(500).json({ error: '' })
       }
       const persona = await getItemSD({ nameCollection: 'personas', filters: { usuarioId: new ObjectId(usuario._id) } })
+      if (!persona) return res.status(500).json({ error: 'No existe usuario' })
       let cliente = {}
       if (persona.clienteId) {
         cliente = await getItemSD({ nameCollection: 'clientes', filters: { _id: new ObjectId(persona.clienteId) } })
-        if (!cliente) res.status(500).json({ error: 'No existe cliente' })
-        if (cliente.activo === false) res.status(500).json({ error: 'El cliente se encuentra inactivo' })
+        if (!cliente) return res.status(500).json({ error: 'No existe cliente' })
+        if (cliente.activo === false) return res.status(500).json({ error: 'El cliente se encuentra inactivo' })
       }
       return res.status(200).json({ persona, empresa, cliente })
     } catch (e) {
@@ -59,7 +60,6 @@ export const login = async (req, res) => {
       if (cliente.activo === false) return res.status(403).json({ error: 'El cliente no se encuentra activo' })
     }
     const deviceId = new ObjectId(null).toString()
-    console.log({ deviceId })
     const { token, expiresIn } = generateTokenSD({
       uid: usuario._id,
       fechaActPass: usuario.fechaActPass,

@@ -3305,6 +3305,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
   let cuentaPago = null
   let periodo = null
   let comprobante = null
+  const numeroFacturaMasAltoByMetodo = {}
   if (tieneContabilidad) {
     cuentaIva = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaIva?._id) } })
     cuentaCosto = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaCosto?._id) } })
@@ -3546,6 +3547,11 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
       }
       let caja = null
       let sucursal = null
+      let metodoFacturacion = null
+      let serie = null
+      let useImpresoraFiscal = false
+      let cantidadCeros = null
+      let longitudNumeroControl = null
       if (filtros.sucursal) {
         sucursal = new ObjectId(filtros.sucursal._id)
         if (documento.numeroReporteZ) {
@@ -3554,8 +3560,43 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         } else {
           caja = new ObjectId(filtros.caja._id)
         }
+        const numeroControl = documento.numeroReporteZ ? documento.numeroControl : null
+        serie = !documento.numeroReporteZ ? documento.numeroControl.replace(/[0-9-]/g, '').trim() : null
+        if (numeroControl) {
+          metodoFacturacion = await getItemSD({
+            nameCollection: 'metodosFacturacion',
+            enviromentClienteId: clienteId,
+            filters: { numeroControl }
+          })
+          useImpresoraFiscal = true
+        } else if (serie) {
+          metodoFacturacion = await getItemSD({
+            nameCollection: 'metodosFacturacion',
+            enviromentClienteId: clienteId,
+            filters: { serie }
+          })
+        } else {
+          metodoFacturacion = await getItemSD({
+            nameCollection: 'metodosFacturacion',
+            enviromentClienteId: clienteId,
+            filters: { tipo: 'predeterminado' }
+          })
+        }
+        if (!metodoFacturacion) throw new Error(`El método de facturación con el N° control ${documento.numeroControl} no se encuentra registrado`)
+        if (metodoFacturacion.tipo !== 'maquina') {
+          // se valida longitud y posicion del gion del numero de control
+          if (documento.numeroControl?.length !== Number(metodoFacturacion.longitudNumeroControl)) throw new Error(`El documento con el N° control ${documento.numeroControl} debe tener ${metodoFacturacion.longitudNumeroControl} caracteres`)
+          if (documento.numeroControl?.split('-')[0].length !== Number(metodoFacturacion.gionPosition)) throw new Error(`El documento con el N° control ${documento.numeroControl} debe tener un guión en la posición ${(metodoFacturacion.gionPosition)}`)
+        }
+        cantidadCeros = metodoFacturacion.cantidadCeros
+        longitudNumeroControl = metodoFacturacion.longitudNumeroControl
       }
       const venta = {
+        metodoId: metodoFacturacion ? new ObjectId(metodoFacturacion._id) : null,
+        serie,
+        useImpresoraFiscal,
+        cantidadCeros,
+        longitudNumeroControl,
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
         fecha: moment(documento.fecha).toDate(),
@@ -3595,6 +3636,7 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         isImportadoExcel: true,
         estado: documento.razonSocial !== 'DOCUMENTO ANULADO' ? null : 'anulado'
       }
+      numeroFacturaMasAltoByMetodo[venta.metodoId] = (numeroFacturaMasAltoByMetodo[venta.metodoId] || 0) > Number(venta.numeroFactura) ? numeroFacturaMasAltoByMetodo[venta.metodoId] : Number(venta.numeroFactura)
       documentosFacturas.push(venta)
       if (tieneContabilidad) {
         let tercero = null
@@ -3687,6 +3729,15 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
       enviromentClienteId: clienteId,
       items: documentosFacturas
     })
+    for (const metodoId in numeroFacturaMasAltoByMetodo) {
+      if (!metodoId) continue
+      await upsertItemSD({
+        nameCollection: 'contadores',
+        enviromentClienteId: clienteId,
+        filters: { tipo: 'venta-Factura', metodoId: new ObjectId(metodoId) },
+        update: { $set: { contador: numeroFacturaMasAltoByMetodo[metodoId], existe: true } }
+      })
+    }
   }
   if (asientosContables[0]) {
     createManyItemsSD({
@@ -3704,6 +3755,10 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
   let cuentaPago = null
   let periodo = null
   let comprobante = null
+  const numeroFacturaMasAltoByMetodo = {
+    'Nota de débito': {},
+    'Nota de crédito': {}
+  }
   if (tieneContabilidad) {
     cuentaIva = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaIva?._id) } })
     cuentaCosto = await getItemSD({ nameCollection: 'planCuenta', enviromentClienteId: clienteId, filters: { _id: new ObjectId(filtros?.cuentaCosto?._id) } })
@@ -4009,6 +4064,11 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
       if (!facturaAfectada) throw new Error(`La factura N° ${documento.numeroFacturaAfectada} no se encuentra registrada`)
       let caja = null
       let sucursal = null
+      let metodoFacturacion = null
+      let serie = null
+      let useImpresoraFiscal = false
+      let cantidadCeros = null
+      let longitudNumeroControl = null
       if (filtros.sucursal) {
         sucursal = new ObjectId(filtros.sucursal._id)
         if (documento.numeroReporteZ) {
@@ -4017,16 +4077,52 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         } else {
           caja = new ObjectId(filtros.caja._id)
         }
+        const numeroControl = documento.numeroReporteZ ? documento.numeroControl : null
+        serie = !documento.numeroReporteZ ? documento.numeroControl.replace(/[0-9-]/g, '').trim() : null
+        if (numeroControl) {
+          metodoFacturacion = await getItemSD({
+            nameCollection: 'metodosFacturacion',
+            enviromentClienteId: clienteId,
+            filters: { numeroControl }
+          })
+          useImpresoraFiscal = true
+        } else if (serie) {
+          metodoFacturacion = await getItemSD({
+            nameCollection: 'metodosFacturacion',
+            enviromentClienteId: clienteId,
+            filters: { serie }
+          })
+        } else {
+          metodoFacturacion = await getItemSD({
+            nameCollection: 'metodosFacturacion',
+            enviromentClienteId: clienteId,
+            filters: { tipo: 'predeterminado' }
+          })
+        }
+        if (!metodoFacturacion) throw new Error(`El método de facturación con el N° control ${documento.numeroControl} no se encuentra registrado`)
+        if (metodoFacturacion.tipo !== 'maquina') {
+          // se valida longitud y posicion del gion del numero de control
+          if (documento.numeroControl?.length !== Number(metodoFacturacion.longitudNumeroControl)) throw new Error(`El documento con el N° control ${documento.numeroControl} debe tener ${metodoFacturacion.longitudNumeroControl} caracteres`)
+          if (documento.numeroControl?.split('-')[0].length !== Number(metodoFacturacion.gionPosition)) throw new Error(`El documento con el N° control ${documento.numeroControl} debe tener un guión en la posición ${(metodoFacturacion.gionPosition)}`)
+        }
+        cantidadCeros = metodoFacturacion.cantidadCeros
+        longitudNumeroControl = metodoFacturacion.longitudNumeroControl
       }
       const razonSocial = documento.razonSocial !== 'DOCUMENTO ANULADO' ? proveedor?.razonSocial : 'DOCUMENTO ANULADO'
+      const tipoDocumento = tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()]
       const venta = {
+        metodoId: metodoFacturacion ? new ObjectId(metodoFacturacion._id) : null,
+        serie,
+        useImpresoraFiscal,
+        cantidadCeros,
+        longitudNumeroControl,
         fechaCreacion: moment().toDate(),
         tipoMovimiento: documento.tipoMovimiento,
         fecha: moment(documento.fecha).toDate(),
         fechaVencimiento: moment().toDate(),
         numeroFactura: documento.numeroFactura,
         facturaAsociada: facturaAfectada?._id,
-        tipoDocumento: tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()],
+        tipoDocumento, // tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()],
         numeroReporteZ: documento.numeroReporteZ,
         numeroControl: documento.numeroControl,
         activo: false,
@@ -4065,6 +4161,8 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
       if (!documento.documentoIdentidad && razonSocial === 'DOCUMENTO ANULADO') {
         venta.estado = 'anulado'
       }
+      numeroFacturaMasAltoByMetodo[tipoDocumento][venta.metodoId] = (numeroFacturaMasAltoByMetodo[tipoDocumento][venta.metodoId] || 0) > Number(venta.numeroFactura) ? numeroFacturaMasAltoByMetodo[tipoDocumento][venta.metodoId] : Number(venta.numeroFactura)
+
       documentosFiscales.push(venta)
       if (tieneContabilidad /* && venta.estado !== 'anulado' */) {
         let tercero = null
@@ -4220,6 +4318,17 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
       enviromentClienteId: clienteId,
       items: documentosFiscales
     })
+    for (const tipoDcoumento in numeroFacturaMasAltoByMetodo) {
+      for (const metodoId in tipoDcoumento) {
+        if (!metodoId) continue
+        await upsertItemSD({
+          nameCollection: 'contadores',
+          enviromentClienteId: clienteId,
+          filters: { tipo: `venta-${tipoDcoumento}`, metodoId: new ObjectId(metodoId) },
+          update: { $set: { contador: numeroFacturaMasAltoByMetodo[tipoDcoumento][metodoId], existe: true } }
+        })
+      }
+    }
   }
   if (asientosContables[0]) {
     createManyItemsSD({

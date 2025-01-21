@@ -189,6 +189,7 @@ export const saveDetalleComprobanteToArray = async (req, res) => {
     if (comprobante.isBloqueado) return res.status(400).json({ error: 'El comprobante se encuentra bloqueado' })
   } catch (e) {
     console.log(e)
+    return res.status(500).json({ error: 'Error de servidor al buscar el comprobante: ' + e.message })
   }
   try {
     const fechaCreacion = moment()

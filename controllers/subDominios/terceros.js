@@ -1,22 +1,28 @@
 import { ObjectId } from 'mongodb'
-import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getCollectionSD, upsertItemSD, updateManyItemSD, formatCollectionName, deleteManyItemsSD, getItemSD } from '../../utils/dataBaseConfing.js'
+import { agreggateCollectionsSD, bulkWriteSD, deleteItemSD, getCollectionSD, upsertItemSD, updateManyItemSD, formatCollectionName, deleteManyItemsSD, getItemSD, createManyItemsSD } from '../../utils/dataBaseConfing.js'
 import { subDominioName } from '../../constants.js'
 
 export const getTerceros = async (req, res) => {
-  const { clienteId, cuentaId, combinarTerceros } = req.body
+  const { clienteId, cuentasId, combinarTerceros } = req.body
   try {
-    console.log(req.body)
+    // console.log(req.body)
     const matchConfig = {}
-    if (cuentaId) {
+    /* if (cuentaId) {
       matchConfig.cuentaId = new ObjectId(cuentaId)
-    }
+    } */
     const groupCombinar = []
-    if (combinarTerceros) {
+    if (combinarTerceros || (cuentasId && cuentasId[0])) {
+      if (cuentasId && cuentasId[0]) {
+        matchConfig.cuentaId = { $in: cuentasId.map((e) => new ObjectId(e._id)) }
+      }
       groupCombinar.push({
         $group: {
           _id: '$nombre',
           cuentas: {
             $push: { codigo: '$cuenta.codigo', descripcion: '$cuenta.descripcion', _id: '$cuenta._id' }
+          },
+          ids: {
+            $push: '$_id'
           },
           nombre: {
             $first: '$nombre'
@@ -53,7 +59,7 @@ export const getTerceros = async (req, res) => {
     })
     return res.status(200).json({ terceros })
   } catch (e) {
-    console.log(e.message)
+    console.log(e)
     return res.status(500).json({ error: 'Error de servidor al momento de buscar los terceros' + e.message })
   }
 }
@@ -108,7 +114,7 @@ export const theRealGetTerceros = async (req, res) => {
   }
 }
 export const saveTerceros = async (req, res) => {
-  const { nombre, clienteId, _id, cuentaId, multiCuentas } = req.body
+  const { nombre, clienteId, _id, cuentaId, cuentasId, multiCuentas } = req.body
   const nombreUppercase = String(nombre).trim().toUpperCase()
   try {
     if (multiCuentas && multiCuentas[0]) {
@@ -171,6 +177,23 @@ export const saveTerceros = async (req, res) => {
           }
         })
       return res.status(200).json({ status: 'Tercero creado exitosamente', tercero })
+    }
+    if (cuentasId[0]) {
+      const createItems = []
+      for (const cuenta of cuentasId) {
+        createItems.push({
+          nombre: nombreUppercase,
+          cuentaId: new ObjectId(cuenta._id)
+        })
+      }
+      if (createItems[0]) {
+        await createManyItemsSD({
+          nameCollection: 'terceros',
+          enviromentClienteId: clienteId,
+          items: createItems
+        })
+        return res.status(200).json({ status: 'Tercero creado exitosamente' })
+      }
     }
     const tercero = await upsertItemSD({
       nameCollection: 'terceros',
@@ -361,6 +384,93 @@ export const cleanRegistros = async (req, res) => {
         }
       })
     return res.status(200).json({ status: 'El tercero ha sido limpiado de todos los registros contables' })
+  } catch (e) {
+    console.log(e.message)
+    return res.status(500).json({ error: 'Error de servidor al momento de limpiar los registros del tercero' + e.message })
+  }
+}
+export const cleanMany = async (req, res) => {
+  const { clienteId, terceros } = req.body
+  try {
+    console.log(terceros)
+    const idsTerceros = []
+    const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+    for (const tercero of terceros) {
+      if (tercero?.cuentaId) {
+        idsTerceros.push(tercero._id)
+      }
+      if (tercero?.cuentas && tercero?.cuentas[0]) {
+        idsTerceros.push(...tercero.ids)
+      }
+    }
+    console.log({ idsTerceros })
+    await updateManyItemSD(
+      {
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        filters: { terceroId: { $in: idsTerceros.map(e => new ObjectId(e)) }, periodoId: { $in: periodosActivos } },
+        update: {
+          $set: {
+            terceroNombre: null,
+            terceroId: null
+          }
+        }
+      })
+    return res.status(200).json({ status: 'los terceros han sido limpiado de todos los registros contables' })
+  } catch (e) {
+    console.log(e.message)
+    return res.status(500).json({ error: 'Error de servidor al momento de limpiar los registros del tercero' + e.message })
+  }
+}
+export const deleteMany = async (req, res) => {
+  const { clienteId, terceros } = req.body
+  try {
+    console.log(terceros)
+    const idsTerceros = []
+    const periodosActivos = (await getCollectionSD({ nameCollection: 'periodos', enviromentClienteId: clienteId, filters: { activo: true } })).map(e => new ObjectId(e._id))
+    for (const tercero of terceros) {
+      if (tercero?.cuentaId) {
+        idsTerceros.push(tercero._id)
+      }
+      if (tercero?.cuentas && tercero?.cuentas[0]) {
+        idsTerceros.push(...tercero.ids)
+      }
+    }
+    console.log({ idsTerceros })
+    const validarRegistros = await agreggateCollectionsSD({
+      nameCollection: 'detallesComprobantes',
+      enviromentClienteId: clienteId,
+      pipeline: [
+        {
+          $match: {
+            terceroId: { $in: idsTerceros.map(e => new ObjectId(e)) },
+            periodoId: { $in: periodosActivos }
+          }
+        },
+        { $limit: 1 }
+      ]
+    })
+    if (validarRegistros[0]) throw new Error('Existen terceros que tienen registros contables asociados')
+    await deleteManyItemsSD({
+      nameCollection: 'terceros',
+      enviromentClienteId: clienteId,
+      filters: {
+        _id: { $in: idsTerceros.map(e => new ObjectId(e)) },
+      }
+    })
+    await updateManyItemSD(
+      {
+        nameCollection: 'detallesComprobantes',
+        enviromentClienteId: clienteId,
+        filters: { terceroId: { $in: idsTerceros.map(e => new ObjectId(e)) }, periodoId: { $in: periodosActivos } },
+        update: {
+          $set: {
+            terceroNombre: null,
+            terceroId: null
+          }
+        }
+      })
+    return res.status(200).json({ status: 'los terceros han sido limpiado de todos los registros contables' })
   } catch (e) {
     console.log(e.message)
     return res.status(500).json({ error: 'Error de servidor al momento de limpiar los registros del tercero' + e.message })

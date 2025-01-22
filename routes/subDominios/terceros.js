@@ -1,6 +1,6 @@
 import express from 'express'
 import { requireSubDominioToken } from '../../middlewares/requireSubDominioToken.js'
-import { saveTerceros, getTerceros, deleteTercero, saveTercerosMany, theRealGetTerceros, mergeTerceros, cleanRegistros } from '../../controllers/subDominios/terceros.js'
+import { saveTerceros, getTerceros, deleteTercero, saveTercerosMany, theRealGetTerceros, mergeTerceros, cleanRegistros, cleanMany, deleteMany } from '../../controllers/subDominios/terceros.js'
 
 const router = express.Router()
 
@@ -11,4 +11,6 @@ router.post('/save-many', requireSubDominioToken, saveTercerosMany)
 router.post('/delete', requireSubDominioToken, deleteTercero)
 router.post('/merge', requireSubDominioToken, mergeTerceros)
 router.post('/clean', requireSubDominioToken, cleanRegistros)
+router.post('/cleanMany', requireSubDominioToken, cleanMany)
+router.post('/deleteMany', requireSubDominioToken, deleteMany)
 export default router

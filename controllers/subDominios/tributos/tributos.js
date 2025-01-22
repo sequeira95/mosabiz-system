@@ -3560,8 +3560,8 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         } else {
           caja = new ObjectId(filtros.caja._id)
         }
-        const numeroControl = documento.numeroReporteZ ? documento.numeroControl : null
-        serie = !documento.numeroReporteZ ? documento.numeroControl.replace(/[0-9-]/g, '').trim() : null
+        const numeroControl = !documento.numeroControl.includes('-') ? documento.numeroControl : null
+        serie = documento.numeroControl.includes('-') ? documento.numeroFactura.replace(/[0-9-]/g, '').trim() : null
         if (numeroControl) {
           metodoFacturacion = await getItemSD({
             nameCollection: 'metodosFacturacion',
@@ -3601,7 +3601,8 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
         tipoMovimiento: documento.tipoMovimiento,
         fecha: moment(documento.fecha).toDate(),
         fechaVencimiento: moment().toDate(),
-        numeroFactura: documento.numeroFactura,
+        numeroFactura: String(Number(documento.numeroFactura.replace(/\D/g, ''))),
+        numero: Number(documento.numeroFactura.replace(/\D/g, '')),
         tipoDocumento: 'Factura',
         numeroControl: documento.numeroControl,
         numeroReporteZ: documento.numeroReporteZ,
@@ -3731,11 +3732,13 @@ const createFacturas = async ({ documentos, moneda, uid, tipo, clienteId, client
     })
     for (const metodoId in numeroFacturaMasAltoByMetodo) {
       if (!metodoId) continue
+      const contador = await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: 'venta-Factura', metodoId: new ObjectId(metodoId) } })
+      const nuevoValor = (contador.contador || 0) > numeroFacturaMasAltoByMetodo[metodoId] ? contador.contador : numeroFacturaMasAltoByMetodo[metodoId]
       await upsertItemSD({
         nameCollection: 'contadores',
         enviromentClienteId: clienteId,
         filters: { tipo: 'venta-Factura', metodoId: new ObjectId(metodoId) },
-        update: { $set: { contador: numeroFacturaMasAltoByMetodo[metodoId], existe: true } }
+        update: { $set: { contador: nuevoValor, existe: true } }
       })
     }
   }
@@ -4077,8 +4080,8 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         } else {
           caja = new ObjectId(filtros.caja._id)
         }
-        const numeroControl = documento.numeroReporteZ ? documento.numeroControl : null
-        serie = !documento.numeroReporteZ ? documento.numeroControl.replace(/[0-9-]/g, '').trim() : null
+        const numeroControl = !documento.numeroControl.includes('-') ? documento.numeroControl : null
+        serie = documento.numeroControl.includes('-') ? documento.numeroFactura.replace(/[0-9-]/g, '').trim() : null
         if (numeroControl) {
           metodoFacturacion = await getItemSD({
             nameCollection: 'metodosFacturacion',
@@ -4120,7 +4123,8 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
         tipoMovimiento: documento.tipoMovimiento,
         fecha: moment(documento.fecha).toDate(),
         fechaVencimiento: moment().toDate(),
-        numeroFactura: documento.numeroFactura,
+        numeroFactura: metodoFacturacion ? String(Number(documento.numeroFactura.replace(/\D/g, ''))) : documento.numeroFactura,
+        numero: Number(documento.numeroFactura.replace(/\D/g, '')),
         facturaAsociada: facturaAfectada?._id,
         tipoDocumento, // tiposDocumentos[documento?.tipoDocumento?.replaceAll(' ', '')?.toLowerCase()],
         numeroReporteZ: documento.numeroReporteZ,
@@ -4321,11 +4325,13 @@ const createNotasDebitoCredito = async ({ documentos, moneda, uid, tipo, cliente
     for (const tipoDcoumento in numeroFacturaMasAltoByMetodo) {
       for (const metodoId in tipoDcoumento) {
         if (!metodoId) continue
+        const contador = await getItemSD({ nameCollection: 'contadores', enviromentClienteId: clienteId, filters: { tipo: `venta-${tipoDcoumento}`, metodoId: new ObjectId(metodoId) } })
+        const nuevoValor = (contador?.contador || 0) > numeroFacturaMasAltoByMetodo[tipoDcoumento][metodoId] ? contador?.contador : numeroFacturaMasAltoByMetodo[tipoDcoumento][metodoId]
         await upsertItemSD({
           nameCollection: 'contadores',
           enviromentClienteId: clienteId,
           filters: { tipo: `venta-${tipoDcoumento}`, metodoId: new ObjectId(metodoId) },
-          update: { $set: { contador: numeroFacturaMasAltoByMetodo[tipoDcoumento][metodoId], existe: true } }
+          update: { $set: { contador: nuevoValor, existe: true } }
         })
       }
     }

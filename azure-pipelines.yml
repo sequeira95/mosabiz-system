@@ -32,7 +32,7 @@ stages:
     steps:
     - task: NodeTool@0
       inputs:
-        versionSpec: '18.x'
+        versionSpec: '20.x'
       displayName: 'Install Node.js'
 
     - script: |
@@ -75,6 +75,6 @@ stages:
               ResourceGroupName: 'AibizGrupo'
               SlotName: 'production'
               packageForLinux: '$(Pipeline.Workspace)/drop/$(Build.BuildId).zip'
-              RuntimeStack: 'NODE|18-lts'
+              RuntimeStack: 'NODE|20-lts'
               StartupCommand: 'npm run start'
               ConfigurationSettings: 'ENABLE_ORYX_BUILD=0'

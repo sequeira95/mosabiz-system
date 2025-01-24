@@ -178,7 +178,7 @@ export const saveTerceros = async (req, res) => {
         })
       return res.status(200).json({ status: 'Tercero creado exitosamente', tercero })
     }
-    if (cuentasId[0]) {
+    if (cuentasId && cuentasId[0]) {
       const createItems = []
       for (const cuenta of cuentasId) {
         createItems.push({
